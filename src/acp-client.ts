@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
+import manifest from "../package.json" with { type: "json" };
 
 export interface AcpBridgeOptions {
   cwd: string;
@@ -197,7 +198,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         const response = await connection.agent.request(acp.methods.agent.initialize, {
           protocolVersion: 1,
           clientCapabilities: {},
-          clientInfo: { name: "opencode-a2a-lite", version: "0.1.0" },
+          clientInfo: { name: "opencode-a2a-lite", version: manifest.version },
         });
         if (response.protocolVersion !== 1) throw new Error("Unsupported ACP version");
         ready = true;

@@ -224,6 +224,36 @@ real assistant text while working, cancels via the CLI, checks canceled task loo
 then verifies that owned workspace processes stopped before removing temporary files.
 Neither live probe prints model reasoning or raw provider diagnostics.
 
+## Releases
+
+Maintainers need Bun, Git, `make`, and an authenticated GitHub CLI (`gh`) with
+repository contents write access. Start on the repository's default branch with
+a clean working tree and HEAD matching `origin` (commit and push changes first).
+
+```sh
+make release                 # Default: patch, e.g. 0.1.0 -> 0.1.1
+make release BUMP=patch
+make release BUMP=minor       # e.g. 0.1.1 -> 0.2.0
+make release BUMP=major       # e.g. 0.2.0 -> 1.0.0
+make release VERSION=0.1.0    # Explicit version; also supports the first release
+```
+
+`VERSION` takes precedence over `BUMP`. Versions must be plain `x.y.z`, cannot
+decrease, and must have an unused `v`-prefixed tag. The command fetches `origin`,
+runs `make check`, updates and commits `package.json` when the version changes,
+creates an annotated tag, atomically pushes the default branch and tag, then
+publishes a GitHub release on `origin` with generated notes. Runtime Agent Card
+and ACP client versions come from `package.json`. It does not publish to npm or
+attach binaries; GitHub provides source archives. Branch protection still applies.
+
+Failures stop without deleting commits or tags. If the push fails, resolve the
+reported cause, then push the retained release commit/tag with
+`git push --atomic origin HEAD:refs/heads/<default-branch> refs/tags/v<version>`.
+If GitHub publication fails after pushing, inspect `gh release view v<version>`;
+if no release exists, retry with
+`gh release create v<version> --verify-tag --generate-notes --title v<version>`.
+Do not rerun the bump command to recover an existing release tag.
+
 ## Configuration
 
 | Setting                | Description                                              | Default                                              |

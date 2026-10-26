@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { connect, createServer } from "node:net";
 import { fileURLToPath } from "node:url";
+import manifest from "../package.json" with { type: "json" };
 import { createGateway, type ServerOptions } from "../src/server.js";
 
 const gateways: ReturnType<typeof createGateway>[] = [];
@@ -61,6 +62,7 @@ test("serves an official v1 card only after ACP initializes; closes terminally",
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({
     name: "OpenCode A2A Lite",
+    version: manifest.version,
     supportedInterfaces: [{ url: ready.url, protocolBinding: "JSONRPC", protocolVersion: "1.0" }],
     capabilities: { streaming: true, pushNotifications: false, extendedAgentCard: false },
     skills: [{ id: "text-prompt", inputModes: ["text/plain"], outputModes: ["text/plain"] }],

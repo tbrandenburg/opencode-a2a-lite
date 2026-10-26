@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import express from "express";
+import manifest from "../package.json" with { type: "json" };
 import { A2A_PROTOCOL_VERSION, AGENT_CARD_PATH, type AgentCard } from "@a2a-js/sdk";
 import type { AgentExecutor } from "@a2a-js/sdk/server";
 import { agentCardHandler, jsonRpcHandler, UserBuilder } from "@a2a-js/sdk/server/express";
@@ -79,7 +80,7 @@ export function createGateway(options: ServerOptions) {
             "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
           supportedInterfaces: [],
           provider: undefined,
-          version: "0.1.0",
+          version: manifest.version,
           capabilities: {
             streaming: true,
             pushNotifications: false,
