@@ -1,5 +1,21 @@
 # opencode-a2a-lite
 
+```text
+███ ██  ███ █ █ ███ ███ ██  ███      █  ██   █      █   ███ ███ ███
+█ █ █ █ █   ███ █   █ █ █ █ █       █ █   █ █ █     █    █   █  █
+█ █ ██  ██  ███ █   █ █ █ █ ██  ███ ███  █  ███ ███ █    █   █  ██
+█ █ █   █   ███ █   █ █ █ █ █       █ █ █   █ █     █    █   █  █
+███ █   ███ █ █ ███ ███ ██  ███     █ █ ███ █ █     ███ ███  █  ███
+```
+
+> Expose OpenCode through A2A, with ACP doing the heavy lifting.
+
+[![Build](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
+
+**A thin, prompt-oriented bridge—not another execution engine.**
+
 A small OpenCode ACP-to-A2A gateway. The ACP bridge and official
 A2A v1 server support text execution, streaming, context/session continuity, and
 global single-turn admission, bounded cancellation, and owned-process shutdown.
@@ -9,7 +25,22 @@ Architecture: **A2A 1.0 → stable ACP v1 → OpenCode 2.0.28**. The gateway has
 OpenCode HTTP adapter, database, recovery engine, or automatic prompt retry.
 See [architecture](/docs/architecture.md) and [pitfalls](/docs/pitfalls.md).
 
-## Development
+## Highlights
+
+- **Official SDKs:** A2A JSON-RPC/SSE and stable ACP v1, without OpenCode HTTP adapters.
+- **Live conversations:** streamed assistant text and follow-up tasks in the same context.
+- **Honest outcomes:** completion comes from the ACP prompt result; cancellation races retain the actual outcome.
+- **Small footprint:** one managed ACP subprocess, one active prompt globally, in-memory state and no database.
+
+## Quick start
+
+### Prerequisites
+
+- Linux, Bun **1.3.9**, and Node.js **22+** for the deterministic subprocess compatibility probe.
+- `jq` for stream-verifier tests; GNU `timeout` for the live demo.
+- OpenCode **2.0.28**, the official [`a2a` CLI](https://github.com/a2aproject/a2a-cli) (tested with **0.3.1**), and real model access for live commands.
+
+### Install
 
 Use Bun **1.3.9** (pinned in `package.json` and CI) with the locked dependencies:
 
@@ -18,34 +49,21 @@ make install
 make check
 ```
 
-`make install` uses `bun install --frozen-lockfile`; dependency versions are exact.
-`make check` runs formatting, lint, type checking, subprocess tests, and compilation.
-Type checking includes source, tests, fixtures, and TypeScript scripts (including
-the opt-in live probes). The test command is scoped to `tests/`, so generated
-`dist/` tests and user `.agents/` files are not discovered. Formatting and lint
-respect the ignored generated/user directories.
+### Configure and run
 
-Stream-verifier tests require `jq`. Tests use the official ACP SDK with a local
-subprocess peer; no model credentials, `opencode`, `a2a`, or running OpenCode service
-are needed. Regression coverage includes initialization/session reuse, text input
-validation, root-text filtering/order, artifact appends without duplication,
-terminal/unknown stop reasons, stale contexts, global busy admission, cancellation
-races, permission denial, deadlines, and owned-process cleanup.
-
-The [CI workflow](/.github/workflows/ci.yml) runs `make install` and `make check`
-on pushes and pull requests using Ubuntu 24.04, Bun 1.3.9, immutable action SHAs,
-and an explicit `jq` installation. It does not configure provider secrets or run
-paid/live probes. `make doctor` checks local prerequisites without installing
-software; its OpenCode, A2A CLI, and GNU `timeout` checks are for live workflows.
-`make e2e` is an opt-in, billable real-model acceptance gate; it is never invoked
-by `make check` or CI. See [acceptance evidence and limitations](/docs/acceptance.md).
-
-## Live demo
+For the isolated demo, securely provide `OPENAI_API_KEY` in the environment.
+The demo uses `openai/gpt-6-luna` and a disposable, tool-restricted workspace;
+it does not modify your OpenCode configuration.
 
 ```sh
 # Set OPENAI_API_KEY securely in your environment, then:
 make demo
 ```
+
+Expected result: verified CLI discovery, streamed task completion, a follow-up
+recalling a random marker, and successful owned-process/workspace cleanup.
+
+### What the demo verifies
 
 Requires Linux, Bun, reviewed `opencode v2.0.28`, the official `a2a` CLI (verified
 with v0.3.1), `jq`, and GNU `timeout`. It makes two billable model requests using
@@ -68,7 +86,7 @@ workspace processes stopped before removing temporary files. Diagnostics remain
 private and are deleted, not echoed as raw stderr or model reasoning. Failure
 reports identify the stage; no user configuration is modified.
 
-## Text gateway
+## Usage
 
 ```sh
 A2A_WORKSPACE=/absolute/path/to/trusted/workspace make run
@@ -149,7 +167,7 @@ connections are terminated 1s after bridge shutdown. Only the bridge's owned
 subprocess group is signalled. Confirmed ACP cancellation yields canceled; a timeout,
 transport closure, or process death yields failed rather than invented cancellation.
 
-## ACP bridge
+### ACP bridge
 
 [`createAcpBridge`](/src/acp-client.ts) takes a trusted absolute `cwd`, optional
 `executable`, `args` (default `["acp"]`), and `env` (default a snapshot of the parent
@@ -201,7 +219,92 @@ real assistant text while working, cancels via the CLI, checks canceled task loo
 then verifies that owned workspace processes stopped before removing temporary files.
 Neither live probe prints model reasoning or raw provider diagnostics.
 
-## Real acceptance
+## Configuration
+
+| Setting                | Description                                              | Default                                              |
+| ---------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
+| `A2A_WORKSPACE`        | Existing, trusted absolute workspace path                | Required                                             |
+| `A2A_PORT`             | Loopback HTTP port; `0` chooses an OS-assigned free port | `41241`                                              |
+| OpenCode configuration | Provider, model, agent, tool/plugin/MCP permissions      | Operator-controlled workspace and launch environment |
+| `OPENAI_API_KEY`       | Credential used by the isolated demo and live probes     | Required for those commands; never printed           |
+| `TCK_DIR`              | External checkout of the pinned official TCK             | Required only for `make e2e-tck`                     |
+
+The production gateway inherits OpenCode configuration; it does not use a separate
+HTTP API selector or silently choose another backend. Never commit credentials.
+Programmatic timeout and context-capacity options are described above.
+
+## How it works
+
+1. The official A2A SDK accepts a text message and manages its task and SSE events.
+2. The executor maps its context to an ACP session and streams root assistant text into one artifact.
+3. The ACP prompt's `stopReason` determines the final task state—not admission, idle status, or emitted text.
+
+```text
+Official A2A CLI / client
+          | JSON-RPC + SSE
+          v
+   server.ts -> executor.ts -> acp-client.ts
+                                  | stable ACP v1 / stdio
+                                  v
+                            opencode acp
+```
+
+The SDK owns task storage and event delivery. A narrow
+[`request-handler.ts`](/src/request-handler.ts) adapter avoids duplicate artifact
+persistence during SDK 1.3 cancellation. See [architecture](/docs/architecture.md).
+
+## Commands
+
+| Command                        | Description                                                        |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `make help`                    | List available commands                                            |
+| `make install`                 | Install the frozen Bun lockfile                                    |
+| `make check`                   | Format check, lint, strict types, deterministic tests and build    |
+| `make dev`                     | Run the foreground TypeScript watch server                         |
+| `make build`                   | Compile TypeScript into `dist/`                                    |
+| `make run`                     | Build and run the compiled foreground server                       |
+| `make fmt` / `make fmt-check`  | Format with Oxfmt / check without changes                          |
+| `make lint` / `make typecheck` | Run Oxlint / strict TypeScript checking                            |
+| `make test`                    | Run deterministic tests without model access                       |
+| `make doctor`                  | Check local prerequisites without installing software              |
+| `make demo`                    | Real isolated CLI conversation with streamed completion and recall |
+| `make e2e`                     | Real-model acceptance, including cancellation and failure paths    |
+| `make e2e-tck`                 | Applicable checks from the externally installed official TCK       |
+| `make clean`                   | Remove generated build and test artifacts                          |
+
+## Compatibility and limitations
+
+Verified with Bun 1.3.9, OpenCode 2.0.28, A2A 1.0, stable ACP v1, and a2a CLI 0.3.1.
+Windows is unsupported. There is no Node/npm fallback workflow because Bun passed
+the subprocess, stream, and real ACP compatibility gates.
+
+This is a single-process, trusted-workspace gateway: no authentication, multi-tenancy,
+parallel prompt execution, durable recovery, rich media, interactive approval/forms,
+push notifications, outbound A2A, or request-scoped model/workspace selection.
+Task/context state is ephemeral, and an unhealthy ACP bridge requires a gateway restart.
+Full TCK certification and live permission-callback invocation are not claimed;
+see [the exact acceptance scope](/docs/acceptance.md).
+
+## Development
+
+```sh
+make install
+make check
+```
+
+`make install` uses `bun install --frozen-lockfile`; dependency versions are exact.
+`make check` runs formatting, lint, type checking, subprocess tests, and compilation.
+Type checking includes source, tests, fixtures, and TypeScript scripts. Tests target
+`./tests`, excluding generated copies and user-installed skills. Formatting and lint
+also exclude generated/user directories.
+
+Tests use the official ACP SDK with a controlled subprocess peer, not a paid model.
+They cover lifecycle failures, ordering, permissions, busy/stale contexts, cancellation
+races, timeouts, and cleanup. The [CI workflow](/.github/workflows/ci.yml) runs locked
+installation and `make check` on pushes and pull requests without provider secrets.
+Live probes are opt-in; they never run as part of ordinary CI.
+
+### Real acceptance
 
 ```sh
 # Requires the same isolated live prerequisites as the demo:
@@ -222,6 +325,26 @@ not skip. The applicable 17-check subset passed, but the broader TCK run had fiv
 scenario-SUT failures; **full TCK conformance is not claimed**. Installation,
 revision pins, exact results, the permission-callback limitation, and the source
 size/scope comparison are recorded in [docs/acceptance.md](/docs/acceptance.md).
+
+## Security
+
+Do not expose this unauthenticated loopback service through a public proxy. Review
+the workspace and effective OpenCode permissions, plugins, MCP servers and provider
+configuration before running it. Denying ACP permission requests is not an OS sandbox,
+and cancellation is not rollback. Demo/E2E isolation does not apply automatically
+to ordinary `make run` launches.
+
+Do not post credentials, private prompts, reasoning, or raw provider logs in issues.
+For vulnerability reporting, use the repository's
+[GitHub security reporting options](https://github.com/tbrandenburg/opencode-a2a-lite/security).
+
+## Contributing
+
+Keep changes focused on the thin gateway. Read [AGENTS.md](/AGENTS.md),
+[architecture](/docs/architecture.md), and [pitfalls](/docs/pitfalls.md), run
+`make check`, and describe behavioral evidence and limitations in your PR.
+Changes to streaming, permissions, cancellation, or lifecycle need the relevant
+live acceptance checks as well as deterministic regressions.
 
 ## License
 
