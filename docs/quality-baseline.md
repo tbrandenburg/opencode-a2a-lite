@@ -30,7 +30,7 @@ CI summary/artifact steps use `always()` so earlier failures still produce avail
 - Deterministic test inventory: `tests/**/*.test.ts`: 7 files, 1,423 physical lines at that revision. Fixtures, scripts and opt-in live harnesses are excluded, as are dependencies, generated output and worktrees. Blank/comment lines count; a trailing newline does not add an extra line.
 - Oxlint warns on production complexity above 10 and production files above 200 physical lines. Deterministic test files warn above 500 physical lines. `skipBlankLines` and `skipComments` are explicitly false. No `max-lines-per-function` rule is enabled. Existing warnings are review prompts, not a demand for mechanical function splitting.
 - The initial local `make check` after this change passed 93 tests / 376 assertions with whole-test-process wall time 36.481s. Six structural diagnostics were warnings: source sizes 332 and 223; complexity values 11, 14, 21 and 13. These observations are not a runtime distribution or budget.
-- After integrating the cancellation regressions, the coordinator's CI-equivalent gate passed 131 tests / 583 assertions across 9 files with whole-test-process wall time 36.734s. Production stayed at 801 physical lines; deterministic test files totalled 1,733. See [acceptance evidence](/docs/acceptance.md) for the real-model gate and review results.
+- After integrating the cancellation regressions and reporting follow-up, the coordinator's CI-equivalent gate passed 131 tests / 583 assertions across 9 files with whole-test-process wall time 35.397s. Production stayed at 801 physical lines; deterministic test files totalled 1,733. See [acceptance evidence](/docs/acceptance.md) for the real-model gate and review results.
 
 The issue records an intermittent `ACP startup timed out` with the server success fixture's 800ms startup deadline. The coordinator subsequently observed another unchanged-root baseline pass (93/376), followed by a post-build run with 7/93 failures (344 assertions, 48.59s): server SSE, five invalid-input/ACP-failure cases, and incomplete-HTTP shutdown failed during fixture startup. Discovery remained 93 tests across 7 files. Concurrent agent activity was present, but this does not prove causality. The exact scheduling/root cause is unproven.
 
@@ -46,7 +46,9 @@ Select any runtime warning budget only after comparable hosted measurements. Con
 
 ## CI supply chain and references
 
-Checkout is pinned to verified `actions/checkout` v7.0.1 commit `3d3c42e5aac5ba805825da76410c181273ba90b1`, whose action metadata declares Node 24 (runner v2.327.1+). `contents: read`, `push`/`pull_request`, and `persist-credentials: false` remain unchanged. Artifact upload is also SHA-pinned and uses Node 24. Removal of the checkout runtime annotation still needs verification in an actual hosted run.
+Checkout is pinned to verified `actions/checkout` v7.0.1 commit `3d3c42e5aac5ba805825da76410c181273ba90b1`, whose action metadata declares Node 24 (runner v2.327.1+). `contents: read`, `push`/`pull_request`, and `persist-credentials: false` remain unchanged. Artifact upload is also SHA-pinned and uses Node 24. Hosted verification is recorded in the implementation PR; local checks alone do not establish removal of runtime annotations or successful artifact publication.
+
+Hosted reporting prints a completion notice rather than replaying captured GitHub annotation commands. Complete diagnostics remain in the step summary and uploaded Markdown, without duplicating the annotations emitted by the lint step.
 
 Research used current Context7 documentation and these primary sources, checked against the installed pinned tools:
 

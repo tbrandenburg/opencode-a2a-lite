@@ -2,11 +2,11 @@
 
 ## Safeguard follow-up verification
 
-Coordinator verification at **2026-10-26T08:49:01Z** for issues #1 and #2:
+Coordinator verification at **2026-10-26T08:54:36Z** for issues #1 and #2:
 
 - CI-equivalent `make check` with native coverage/JUnit passed **131 tests,
   0 failures, 583 assertions across 9 files**, plus formatting, lint, strict
-  types and build. The measured test process took 36.734s; this is an observation,
+  types and build. The measured test process took 35.397s; this is an observation,
   not a runtime budget. Six pre-existing structural findings remain warnings.
 - JUnit contained 131 test cases and zero failures/errors; LCOV included the four
   expected production modules. Production remains 4 files / 801 physical lines;
@@ -23,6 +23,10 @@ Coordinator verification at **2026-10-26T08:49:01Z** for issues #1 and #2:
 - `bun test ./tests/server.test.ts --rerun-each=5` passed 85 tests / 355 assertions
   without retries. Both independent adversarial reviews returned zero findings.
   A final `/proc` ownership check found zero remaining live-acceptance processes.
+- Hosted CI exposed duplicated annotations from replaying captured workflow
+  commands. A reporting-only follow-up retained complete summary/artifact
+  diagnostics while suppressing their replay on stdout; a coordinator probe
+  confirmed six retained diagnostics and zero re-emitted annotation commands.
 
 The stock SDK defect is reported as
 [a2aproject/a2a-js#798](https://github.com/a2aproject/a2a-js/issues/798).

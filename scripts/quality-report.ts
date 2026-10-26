@@ -104,4 +104,8 @@ await mkdir(".test-results", { recursive: true });
 const markdown = lines.join("\n");
 await writeFile(".test-results/quality-summary.md", markdown);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
-console.log(markdown);
+console.log(
+  process.env.GITHUB_STEP_SUMMARY
+    ? "Quality report written to the job summary and .test-results/quality-summary.md."
+    : markdown,
+);
