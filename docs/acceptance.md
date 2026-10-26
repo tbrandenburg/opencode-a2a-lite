@@ -1,5 +1,41 @@
 # Real acceptance evidence
 
+## Safeguard follow-up verification
+
+Coordinator verification at **2026-10-26T08:54:36Z** for issues #1 and #2:
+
+- CI-equivalent `make check` with native coverage/JUnit passed **131 tests,
+  0 failures, 583 assertions across 9 files**, plus formatting, lint, strict
+  types and build. The measured test process took 35.397s; this is an observation,
+  not a runtime budget. Six pre-existing structural findings remain warnings.
+- JUnit contained 131 test cases and zero failures/errors; LCOV included the four
+  expected production modules. Production remains 4 files / 801 physical lines;
+  deterministic test files are 9 files / 1,733 physical lines, excluding fixtures.
+- A deliberately failing test in a disposable directory made the real test
+  wrapper exit 1 and record exit 1. The probe was removed; no failure was hidden.
+- `make e2e` passed **14/14 real-model production-entrypoint scenarios** after
+  integration and adversarial review. Production source remained unchanged; its
+  source-tree hash still matches the four-file hash recorded below.
+- After integration, `bun tests/live-cancellation.ts` passed with real root text,
+  confirmed cancellation, stored canceled state and owned-process cleanup.
+  A loopback port-0 bind checked free-port allocation before each live gate;
+  no existing service was stopped.
+- `bun test ./tests/server.test.ts --rerun-each=5` passed 85 tests / 355 assertions
+  without retries. Both independent adversarial reviews returned zero findings.
+  A final `/proc` ownership check found zero remaining live-acceptance processes.
+- Hosted CI exposed duplicated annotations from replaying captured workflow
+  commands. A reporting-only follow-up retained complete summary/artifact
+  diagnostics while suppressing their replay on stdout; a coordinator probe
+  confirmed six retained diagnostics and zero re-emitted annotation commands.
+
+The stock SDK defect is reported as
+[a2aproject/a2a-js#798](https://github.com/a2aproject/a2a-js/issues/798).
+[Cancellation evidence](/docs/sdk-cancellation.md) keeps issue #1 open until a
+fixed official SDK release passes its removal gate.
+[Quality measurements](/docs/quality-baseline.md) distinguish native function/line
+coverage from unmeasured branch coverage and mutation score. The remaining
+sections preserve the original MVP acceptance evidence and its historical counts.
+
 ## Outcome and limits
 
 The real production-entrypoint acceptance gate passed **14/14 scenarios**.

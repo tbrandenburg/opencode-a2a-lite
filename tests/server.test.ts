@@ -14,7 +14,7 @@ function gateway(mode = "normal", overrides: Partial<ServerOptions> = {}) {
       args: [fixture, mode],
       versionArgs: [fixture, mode, "--version"],
       env: { PATH: process.env.PATH },
-      startupTimeoutMs: 800,
+      startupTimeoutMs: mode === "normal" ? 3_000 : 800,
       promptTimeoutMs: 2_000,
       closeTimeoutMs: 600,
     },

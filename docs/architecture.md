@@ -32,6 +32,12 @@ Keep v1 scope narrow: map each A2A context to one ACP session in memory, reuse i
 - `acp-client.ts` owns the pinned subprocess, persistent stable-v1 connection, update filtering, permission denial, deadlines and process cleanup. It never retries an uncertain prompt.
 - `request-handler.ts` keeps the SDK's `InMemoryTaskStore` but synchronizes cancellation with its original event consumer; this avoids SDK 1.3 duplicate artifact persistence. This narrow workaround is regression-tested, not a second task database.
 
+The cancellation adapter depends on the original SDK persistence consumer staying
+alive. Explicitly closing the public SDK stream generator is distinct from an
+HTTP client disconnect and is not a supported takeover mechanism. See
+[SDK cancellation evidence](/docs/sdk-cancellation.md) before changing the
+adapter or the transport's stream-consumption lifecycle.
+
 ## Deliberately unsupported
 
 OpenCode HTTP adapters, ACP v2, rich file/image inputs, reasoning/tool output, interactive permission/forms, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.

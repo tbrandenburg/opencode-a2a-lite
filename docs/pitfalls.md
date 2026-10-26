@@ -34,6 +34,10 @@ SDK 1.3's default cancellation event consumer reprocesses artifact appends while
 the original execution consumer is active. The gateway's public-interface adapter
 uses the existing consumer's terminal store save instead; regression tests require
 exact stored text through cancellation and natural-completion races.
+Do not replace that adapter with stock cancellation based only on a release
+number. Verify the append reproducer and persistence ownership after explicit
+generator closure, HTTP disconnect, and slow consumption as separate cases;
+see [SDK cancellation evidence](/docs/sdk-cancellation.md).
 
 - [ACP v1 initialization](https://agentclientprotocol.com/protocol/v1/initialization)
 - [ACP v1 session setup](https://agentclientprotocol.com/protocol/v1/session-setup)
