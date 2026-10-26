@@ -250,3 +250,12 @@ production readiness.
 
 - [SDK cancellation workaround](https://github.com/tbrandenburg/opencode-a2a-lite/issues/1): remove the narrow adapter only after upstream fixes and regression verification.
 - [Quality-drift baseline](https://github.com/tbrandenburg/opencode-a2a-lite/issues/2): measure structural gates before extending the MVP; no extra infrastructure is part of this implementation.
+
+## Publication identity
+
+Tested implementation commit: `7914804242bd7a75779a2232f5c3320a130f2d5a`.
+This documentation-only follow-up records that commit without modifying the
+tested production, test, or script source trees. The hashes above remain unchanged.
+Remote CI results are recorded in the implementation PR rather than inferred from
+local checks. This first subprocess/security-boundary implementation is left open
+for maintainer review rather than automatically merged as a low-risk change.
