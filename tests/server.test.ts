@@ -253,11 +253,57 @@ test("shutdown bounds a client that leaves its HTTP request incomplete", async (
     client.once("error", reject);
   });
   try {
+    const started = performance.now();
     await instance.close();
     await disconnected;
+    expect(performance.now() - started).toBeLessThan(2_500);
     expect(client.destroyed).toBe(true);
     await expect(fetch(ready.url)).rejects.toThrow();
   } finally {
     client.destroy();
   }
+});
+
+test("Bun shutdown rejects work with 503 throughout the HTTP drain before closing its listener", async () => {
+  let executions = 0;
+  const instance = gateway("normal", {
+    createExecutor() {
+      return {
+        async execute() {
+          executions++;
+          throw new Error("Shutdown admitted work");
+        },
+        async cancelTask() {
+          throw new Error("Unexpected cancellation");
+        },
+      };
+    },
+  });
+  const ready = await instance.start();
+  const started = performance.now();
+  const closing = instance.close();
+  expect(instance.close()).toBe(closing);
+  const response = await fetch(ready.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "SendMessage",
+      params: {
+        message: { messageId: "drain", role: "ROLE_USER", parts: [{ text: "hello" }] },
+      },
+    }),
+  });
+  expect(response.status).toBe(503);
+  expect(await response.text()).toBe("");
+  expect(executions).toBe(0);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const card = await fetch(new URL(".well-known/agent-card.json", ready.url));
+  expect(card.status).toBe(503);
+  expect(await card.text()).toBe("");
+  await closing;
+  expect(performance.now() - started).toBeGreaterThanOrEqual(1_000);
+  expect(executions).toBe(0);
+  await expect(fetch(ready.url)).rejects.toThrow();
 });

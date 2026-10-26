@@ -45,16 +45,31 @@ export function createGateway(options: ServerOptions) {
         if (!server.listening) return resolve();
         let timer: ReturnType<typeof setTimeout> | undefined;
         let ended = false;
-        const grace = () => {
-          if (!ended) timer = setTimeout(() => server.closeAllConnections(), 1_000);
-        };
-        void bridge.close().then(grace, grace);
-        server.close((error) => {
+        const finish = (error?: Error) => {
           ended = true;
           clearTimeout(timer);
+          server.removeListener("close", finish);
           if (error) return reject(new Error("HTTP shutdown failed"));
           resolve();
-        });
+        };
+        const grace = () => {
+          if (ended) return;
+          timer = setTimeout(() => {
+            try {
+              server.closeAllConnections();
+            } catch {
+              finish(new Error("HTTP force-close failed"));
+            }
+          }, 1_000);
+        };
+        void bridge.close().then(grace, grace);
+        // Bun close() loses the handle needed to force-close incomplete HTTP headers.
+        // Keep the listener through the drain; closing middleware rejects new work.
+        if (process.versions.bun) {
+          server.once("close", finish);
+          return;
+        }
+        server.close(finish);
       });
       const results = await Promise.allSettled([http, bridge.close()]);
       if (results.some((result) => result.status === "rejected"))

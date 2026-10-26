@@ -165,10 +165,11 @@ not imported by the production gateway.
 
 [`createGateway`](/src/server.ts) provides reusable `start()` / idempotent terminal
 `close()` and accepts `createExecutor(bridge)` as an optional executor override.
-No HTTP port opens on workspace/ACP initialization failure. SIGINT/SIGTERM close
-the listener and stop admitting requests, attempt bounded cancellation of active
-work, then send stdin EOF with a grace period before escalating. Lingering HTTP
-connections are terminated 1s after bridge shutdown. Only the bridge's owned
+No HTTP port opens on workspace/ACP initialization failure. SIGINT/SIGTERM stop
+admitting requests, attempt bounded cancellation of active work, then send stdin
+EOF with a grace period before escalating. On Bun, the loopback listener remains
+open but returns HTTP 503 for new requests through bridge cleanup and the following
+1s HTTP drain; it is then force-closed with lingering connections. Only the bridge's owned
 subprocess group is signalled. Confirmed ACP cancellation yields canceled; a timeout,
 transport closure, or process death yields failed rather than invented cancellation.
 
