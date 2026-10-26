@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build run fmt fmt-check lint typecheck test check release doctor demo e2e e2e-tck clean
+.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke release doctor demo e2e e2e-tck clean
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -33,7 +33,10 @@ test: ## Run tests
 
 check: fmt-check lint typecheck test build ## Run deterministic local checks
 
-release: ## Bump, check, commit, tag, push and publish (BUMP=patch|minor|major or VERSION=x.y.z)
+package-smoke: ## Pack and test the installed tarball outside the checkout (npm required; no provider)
+	bun run package-smoke
+
+release: ## Bump, check, commit, tag, push and create a GitHub release, not npm (BUMP=patch|minor|major or VERSION=x.y.z)
 	bun scripts/release.ts "$(or $(VERSION),$(BUMP),patch)"
 
 doctor: ## Check local development prerequisites

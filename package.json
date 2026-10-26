@@ -1,12 +1,34 @@
 {
-  "name": "opencode-a2a-lite",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@tbrandenburg/opencode-a2a-lite",
+  "version": "0.1.1",
+  "description": "Loopback-only OpenCode ACP to A2A gateway for trusted workspaces",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tbrandenburg/opencode-a2a-lite.git"
+  },
+  "bin": {
+    "opencode-a2a-lite": "dist/src/cli.js"
+  },
+  "files": [
+    "dist/src/*.js",
+    "dist/package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "linux"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun dist/src/server.js",
     "build": "tsc --noEmit false --outDir dist --rootDir .",
+    "prepack": "rm -rf dist/src && bun run build && chmod +x dist/src/cli.js",
+    "package-smoke": "bun scripts/package-smoke.ts",
     "fmt": "oxfmt",
     "fmt-check": "oxfmt --check",
     "lint": "oxlint .",
@@ -27,6 +49,7 @@
     "typescript": "7.0.2"
   },
   "engines": {
+    "bun": "1.3.9",
     "node": ">=22"
   },
   "packageManager": "bun@1.3.9"
