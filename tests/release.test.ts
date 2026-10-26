@@ -46,6 +46,9 @@ function fixture() {
     GIT_CONFIG_GLOBAL: "/dev/null",
     GH_PROMPT_DISABLED: "1",
   };
+  ["MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "VERSION", "BUMP"].forEach((key) =>
+    Reflect.deleteProperty(env, key),
+  );
   Object.keys(env)
     .filter(
       (key) =>
