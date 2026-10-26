@@ -32,6 +32,8 @@ jobs:
         run: >-
           make check LINT_FLAGS='--format github'
           TEST_FLAGS='--coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage --reporter=junit --reporter-outfile=.test-results/junit.xml'
+      - name: Verify installed npm tarball without provider credentials
+        run: make package-smoke
       - name: Summarize quality measurements
         if: always()
         run: bun scripts/quality-report.ts

@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import manifest from "../package.json" with { type: "json" };
+import { StartupError } from "./startup-error.js";
 
 export interface AcpBridgeOptions {
   cwd: string;
@@ -52,9 +53,9 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       }
     | undefined;
 
-  function fail(message: string) {
+  function fail(message: string | StartupError) {
     if (failure.signal.aborted) return;
-    failure.abort(new Error(message));
+    failure.abort(message instanceof StartupError ? message : new Error(message));
     ready = false;
     connection?.close();
     // Retain the cleanup result for close(); request errors never contain peer diagnostics.
@@ -84,9 +85,9 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             cleanup();
             resolve(result);
           },
-          () => {
+          (error: unknown) => {
             cleanup();
-            fail(`ACP ${label} failed`);
+            fail(error instanceof StartupError ? error : `ACP ${label} failed`);
             reject(failure.signal.reason);
           },
         );
@@ -125,12 +126,12 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             }
             output += data.toString();
           });
-          probe.once("error", () => reject(new Error("ACP executable unavailable")));
+          probe.once("error", () => reject(new StartupError("executable")));
           probe.once("close", (code) =>
-            code === 0 ? resolve(output.trim()) : reject(new Error("ACP executable failed")),
+            code === 0 ? resolve(output.trim()) : reject(new StartupError("executable")),
           );
         });
-        if (version !== "opencode v2.0.28") throw new Error("Unsupported OpenCode executable");
+        if (version !== "opencode v2.0.28") throw new StartupError("version");
         if (failure.signal.aborted || stopping) throw new Error("ACP bridge closed");
         if (signalGroup(0)) throw new Error("ACP executable left owned descendants");
         child = spawn(executable, args, {

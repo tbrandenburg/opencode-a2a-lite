@@ -2,10 +2,15 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 
 const expected = [
   "src/acp-client.ts",
+  "src/cli-options.ts",
+  "src/cli.ts",
   "src/executor.ts",
   "src/request-handler.ts",
   "src/server.ts",
+  "src/startup-error.ts",
 ];
+// The executable runs in separate package-smoke processes, outside Bun's LCOV run.
+const subprocessOnly = ["src/cli.ts"];
 async function optional(path: string) {
   try {
     return await readFile(path, "utf8");
@@ -73,6 +78,7 @@ const lines = [
   "## Native coverage",
   "",
   "Function/line counters only; per-file LCOV counts, not Bun's displayed per-file-average aggregate. Branch coverage: **unmeasured**. Mutation score: **unmeasured**.",
+  `Subprocess-only entrypoints: [${subprocessOnly.join(", ")}]. Installed package smoke exercises these; native coverage remains unmeasured and is not merged from child processes.`,
   "",
   lcov
     ? `Source files missing from LCOV: [${missing.map((entry) => entry.file).join(", ")}].`
@@ -97,7 +103,11 @@ const lines = [
   "```",
   "",
 ];
-if (absent.length || unexpected.length || (lcov && missing.length)) {
+if (
+  absent.length ||
+  unexpected.length ||
+  (lcov && missing.some((entry) => !subprocessOnly.includes(entry.file)))
+) {
   console.warn("::warning::Quality report production/coverage inventory differs; inspect summary.");
 }
 await mkdir(".test-results", { recursive: true });

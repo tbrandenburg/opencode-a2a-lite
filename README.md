@@ -36,17 +36,63 @@ See [architecture](/docs/architecture.md) and [pitfalls](/docs/pitfalls.md).
 
 ### Prerequisites
 
-- Linux, Bun **1.3.9**, and Node.js **22+** for the deterministic subprocess compatibility probe.
-- `jq` for stream-verifier tests; GNU `timeout` for the live demo.
-- OpenCode **2.0.28**, the official [`a2a` CLI](https://github.com/a2aproject/a2a-cli) (tested with **0.3.1**), and real model access for live commands.
+- Linux, Bun **1.3.9**, and exactly **`opencode v2.0.28`** on PATH.
+- Reviewed OpenCode provider/model configuration and real model access for prompts.
+- The separate official [`a2a` CLI](https://github.com/a2aproject/a2a-cli) (tested with **0.3.1**) is the client, not part of this gateway.
+- Contributors also need Node.js **22+** for the subprocess compatibility probe,
+  `jq` for stream-verifier tests, and GNU `timeout` for the live demo. Packaging checks need npm.
 
-### Install
+### One-command launch (unreleased)
+
+**The proposed npm package `@tbrandenburg/opencode-a2a-lite` is unreleased.**
+Its namespace ownership and registry acceptance must be verified before publication;
+`private: true` prevents accidental publishing. The following is the intended
+post-publication UX, not a claim that a registry package is available:
+
+```sh
+# 1. In an explicitly trusted workspace, start the foreground gateway:
+bunx @tbrandenburg/opencode-a2a-lite --workspace .
+# Alternative package runner, with Bun AND npm/Node installed:
+npx --yes @tbrandenburg/opencode-a2a-lite --workspace .
+
+# 2. In another terminal, discover the card:
+a2a card get http://127.0.0.1:41241
+# 3. Stream a prompt:
+a2a send -a http://127.0.0.1:41241 'Reply with a short greeting.' --stream
+# Optional: continue with the actual contextId from the previous response:
+a2a send -a http://127.0.0.1:41241 --context-id <returned-context-id> 'Follow-up question'
+```
+
+Use one launch command, not both simultaneously. `npx` is a package runner, **not
+a Node-only runtime replacement**: the executable's Bun shebang requires Bun on PATH.
+No repository clone, `make`, or consumer TypeScript compilation is needed for the
+prebuilt tarball. Pin `@<version>` after publication for reproducible launches.
+
+`--workspace <path>` is an explicit trust decision: relative paths (including `.`)
+are resolved to absolute paths; paths with spaces must be quoted. The gateway
+never implicitly trusts the current directory. It inherits OpenCode configuration,
+tools, plugins and MCP; review and isolate those sources before launching. It is
+not a sandbox. **Never expose this unauthenticated server through a public proxy.**
+
+`--workspace` overrides `A2A_WORKSPACE` (which still requires an absolute path).
+`--port <0..65535>` overrides `A2A_PORT`; default `41241`, or use `0` for an
+OS-assigned port. Read stdout's `{"ready":true,"url":"http://127.0.0.1:.../"}`
+and use that actual URL for client commands. SIGINT/SIGTERM stop the foreground
+gateway and its owned ACP process group. `--help`/`-h` and `--version`/`-v` do not
+require OpenCode, workspace or provider access. Invalid arguments fail nonzero
+without reflecting untrusted input or peer diagnostics.
+
+### Run from source (available now)
 
 Use Bun **1.3.9** (pinned in `package.json` and CI) with the locked dependencies:
 
 ```sh
 make install
 make check
+# Optional provider-free tarball installation/CLI checks (requires npm):
+make package-smoke
+# Same CLI, directly from the checkout:
+bun src/cli.ts --workspace . --port 0
 ```
 
 ### Configure and run
@@ -227,6 +273,11 @@ Neither live probe prints model reasoning or raw provider diagnostics.
 
 ## Releases
 
+The workflow below creates **GitHub releases only**, not npm packages. For the
+separate secure npm publication and required external-directory/registry acceptance,
+see [distribution and manual npm release](/docs/distribution.md). The proposed npm
+scope remains unverified/unreleased until that procedure is completed.
+
 Maintainers need Bun, Git, `make`, and an authenticated GitHub CLI (`gh`) with
 repository contents write access. Start on the repository's default branch with
 a clean working tree and HEAD matching `origin` (commit and push changes first).
@@ -296,6 +347,7 @@ persistence during SDK 1.3 cancellation. See [architecture](/docs/architecture.m
 | `make help`                    | List available commands                                            |
 | `make install`                 | Install the frozen Bun lockfile                                    |
 | `make check`                   | Format check, lint, strict types, deterministic tests and build    |
+| `make package-smoke`           | Inspect and run an npm tarball outside the checkout; no provider   |
 | `make dev`                     | Run the foreground TypeScript watch server                         |
 | `make build`                   | Compile TypeScript into `dist/`                                    |
 | `make run`                     | Build and run the compiled foreground server                       |
@@ -311,8 +363,8 @@ persistence during SDK 1.3 cancellation. See [architecture](/docs/architecture.m
 ## Compatibility and limitations
 
 Verified with Bun 1.3.9, OpenCode 2.0.28, A2A 1.0, stable ACP v1, and a2a CLI 0.3.1.
-Windows is unsupported. There is no Node/npm fallback workflow because Bun passed
-the subprocess, stream, and real ACP compatibility gates.
+Windows is unsupported. There is no Node-only runtime fallback: `npx` can launch
+the packaged executable, but still needs Bun for subprocess/ACP behavior.
 
 This is a single-process, trusted-workspace gateway: no authentication, multi-tenancy,
 parallel prompt execution, durable recovery, rich media, interactive approval/forms,
@@ -337,7 +389,11 @@ also exclude generated/user directories.
 Tests use the official ACP SDK with a controlled subprocess peer, not a paid model.
 They cover lifecycle failures, ordering, permissions, busy/stale contexts, cancellation
 races, timeouts, and cleanup. The [CI workflow](/.github/workflows/ci.yml) runs locked
-installation and `make check` on pushes and pull requests without provider secrets.
+installation, `make check`, and `make package-smoke` on pushes and pull requests
+without provider secrets. The package smoke uses a disposable npm cache and consumer
+directory outside the checkout, installs runtime dependencies from the registry,
+and runs the installed `bin` via `npm exec`. It uses the controlled ACP fixture
+for startup/lifecycle, not a live model or evidence of registry publication.
 Live probes are opt-in; they never run as part of ordinary CI.
 See [quality baseline](/docs/quality-baseline.md) for warning-first size/complexity
 reporting, whole-test runtime, native function/line coverage, and measurement limits.
