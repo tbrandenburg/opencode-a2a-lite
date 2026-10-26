@@ -2,10 +2,11 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` is a **provisional, unreleased name**. Namespace
-ownership and actual registry acceptance are not established by packaging tests.
-Keep `private: true` until the maintainer verifies ownership and explicitly decides
-to publish. Do not mark issue #6 complete based only on a local tarball.
+`@tbrandenburg/opencode-a2a-lite` **0.1.1** is prepared for public distribution.
+The maintainer has authorized removal of `private: true`; public npm access is
+configured, but authenticated namespace ownership and actual registry acceptance
+are not established. Do not publish to npm until ownership is verified, or mark
+issue #6 complete based only on a local tarball or a GitHub release.
 
 Supported runtime: Linux, Bun 1.3.9, exact `opencode v2.0.28` on PATH, an existing
 explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
@@ -51,9 +52,10 @@ notes. Do not add registry credentials to the repository.
    user scope (or has verified organization publish rights). A registry 404 or an
    available name is **not** proof of ownership. Inspect package/version availability
    using `npm view <verified-package> --json` without printing credential files.
-2. Through a reviewed change, set the verified package name, intended release
-   version and repository URL, and remove `private: true` only when publication is
-   authorized. Keep the single bin and public access setting. Refresh `bun.lock`
+2. Through a reviewed change, confirm the verified package name, intended release
+   version and repository URL. Version 0.1.1 has public publication authorized and
+   `private: true` removed; this does not establish npm scope ownership.
+   Keep the single bin and public access setting. Refresh `bun.lock`
    with Bun and update the README to the verified name. Commit/push through normal
    repository review; start release verification from a clean checkout of that commit.
 3. Remove stale generated output with `make clean`, then run `make install`,

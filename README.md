@@ -44,10 +44,10 @@ See [architecture](/docs/architecture.md) and [pitfalls](/docs/pitfalls.md).
 
 ### One-command launch (unreleased)
 
-**The proposed npm package `@tbrandenburg/opencode-a2a-lite` is unreleased.**
-Its namespace ownership and registry acceptance must be verified before publication;
-`private: true` prevents accidental publishing. The following is the intended
-post-publication UX, not a claim that a registry package is available:
+**npm-registry publication of `@tbrandenburg/opencode-a2a-lite` is pending.**
+Version **0.1.1** is prepared for public distribution, but npm authentication and
+namespace ownership must be verified before registry publication. The following
+is the intended post-publication UX, not a claim that an npm package is available:
 
 ```sh
 # 1. In an explicitly trusted workspace, start the foreground gateway:
@@ -276,7 +276,7 @@ Neither live probe prints model reasoning or raw provider diagnostics.
 The workflow below creates **GitHub releases only**, not npm packages. For the
 separate secure npm publication and required external-directory/registry acceptance,
 see [distribution and manual npm release](/docs/distribution.md). The proposed npm
-scope remains unverified/unreleased until that procedure is completed.
+scope remains unverified and registry publication is pending until that procedure is completed.
 
 Maintainers need Bun, Git, `make`, and an authenticated GitHub CLI (`gh`) with
 repository contents write access. Start on the repository's default branch with
