@@ -1,9 +1,31 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript"],
+  "ignorePatterns": [
+    ".worktrees/**",
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    ".test-results/**"
+  ],
   "rules": {
     "typescript/no-explicit-any": "error",
     "no-debugger": "error",
     "no-empty": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "complexity": ["warn", { "max": 10 }],
+        "max-lines": ["warn", { "max": 200, "skipBlankLines": false, "skipComments": false }]
+      }
+    },
+    {
+      "files": ["tests/**/*.test.ts"],
+      "rules": {
+        "max-lines": ["warn", { "max": 500, "skipBlankLines": false, "skipComments": false }]
+      }
+    }
+  ]
 }

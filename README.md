@@ -148,6 +148,11 @@ returns not-cancelable while the task retains its actual completed/failed state.
 Repeated cancellation of a canceled task is idempotent. A narrow public-SDK adapter
 waits for the original task-store consumer instead of creating SDK 1.3's second
 cancellation consumer, which would duplicate artifact appends.
+The adapter remains pinned to SDK 1.3.0 until a verified upstream fix is published.
+The persistence defect is reported as [a2a-js#798](https://github.com/a2aproject/a2a-js/issues/798).
+See [SDK cancellation evidence and removal criteria](/docs/sdk-cancellation.md)
+for the reproducer and the distinction between closing an SDK generator and
+disconnecting an HTTP client.
 
 `A2A_WORKSPACE` must name an existing, explicitly trusted absolute directory.
 The server inherits the launch environment and OpenCode configuration: it does
@@ -303,6 +308,8 @@ They cover lifecycle failures, ordering, permissions, busy/stale contexts, cance
 races, timeouts, and cleanup. The [CI workflow](/.github/workflows/ci.yml) runs locked
 installation and `make check` on pushes and pull requests without provider secrets.
 Live probes are opt-in; they never run as part of ordinary CI.
+See [quality baseline](/docs/quality-baseline.md) for warning-first size/complexity
+reporting, whole-test runtime, native function/line coverage, and measurement limits.
 
 ### Real acceptance
 

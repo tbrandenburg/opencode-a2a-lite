@@ -23,13 +23,13 @@ fmt-check: ## Check formatting without changing files
 	bun run fmt-check
 
 lint: ## Lint the project
-	bun run lint
+	bun scripts/quality-run.ts lint $(LINT_FLAGS)
 
 typecheck: ## Type-check the project
 	bun run typecheck
 
 test: ## Run tests
-	bun run test
+	bun scripts/quality-run.ts test $(TEST_FLAGS)
 
 check: fmt-check lint typecheck test build ## Run deterministic local checks
 

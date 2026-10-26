@@ -1,5 +1,12 @@
 {
   "semi": true,
   "singleQuote": false,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "ignorePatterns": [
+    ".worktrees/**",
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    ".test-results/**"
+  ]
 }
