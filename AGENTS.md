@@ -107,6 +107,7 @@ Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
 ## Lessons Learned
 
+- 2026-10-27: Pitfall: Renaming a test and dropping receipt hooks broke external acceptance. Prevention: Treat consumed test-name filters and receipt environment variables as APIs; search their callers and run external acceptance before accepting a test reduction.
 - 2026-10-27: Pitfall: A close-during-initialization test closed before initialization began. Prevention: Synchronize lifecycle failure tests on a peer-side handshake; sleeps and process existence do not prove the target boundary was reached.
 - 2026-10-27: Pitfall: Independent test-budget exceptions exceeded the combined cap. Prevention: Reserve shared headroom before delegation; reconcile expanded counts across scopes and remove cross-layer duplicates only after naming their retained boundary replacements.
 - 2026-10-27: Pitfall: Cross-process readiness readers observed partially written JSON. Prevention: Publish readiness through a same-directory temporary file and atomic rename; test a paused writer with a concurrent reader.
