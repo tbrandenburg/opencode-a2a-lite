@@ -375,6 +375,11 @@ see [the exact acceptance scope](/docs/acceptance.md).
 
 ## Development
 
+For a real OpenCode coordinator delegating through MCP/a2abridge to two independent
+A2A workers, see the opt-in [agent network experiment](/examples/agent-network/README.md)
+and [recorded findings](/docs/agent-network-findings.md). `make network-demo` uses
+live provider access and a separately verified bridge binary; it does not run in CI.
+
 ```sh
 make install
 make check
