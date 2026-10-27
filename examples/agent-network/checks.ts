@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { record, tools } from "./profiles.js";
-import { mcp, payloadText, until } from "./transport.js";
+import { mcp, payloadText } from "./transport.js";
+import { createTaskClient } from "./task-client.js";
 import type { Worker } from "./workers.js";
 
 type Connection = Awaited<ReturnType<typeof mcp>>;
@@ -28,32 +29,39 @@ export async function interoperability(connection: Connection, workers: Worker[]
   const planner = workers[0]!;
   const reviewer = workers[1]!;
   const marker = `continuity-${randomUUID()}`;
-  const first = task(
-    await connection.call("a2a_send_message", {
-      peer_url: planner.url,
-      text: `Remember acceptance token ${marker}. Reply only with the exact token.`,
-      blocking: true,
-    }),
+  const client = createTaskClient(connection, planner.url);
+  const options = { deadline: performance.now() + 90_000 };
+  const submitted = await client.submit(
+    `Remember acceptance token ${marker}. Reply only with the exact token.`,
+    options,
   );
-  assert.equal(state(first), "TASK_STATE_COMPLETED");
-  assert.equal(payloadText(first), marker);
-  const followup = task(
-    await connection.call("a2a_send_message", {
-      peer_url: planner.url,
-      text: "Recall the acceptance token from my earlier message. Reply only with the exact token.",
-      context_id: first.contextId,
-      blocking: true,
-    }),
+  assert(submitted.outcome !== "uncertain", "Submission uncertain; do not retry");
+  const first = await client.wait(submitted, options);
+  assert.equal(first.outcome, "completed");
+  assert.equal(payloadText(first.task), marker);
+  const followOptions = { deadline: performance.now() + 90_000 };
+  const continued = await client.submit(
+    "Recall the acceptance token from my earlier message. Reply only with the exact token.",
+    followOptions,
+    first.handle,
   );
-  assert.equal(payloadText(followup), marker);
-  assert.equal(followup.contextId, first.contextId);
-  assert.notEqual(followup.id, first.id);
+  assert(continued.outcome !== "uncertain", "Continuation uncertain; do not retry");
+  const followup = await client.wait(continued, followOptions);
+  assert.equal(followup.outcome, "completed");
+  assert.equal(payloadText(followup.task), marker);
+  assert.equal(followup.handle.contextId, first.handle.contextId);
+  assert.notEqual(followup.handle.taskId, first.handle.taskId);
   const streamMarker = `stream-${randomUUID()}`;
-  const events = await connection.call("a2a_send_streaming", {
-    peer_url: reviewer.url,
-    text: `Reply only with the exact acceptance token ${streamMarker}.`,
-    timeout_s: 120,
-  });
+  const events = await connection.call(
+    "a2a_send_streaming",
+    {
+      peer_url: reviewer.url,
+      text: `Reply only with the exact acceptance token ${streamMarker}.`,
+      timeout_s: 120,
+    },
+    false,
+    { deadline: performance.now() + 120_000 },
+  );
   assert(Array.isArray(events));
   const updates = events.map(record);
   assert(
@@ -91,23 +99,20 @@ export async function interoperability(connection: Connection, workers: Worker[]
 export async function cancellation(connection: Connection, workers: Worker[]) {
   const planner = workers[0]!;
   const reviewer = workers[1]!;
-  const active = task(
-    await connection.call("a2a_send_message", {
-      peer_url: planner.url,
-      text: "Lifecycle probe: write an original story of at least 8000 words. Start immediately. Do not stop early or use tools.",
-    }),
+  const client = createTaskClient(connection, planner.url);
+  const options = { deadline: performance.now() + 90_000 };
+  const active = await client.submit(
+    "Lifecycle probe: write an original story of at least 8000 words. Start immediately. Do not stop early or use tools.",
+    options,
   );
-  const get = () => connection.call("a2a_get_task", { peer_url: planner.url, task_id: active.id });
-  await until(
-    async () => {
-      const current = task(await get());
-      assert.equal(state(current), "TASK_STATE_WORKING", "Long task ended before intervention");
-      return payloadText(current) ? current : undefined;
-    },
-    "real text before cancellation",
-    90_000,
-    4_000,
-  );
+  assert(active.outcome !== "uncertain", "Submission uncertain; do not retry");
+  const partial = await client.wait(active, {
+    ...options,
+    stopWhen: (current) => !!payloadText(current.task),
+  });
+  assert.equal(partial.outcome, "pending", "Long task ended before intervention");
+  assert(payloadText(partial.task), "No real text before cancellation");
+  const get = () => client.get(active.handle, { deadline: performance.now() + 10_000 });
   const busy = task(
     await connection.call("a2a_send_message", {
       peer_url: planner.url,
@@ -125,14 +130,11 @@ export async function cancellation(connection: Connection, workers: Worker[]) {
     }),
   );
   assert.equal(payloadText(other), "OTHER-WORKER-AVAILABLE");
-  assert.equal(state(await get()), "TASK_STATE_WORKING");
-  const canceled = await connection.call("a2a_cancel_task", {
-    peer_url: planner.url,
-    task_id: active.id,
-  });
-  assert.equal(state(canceled), "TASK_STATE_CANCELED");
-  const stored = task(await get());
-  assert.equal(state(stored), "TASK_STATE_CANCELED");
-  assert(payloadText(stored).length > 0);
+  assert.equal((await get()).outcome, "pending");
+  const canceled = await client.cancel(active.handle, { deadline: performance.now() + 10_000 });
+  assert.equal(canceled.outcome, "canceled");
+  const stored = await get();
+  assert.equal(stored.outcome, "canceled");
+  assert(payloadText(stored.task).length > 0);
   return { actualCancellation: true, busyRejected: true, independentWorkerAvailable: true };
 }
