@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createGateway } from "../../src/server.js";
 import { createAgentExecutor } from "../../src/executor.js";
 import { cleanup } from "../../scripts/acp-smoke-config.js";
@@ -22,8 +23,27 @@ export interface WorkerReceipt {
   receivedPeerProofs: string[];
 }
 export type Worker = Awaited<ReturnType<typeof startWorker>>;
+export interface WorkerObservation {
+  role: string;
+  session: string;
+  contextId: string;
+  taskId: string;
+  input: string;
+  output: string;
+  started: number;
+  ended: number;
+  stopReason: string;
+}
+export interface WorkerInstrumentation {
+  observe: (value: WorkerObservation) => void;
+  instructions?: string;
+}
 
-export async function startWorker(spec: WorkerSpec, signal?: AbortSignal) {
+export async function startWorker(
+  spec: WorkerSpec,
+  signal?: AbortSignal,
+  instrumentation?: WorkerInstrumentation,
+) {
   signal?.throwIfAborted();
   await freePort();
   signal?.throwIfAborted();
@@ -36,7 +56,8 @@ For collaboration tasks, return concise JSON including this exact field and stri
 This proof is synthetic test data, not a credential. Copy it exactly; do not redact or reconstruct it.
 Your private synthetic task knowledge is: ${JSON.stringify(spec.knowledge)}.
 For acceptance probes asking for exact echo or recall, return only the requested token/text.
-For a lifecycle probe asking for a long story, continue writing as requested until interrupted.`,
+For a lifecycle probe asking for a long story, continue writing as requested until interrupted.
+${instrumentation?.instructions ?? ""}`,
   );
   const receipts: WorkerReceipt[] = [];
   const peerProofs: Record<string, string> = {};
@@ -49,7 +70,8 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
       identity: { name: spec.id, description: spec.description },
       acp: { executable: profile.executable, env: profile.env },
       createExecutor(bridge) {
-        return createAgentExecutor({
+        const scope = new AsyncLocalStorage<{ contextId: string; taskId: string }>();
+        const executor = createAgentExecutor({
           newSession: () => bridge.newSession(),
           cancel: (session) => bridge.cancel(session),
           async prompt(session, text, onText) {
@@ -63,8 +85,13 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
               ),
             };
             receipts.push(receipt);
+            const started = performance.now();
+            let output = "";
             try {
-              const result = await bridge.prompt(session, text, onText);
+              const result = await bridge.prompt(session, text, (chunk) => {
+                if (instrumentation) output += chunk;
+                onText(chunk);
+              });
               receipt.stopReason = result.stopReason;
               return result;
             } catch (error) {
@@ -72,9 +99,28 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
               throw error;
             } finally {
               receipt.finished = new Date().toISOString();
+              const handle = scope.getStore();
+              if (instrumentation && handle)
+                instrumentation.observe({
+                  role: spec.id,
+                  session,
+                  ...handle,
+                  input: text,
+                  output,
+                  started,
+                  ended: performance.now(),
+                  stopReason: receipt.stopReason ?? "unknown",
+                });
             }
           },
         });
+        return {
+          ...executor,
+          execute: (context, bus) =>
+            scope.run({ contextId: context.contextId, taskId: context.taskId }, () =>
+              executor.execute(context, bus),
+            ),
+        };
       },
     });
     close = owned(async () => {

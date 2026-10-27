@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import { constants as os } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
+import { taskMetadata } from "./guard-task.js";
 
 const digest = "bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2";
 export const tools = [
@@ -245,6 +246,8 @@ async function main(): Promise<void> {
         ...(typeof args.context_id === "string" ? { context: args.context_id } : {}),
         ...(typeof args.task_id === "string" ? { task: args.task_id } : {}),
         inputHash: inputHash(args),
+        taskIdOmitted: !Object.hasOwn(args, "task_id"),
+        ...(typeof args.blocking === "boolean" ? { blocking: args.blocking } : {}),
         at: new Date().toISOString(),
       });
     }
@@ -273,6 +276,7 @@ async function main(): Promise<void> {
         id,
         tool: request.tool,
         ok: !packet.error && record(packet.result) && packet.result.isError !== true,
+        ...(!packet.error ? taskMetadata(packet.result) : {}),
         at: new Date().toISOString(),
       });
     if (request && id !== undefined) requests.delete(id);

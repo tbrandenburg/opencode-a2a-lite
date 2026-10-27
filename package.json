@@ -30,6 +30,7 @@
     "prepack": "rm -rf dist/src && bun run build && chmod +x dist/src/cli.js",
     "package-smoke": "bun scripts/package-smoke.ts",
     "network-demo": "bun examples/agent-network/run.ts",
+    "topology-investigation": "bun examples/agent-network/topology-investigation.ts",
     "fmt": "oxfmt",
     "fmt-check": "oxfmt --check",
     "lint": "oxlint .",

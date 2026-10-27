@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -18,6 +25,8 @@ function killFixture(pid: number) {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   test(`${signal} drains owned TCP and child resources despite evidence failure`, async () => {
+    const reports = mkdtempSync(join(tmpdir(), "network-interruption-report-"));
+    const reporting = resolve("examples/agent-network/topology-report.ts");
     const lifecycle = resolve("examples/agent-network/lifecycle.ts");
     const transport = resolve("examples/agent-network/transport.ts");
     const script = `
@@ -26,6 +35,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       import { writeFileSync } from 'node:fs';
       import { createLifecycle, interrupted, owned } from ${JSON.stringify(lifecycle)};
       import { stop } from ${JSON.stringify(transport)};
+      import { createInvestigationReport } from ${JSON.stringify(reporting)};
+      const report = createInvestigationReport(${JSON.stringify(reports)});
       const lifecycle = createLifecycle();
       const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
         detached: true, stdio: 'ignore', env: { PATH: process.env.PATH }
@@ -39,11 +50,12 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
         order.push('tcp');
       }, lifecycle.signal));
       lifecycle.releases.push(async () => { order.push('evidence'); writeFileSync('/dev/null/receipts', 'x'); });
-      console.log(JSON.stringify({ pid: child.pid, port: server.address().port }));
+      console.log(JSON.stringify({ pid: child.pid, port: server.address().port, report: report.root }));
       try { await interrupted(new Promise(() => {}), lifecycle.signal); }
       catch { process.exitCode = 1; }
       finally {
         const failures = await lifecycle.drain();
+        report.persist();
         console.log(JSON.stringify({ failures: failures.length, aborted: lifecycle.signal.aborted, order }));
       }
     `;
@@ -64,7 +76,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
       const deadline = AbortSignal.timeout(4_000);
       while (!output.includes("\n")) await setTimeout(10, undefined, { signal: deadline });
-      const ready = JSON.parse(output.split("\n")[0]!) as { pid: number; port: number };
+      const ready = JSON.parse(output.split("\n")[0]!) as {
+        pid: number;
+        port: number;
+        report: string;
+      };
       ownedPid = ready.pid;
       child.kill(signal);
       expect(await interrupted(ended, AbortSignal.timeout(4_000))).toBe(1);
@@ -87,9 +103,25 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
         socket.once("error", () => done(false));
       });
       expect(connected).toBe(false);
+      const summary = JSON.parse(readFileSync(join(ready.report, "summary.json"), "utf8"));
+      expect(summary.status).toBe("INCOMPLETE");
+      expect(summary.missing).toHaveLength(27);
+      if (process.env.A2A_LIFECYCLE_REPORT)
+        appendFileSync(
+          process.env.A2A_LIFECYCLE_REPORT,
+          JSON.stringify({
+            signal,
+            ownedPidExited: true,
+            ownedPortReleased: true,
+            evidenceFailureRetained: true,
+            partialReportRetained: true,
+          }) + "\n",
+          { mode: 0o600 },
+        );
     } finally {
       await stop(child);
       if (ownedPid) killFixture(ownedPid);
+      rmSync(reports, { recursive: true, force: true });
     }
   }, 10_000);
 }

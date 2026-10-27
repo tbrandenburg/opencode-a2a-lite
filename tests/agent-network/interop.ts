@@ -8,6 +8,7 @@ import {
   readlinkSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -23,6 +24,8 @@ import {
   until,
 } from "../../examples/agent-network/transport.js";
 import { createTaskClient, type Submission } from "../../examples/agent-network/task-client.js";
+import { verifyContributions } from "../../examples/agent-network/topology-evidence.js";
+import { verifyReleased } from "../../examples/agent-network/topology-resources.js";
 
 const lifecycle = createLifecycle();
 const binary = process.env.A2ABRIDGE_BIN ?? "";
@@ -52,11 +55,14 @@ const lines = (file: string) =>
         .map((line) => record(JSON.parse(line)))
     : [];
 let stage = "startup";
+const subcases: { id: string; passed: boolean; attemptedCalls: number; criteria: string[] }[] = [];
+const connectionAttempts: number[] = [];
+let attemptedCalls = 0;
 try {
   const registry = await directory(binary, profile, lifecycle.signal);
   lifecycle.releases.push(registry.close);
   const peers: string[] = [];
-  for (const index of [0, 1]) {
+  async function addPeer(index: number) {
     const workspace = join(root, `worker-${index}`);
     mkdirSync(workspace);
     const gateway = createGateway({
@@ -75,7 +81,12 @@ try {
         closeTimeoutMs: 2_000,
       },
     });
-    lifecycle.releases.push(owned(() => gateway.close(), lifecycle.signal));
+    lifecycle.releases.push(
+      owned(async () => {
+        await gateway.close();
+        await verifyReleased(peers[index]!);
+      }, lifecycle.signal),
+    );
     const ready = await interrupted(gateway.start(), lifecycle.signal);
     peers.push(ready.url);
     const registered = await fetch(registry.url + "/register", {
@@ -86,6 +97,7 @@ try {
     });
     assert.equal(registered.status, 204);
   }
+  for (const index of [0, 1]) await addPeer(index);
   const connection = await mcp(
     profile,
     { binary, directory: registry.url, peers },
@@ -109,6 +121,7 @@ try {
     client: typeof first,
     text: string,
     context?: Parameters<typeof first.submit>[2],
+    expected: "completed" | "failed" = "completed",
   ) {
     const options = limits();
     const result = await client.wait(received(await client.submit(text, options, context)), {
@@ -116,7 +129,7 @@ try {
       intervalMs: 100,
       maxPolls: 4,
     });
-    assert.equal(result.outcome, "completed");
+    assert.equal(result.outcome, expected);
     return result;
   }
   const a = await complete(first, "one");
@@ -136,6 +149,7 @@ try {
   assert.equal(connection.remainingCalls, before);
 
   stage = "local-deadlines-and-explicit-cancel";
+  const deadlineBefore = connection.remainingCalls;
   const held = received(await first.submit("hold", limits()));
   const partial = await first.wait(held, {
     ...limits(),
@@ -162,6 +176,16 @@ try {
   assert.equal((await waiting).reason, "aborted");
   assert.equal((await first.get(expired.handle, limits())).outcome, "pending");
   assert(!lines(join(root, "acp-0.jsonl")).some((entry) => entry.event === "cancel"));
+  subcases.push({
+    id: "N2-local-deadline",
+    passed: true,
+    attemptedCalls: deadlineBefore - connection.remainingCalls,
+    criteria: [
+      "deadline retains pending state and original handle",
+      "local wait bounded below 600ms",
+      "no implicit cancel after deadline or abort",
+    ],
+  });
   assert.equal((await first.cancel(expired.handle, limits())).outcome, "canceled");
   const canceled = await first.get(expired.handle, limits());
   assert.equal(canceled.outcome, "canceled");
@@ -169,14 +193,23 @@ try {
   assert(lines(join(root, "acp-0.jsonl")).some((entry) => entry.event === "cancel"));
 
   stage = "failures-and-cancel-races";
+  const contextBefore = connection.remainingCalls;
   const failed = received(await second.submit("fail", limits()));
   const failedStored = await second.wait(failed, { ...limits(), intervalMs: 100, maxPolls: 4 });
   assert.equal(failedStored.outcome, "failed");
   const stale = received(await second.submit("stale", limits(), failed.handle));
-  assert.equal(
-    (await second.wait(stale, { ...limits(), intervalMs: 100, maxPolls: 3 })).outcome,
-    "failed",
-  );
+  const staleResult = await second.wait(stale, { ...limits(), intervalMs: 100, maxPolls: 3 });
+  assert.equal(staleResult.outcome, "failed");
+  assert(JSON.stringify(staleResult.task).includes("Unknown or expired context"));
+  subcases.push({
+    id: "N4-context",
+    passed: true,
+    attemptedCalls: contextBefore - connection.remainingCalls,
+    criteria: [
+      "cross-peer handle rejected without MCP call",
+      "stale remote context fails without replacement",
+    ],
+  });
   await assert.rejects(
     first.get({ ...a.handle, taskId: "unknown-negative-test" }, limits()),
     /not found|not exist/i,
@@ -197,6 +230,7 @@ try {
   assert.equal((await first.get(racing.handle, limits())).outcome, "completed");
 
   stage = "submission-uncertainty";
+  const uncertainBefore = connection.remainingCalls;
   // Pause only the exact child of our owned proxy. The guard still forwards the MCP call.
   const proxy = connection.proxyPid;
   assert(proxy);
@@ -263,6 +297,82 @@ try {
       ),
     );
   }
+  attemptedCalls += calls.length;
+  connectionAttempts.push(calls.length);
+  subcases.push({
+    id: "N3-uncertain-submission",
+    passed: true,
+    attemptedCalls: uncertainBefore - connection.remainingCalls,
+    criteria: [
+      "stalled bridge yields uncertain submission without invented handle",
+      "exactly one guarded submission; no resend",
+    ],
+  });
+  // Independent negative-fixture connection, not a reconnect to evade exhaustion.
+  // Previous connection is finished before beginning these separately planned experiments.
+  await connection.close();
+  // The earlier intentional ACP request failure retires that worker's bridge.
+  // These independently planned negative cases need fresh controlled workers.
+  for (const index of [2, 3]) await addPeer(index);
+  const negatives = await mcp(
+    profile,
+    { binary, directory: registry.url, peers: peers.slice(2) },
+    lifecycle.signal,
+  );
+  lifecycle.releases.push(negatives.close);
+  const owner = createTaskClient(negatives, peers[2]!);
+  const fallback = createTaskClient(negatives, peers[3]!);
+  stage = "busy-and-explicit-fallback";
+  const occupied = received(await owner.submit("hold", limits()));
+  await owner.wait(occupied, {
+    ...limits(),
+    intervalMs: 100,
+    maxPolls: 4,
+    stopWhen: (current) => !!payloadText(current.task),
+  });
+  const busy = await complete(owner, "busy-must-not-run", undefined, "failed");
+  assert.equal(busy.outcome, "failed");
+  assert(JSON.stringify(busy.task).includes("Gateway busy"));
+  stage = "independent-fallback";
+  const available = await complete(fallback, "fallback");
+  assert.equal(available.outcome, "completed");
+  assert.match(payloadText(available.task), /:1:fallback$/);
+  assert.equal((await owner.get(occupied.handle, limits())).outcome, "pending");
+  assert(!lines(join(root, "acp-2.jsonl")).some((entry) => entry.command === "busy-must-not-run"));
+  await owner.cancel(occupied.handle, limits());
+  subcases.push({
+    id: "N1-busy-fallback",
+    passed: true,
+    attemptedCalls: 40 - negatives.remainingCalls,
+    criteria: [
+      "busy gateway fails instead of queuing; no ACP prompt",
+      "explicit other-peer fallback completes while original stays pending",
+    ],
+  });
+  stage = "missing-and-conflicting-contributions";
+  const contributionsBefore = negatives.remainingCalls;
+  for (const corrupt of [false, true]) {
+    const result = await complete(fallback, `contribution:${JSON.stringify({ corrupt })}`);
+    assert.throws(
+      () =>
+        verifyContributions(payloadText(result.task), [
+          [{ id: "bounds", kind: "bounds", minCost: 0, capacity: 9 }],
+        ]),
+      /Missing or conflicting contribution/,
+    );
+  }
+  subcases.push({
+    id: "N5-contributions",
+    passed: true,
+    attemptedCalls: contributionsBefore - negatives.remainingCalls,
+    criteria: [
+      "real ACP omitted fact rejected by contribution validator",
+      "real ACP altered authoritative fact rejected; expected BROKEN topology",
+    ],
+  });
+  attemptedCalls += 40 - negatives.remainingCalls;
+  connectionAttempts.push(40 - negatives.remainingCalls);
+  assert(connectionAttempts.every((count) => count <= 40));
   console.log(
     JSON.stringify({
       providerFreeContextInterop: true,
@@ -283,4 +393,18 @@ try {
     process.exitCode = 1;
   }
   if (!failures.length) rmSync(root, { recursive: true, force: true });
+  if (process.env.A2A_INTEROP_REPORT)
+    writeFileSync(
+      process.env.A2A_INTEROP_REPORT,
+      JSON.stringify({
+        evidenceClass: "provider-free-controlled-ACP",
+        subcases,
+        attemptedCalls,
+        connectionAttempts,
+        cleanup: failures.length === 0,
+        failed: process.exitCode === 1,
+        failedStage: process.exitCode === 1 ? stage : null,
+      }),
+      { mode: 0o600 },
+    );
 }

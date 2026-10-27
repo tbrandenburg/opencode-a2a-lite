@@ -107,6 +107,9 @@ Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
 ## Lessons Learned
 
+- 2026-10-27: Pitfall: Cross-process readiness readers observed partially written JSON. Prevention: Publish readiness through a same-directory temporary file and atomic rename; test a paused writer with a concurrent reader.
+- 2026-10-27: Pitfall: Modified submission text was mislabeled as a retry. Prevention: Score input integrity, duplicate sends and uncertain resubmission independently; retain expected hashes before dispatch and preserve returned handles on mismatches.
+- 2026-10-27: Pitfall: A renamed coordinator bypassed a role-filtered readiness observer. Prevention: Share the audited role identifier and exercise the bundled observer against the configured role before paid acceptance.
 - 2026-10-27: Pitfall: Fractional timer delivery allowed an early extra poll on CI. Prevention: Round waits upward and recheck absolute monotonic wake/deadline targets after delivery; exercise fractional intervals with real timers.
 - 2026-10-27: Pitfall: Live-model contract failures lacked bounded mismatch evidence. Prevention: Specify current-versus-intended result semantics and retain sanitized boolean mismatch metadata; do not infer transport failure from a reasoning-oracle failure.
 - 2026-10-27: Pitfall: CI fixtures assumed an agent-host temporary directory existed. Prevention: Create unique fixtures beneath os.tmpdir() and validate with a fresh TMPDIR; never inherit machine-specific directory prerequisites.

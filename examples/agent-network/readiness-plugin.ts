@@ -1,6 +1,9 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { publishAtomic } from "./atomic-publication.js";
+
+export const coordinatorRole = "coordinator";
 
 interface ContextEvent {
   agent: string;
@@ -50,7 +53,7 @@ export default {
       }
     };
     const registration = await context.session.hook("context", (event) => {
-      if (event.agent !== "coordinator") return;
+      if (event.agent !== coordinatorRole) return;
       const names = Object.keys(event.tools).sort();
       const matched = same(names);
       appendFileSync(
@@ -80,11 +83,12 @@ export default {
           .filter((name) => name.startsWith("network_"))
           .sort();
         if (same(names)) {
-          writeFileSync(
-            join(directory, `ready-${run}.json`),
-            JSON.stringify(metadata("registered", names)),
-            { mode: 0o600, flag: "wx" },
-          );
+          publishAtomic(join(directory, `ready-${run}.json`), (temporary) => {
+            writeFileSync(temporary, JSON.stringify(metadata("registered", names)), {
+              mode: 0o600,
+              flag: "wx",
+            });
+          });
           return;
         }
         if (Date.now() >= deadline) return fail("registry-readiness-timeout");
