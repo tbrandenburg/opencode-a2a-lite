@@ -184,7 +184,7 @@ zero skips. These three manual fault seeds are not a general mutation score.
 The coordinator passed `make check` with the CI coverage/JUnit flags, three
 additional comparable full-suite timing runs, `make package-smoke` (12 allowlisted
 package files, real installed CLI/direct server and owned cleanup), and the pinned
-`make interop-test` (provider-free real bridge, 29 attempts, 40-call limit with the
+`make interop-test` (provider-free real bridge, 28 attempts, 40-call limit with the
 eight-call reserve). Production code and external acceptance scripts are unchanged.
 Billable live-model acceptance is pending explicit authorization; provider-free
 passes do not fulfill that gate. This report does not claim the issue's merged/
