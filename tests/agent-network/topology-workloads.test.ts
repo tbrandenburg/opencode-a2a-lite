@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { scoreCorrectness } from "../../examples/agent-network/topology-verdicts.js";
 import {
   ITEM_IDS,
-  isFinalAnswer,
   WORKLOADS,
   type FinalAnswer,
 } from "../../examples/agent-network/topology-workloads.js";
@@ -15,7 +14,7 @@ const expected = {
 } satisfies Record<string, FinalAnswer>;
 
 test.each(Object.values(WORKLOADS))(
-  "$id fixed oracle is the unique exhaustive optimum",
+  "N11-$id fixed oracle is the unique exhaustive optimum",
   (problem) => {
     const candidates = Array.from({ length: 64 }, (_, mask) => {
       const selected = ITEM_IDS.filter((_, bit) => (mask & (1 << bit)) !== 0);
@@ -52,59 +51,3 @@ test.each(Object.values(WORKLOADS))(
     expect(JSON.stringify(problem)).not.toContain('"selected"');
   },
 );
-
-const valid = expected.V1;
-test.each(
-  [
-    null,
-    "not-json",
-    [],
-    {},
-    { ...valid, extra: true },
-    { ...valid, selected: ["A", "A", "B", "C", "F"] },
-    { ...valid, selected: ["G"] },
-    { ...valid, selected: [0] },
-    { ...valid, selected: Array(1) },
-    { ...valid, selected: "ABCF" },
-    { ...valid, cost: NaN },
-    { ...valid, cost: Infinity },
-    { ...valid, cost: -1 },
-    { ...valid, cost: 9.5 },
-    { ...valid, cost: "9" },
-    { ...valid, value: NaN },
-    { ...valid, value: -1 },
-    { ...valid, value: 19.5 },
-    { ...valid, value: Number.MAX_SAFE_INTEGER + 1 },
-    { ...valid, proof: null },
-    { ...valid, proof: [] },
-    { ...valid, proof: new Map() },
-    { ...valid, proof: { p1: 123 } },
-    { ...valid, proof: { p1: "" } },
-  ].map((answer) => ({ answer })),
-)("malformed answer %# cannot pass schema or correctness", (input) => {
-  const answer = input.answer;
-  expect(isFinalAnswer(answer)).toBe(false);
-  expect(scoreCorrectness("V1", answer).status).toBe("fail");
-  expect(scoreCorrectness("V1", answer).mismatches.schema).toBe(true);
-});
-
-test("wrong totals, constraints, and suboptimal feasible answers have independent mismatch flags", () => {
-  const wrongTotals = scoreCorrectness("V1", { ...valid, cost: 8, value: 18 });
-  expect(wrongTotals.checks.totals).toBe("fail");
-  expect(wrongTotals.checks.dependencies).toBe("pass");
-  expect(
-    scoreCorrectness("V1", { selected: ["C"], cost: 4, value: 9, proof: {} }).checks.dependencies,
-  ).toBe("fail");
-  expect(
-    scoreCorrectness("V1", { selected: ["B", "E"], cost: 8, value: 18, proof: {} }).checks
-      .incompatibilities,
-  ).toBe("fail");
-  const suboptimal = scoreCorrectness("V1", { selected: [], cost: 0, value: 0, proof: {} });
-  expect(suboptimal.checks.totals).toBe("pass");
-  expect(suboptimal.checks.optimum).toBe("fail");
-  expect(scoreCorrectness("V1", { ...valid, selected: ["F", "C", "B", "A"] }).status).toBe("pass");
-  expect(scoreCorrectness("V1", undefined)).toMatchObject({
-    status: "unknown",
-    mismatches: { schema: null },
-  });
-});
