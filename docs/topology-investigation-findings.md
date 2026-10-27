@@ -1,5 +1,9 @@
 # Topology investigation findings
 
+> Historical findings. The managed lab is retired, not fixed; these observations
+> and failure tables remain unchanged. Runner/source references below belong to
+> [pre-retirement a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
+
 ## Verdict
 
 **BROKEN investigation acceptance; comparative verdict INCOMPLETE.** The declared

@@ -6,8 +6,63 @@ import {
   readPackets,
   toolDecision,
 } from "../../examples/agent-network/bridge-proxy.js";
+import {
+  createResultMetadata,
+  pairedResult,
+  sha256,
+  submittedIdentifiers,
+  taskMetadata,
+} from "../../examples/agent-network/guard-task.js";
 
 const peers = ["http://127.0.0.1:4123/", "http://[::1]:4124/"];
+
+test("N19 receipt provenance hashes unknown reflected identifiers without changing returned tasks", () => {
+  const metadata = createResultMetadata();
+  const sentinel = "PRIVATE-UNKNOWN-IDENTIFIER";
+  const call = {
+    event: "call",
+    connection: "one",
+    id: "1",
+    tool: "a2a_send_message",
+    peer: peers[0],
+    ...submittedIdentifiers({ context_id: sentinel, task_id: sentinel }),
+  };
+  const task = {
+    id: sentinel,
+    contextId: sentinel,
+    status: { state: "TASK_STATE_FAILED" },
+    artifacts: [{ parts: [{ text: "PRIVATE-OUTPUT" }] }],
+  };
+  const result = taskMetadata({ content: [{ type: "text", text: JSON.stringify(task) }] });
+  const sanitized = metadata.capture(result, call);
+  expect(sanitized).toEqual({
+    contextHash: sha256(sentinel),
+    taskHash: sha256(sentinel),
+    contextUntrusted: true,
+    taskUntrusted: true,
+    state: "TASK_STATE_FAILED",
+    artifactHash: sha256("PRIVATE-OUTPUT"),
+  });
+  expect(JSON.stringify({ call, sanitized })).not.toContain(sentinel);
+  expect(task.contextId).toBe(sentinel);
+  expect(metadata.capture(result, { peer: peers[0] })).toEqual(sanitized);
+  const fresh = {
+    taskId: "returned-task",
+    contextId: "returned-context",
+    state: "TASK_STATE_COMPLETED",
+  };
+  expect(metadata.capture(fresh, { peer: peers[0], ...submittedIdentifiers({}) })).toEqual(fresh);
+  expect(
+    metadata.capture(fresh, {
+      peer: peers[0],
+      ...submittedIdentifiers({ context_id: fresh.contextId }),
+    }),
+  ).toEqual(fresh);
+  const audit = [{ ...sanitized, event: "result", connection: "one", id: "1", tool: call.tool }];
+  expect(pairedResult(call, audit)).toBe(audit[0]);
+  expect(pairedResult(call, [...audit, ...audit])).toBeUndefined();
+  expect(pairedResult({ ...call, connection: "other" }, audit)).toBeUndefined();
+});
 
 test("N01 guard requires exact loopback roots, approved tools and a forty-call ceiling", () => {
   expect(toolDecision("a2a_get_task", { peer_url: peers[1] }, peers, 40)).toBeUndefined();

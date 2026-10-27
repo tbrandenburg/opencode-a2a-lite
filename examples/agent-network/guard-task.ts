@@ -1,4 +1,74 @@
 import { createHash } from "node:crypto";
+export const sha256 = (text: string | Buffer) => createHash("sha256").update(text).digest("hex");
+export type Audit = Record<string, unknown>;
+
+// Submitted arguments are untrusted; only returned identifiers establish provenance.
+export function submittedIdentifiers(args: Audit) {
+  return {
+    contextPresent: Object.hasOwn(args, "context_id"),
+    ...(typeof args.context_id === "string" ? { contextHash: sha256(args.context_id) } : {}),
+    taskPresent: Object.hasOwn(args, "task_id"),
+    ...(typeof args.task_id === "string" ? { taskHash: sha256(args.task_id) } : {}),
+  };
+}
+
+export function pairedResult(call: Audit, audit: readonly Audit[]): Audit | undefined {
+  if (typeof call.connection !== "string" || typeof call.id !== "string") return undefined;
+  const results = audit.filter(
+    (entry) =>
+      entry.event === "result" &&
+      entry.connection === call.connection &&
+      entry.id === call.id &&
+      entry.tool === call.tool,
+  );
+  return results.length === 1 ? results[0] : undefined;
+}
+
+// Per-connection receipt privacy, never a modification of forwarded MCP results.
+export function createResultMetadata() {
+  const known = new Set<string>();
+  const reflected = new Set<string>();
+  const key = (peer: unknown, field: string, digest: string) =>
+    JSON.stringify([peer, field, digest]);
+  const project = (entry: Audit, peer: unknown): Audit => {
+    const output = { ...entry };
+    for (const field of ["context", "task"] as const) {
+      const value = entry[`${field}Id`];
+      if (typeof value !== "string") continue;
+      const digest = sha256(value);
+      if (!reflected.has(key(peer, field, digest))) continue;
+      delete output[`${field}Id`];
+      output[`${field}Hash`] = digest;
+      output[`${field}Untrusted`] = true;
+    }
+    return output;
+  };
+  return {
+    capture(entry: Audit, call?: Audit): Audit {
+      const peer = call?.peer;
+      for (const field of ["context", "task"] as const) {
+        const value = entry[`${field}Id`];
+        const digest = typeof value === "string" ? sha256(value) : entry[`${field}Hash`];
+        if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) continue;
+        const identity = key(peer, field, digest);
+        const failed = ["TASK_STATE_FAILED", "TASK_STATE_REJECTED"].includes(String(entry.state));
+        const echo =
+          call &&
+          typeof value === "string" &&
+          call[`${field}Present`] === true &&
+          call[`${field}Hash`] === digest;
+        if (
+          !known.has(identity) &&
+          (entry[`${field}Untrusted`] === true || (echo && (field === "context" || failed)))
+        )
+          reflected.add(identity);
+        if (typeof value === "string" && !reflected.has(identity)) known.add(identity);
+      }
+      return project(entry, peer);
+    },
+  };
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 

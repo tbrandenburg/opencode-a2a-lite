@@ -1,112 +1,64 @@
 # Repository guidance
 
+## Adapter scope freeze
+
+- Follow the [adapter contract](/README.md#scope-freeze), separate from opaque model quality.
+- No new schedules, roles, scorers, platform features, frameworks, dependencies, models, or expanded budgets/timeouts.
+- Preserve manual endpoint-guard guidance and historical failures; the managed lab
+  is retired, not fixed. Do not restore its model profiles, scorers or runners.
+- Meet the post-retirement example-size target by removing the managed lab, not
+  relocating it under tests; retain only minimal decoupled interoperability helpers.
+
 ## Run A2A agents through MCP
 
 Use this path when asked to delegate through MCP/A2A:
 **OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
-### Which MCP server?
+1. Follow the [manual recipe](/examples/agent-network/README.md#manual-two-worker-recipe).
+   Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed a2abridge **4.0.2**, A2A **1.0**.
+   Check ports before startup; never stop another owner's processes. Trust workspaces,
+   directory and cards explicitly; keep gateways loopback-only, without public proxies.
+2. Use `examples/agent-network/bridge-proxy.ts`, never a direct bridge launch. The
+   gateway is **A2A HTTP, not MCP**. Manually merge the documented project-local
+   `mcp.servers.network` fragment: local stdio, `codemode:false`, six explicit tool
+   permissions, absolute Bun/guard/binary paths, directory URL, private writable
+   receipt path and JSON array of exact root peer URLs including `/`. No manifests
+   or shell-variable expansion. Review inherited configuration; never edit global
+   configuration or install services. The guard strips child secrets; `environment:{}` does not.
+3. Set identity before startup, use actual readiness URLs, verify intended cards,
+   register roots and refresh heartbeats every **20s** (TTL **90s**, GC **30s**).
+   Identity is metadata, not authorization. Keep the directory running for discovery.
+4. Inspect the actual catalog: `network_a2a_whoami`, `network_a2a_list_agents`,
+   `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`,
+   `network_a2a_cancel_task`. Unavailable tools are a blocker, not permission to
+   substitute another route. Catalog receipt/`opencode mcp list` is not model-callable readiness.
+5. Discover exact URLs, then send bounded text with `blocking:false`. Retain returned
+   peer/context/task IDs; poll actual task state/artifacts. Continue with `context_id`
+   and **omit `task_id`**; retain the new task ID. Never cross peers, guess handles,
+   silently restart stale contexts, or mistake MCP success for completed work.
+6. Use one absolute local deadline for submit+wait, bound calls/sleeps by remaining
+   time and reserve **eight calls** within **40 attempts**, including denials.
+   No rapid polling, budget increases or reconnect evasion. Busy fails, not queues.
+   Local timeout/abort is not remote cancellation: retain pending handles or report
+   uncertain submission without resend. Cancel only when requested; inspect actual
+   outcome/error, including a race lost to completion. Surface unknown-task errors.
+7. Bridge 4.0.2 cannot stream continuation; use nonblocking send+polling (not SSE).
+   Unary budget is **60s**, gateway prompt default **120s**. Reuse the
+   [typed helper](/examples/agent-network/client-guide.md) for host code; its monotonic
+   deadlines do not govern direct model MCP calls, which need equivalent instructions.
+8. On success/failure close owned MCP connections, stop heartbeats, unregister workers
+   and stop owned gateways/directory. Verify PID exit and exact-port release. Never
+   reuse stopped URLs/profiles. Publish only sanitized outcome/artifact/cleanup checks.
 
-- **Implementation:** use the pinned **a2abridge 4.0.2** MCP server, launched through
-  this repository's `examples/agent-network/bridge-proxy.ts` endpoint guard.
-  The gateway is an **A2A HTTP server, not an MCP server**; do not configure its
-  HTTP URL as a remote MCP endpoint or bypass the guard with a direct bridge launch.
-- **Transport:** configure a **local stdio** server (`type: "local"`), with
-  `codemode: false`. OpenCode launches Bun → `bridge-proxy.ts` → a2abridge.
-- **Location/name:** use project-local `opencode.json` or `.opencode/opencode.json`,
-  under `mcp.servers.network`. `network` is a configuration label/tool prefix,
-  not another MCP product; renaming it requires updating the tool permission names.
-- **Required values:** absolute paths to Bun, the guard script and the verified
-  bridge binary; the running directory URL; a writable private receipt-file path;
-  and a JSON array of exact approved worker root URLs. Create the receipt parent
-  directory first. The peer argument is the JSON array, not a manifest filename.
-- **Complete configuration:** copy and adapt the
-  [project-local MCP fragment](/examples/agent-network/README.md#4-manually-merge-the-project-local-mcp-fragment),
-  including its six explicit tool permissions. Replace path placeholders with
-  literal absolute paths; JSON strings do not expand shell `$VARIABLES`.
-
-### Set up and discover
-
-1. Follow the [manual two-worker recipe](/examples/agent-network/README.md#manual-two-worker-recipe-separate-from-the-managed-demo)
-   for runnable worker, directory, registration and project-local MCP configuration.
-   Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed a2abridge **4.0.2**, and A2A **1.0**.
-   Check free loopback ports before startup; never stop another owner's processes.
-   Keep gateways loopback-only; do not use public proxies or untrusted directories/cards.
-2. Launch each worker in an explicitly trusted workspace. Set `A2A_NAME`,
-   `A2A_DESCRIPTION` and optional comma-separated `A2A_TAGS` before startup; use
-   the actual printed readiness URL and verify `/.well-known/agent-card.json`.
-   Identity is descriptive metadata, not permission or authentication.
-3. Keep the directory running, register the exact worker root URLs, and refresh
-   heartbeats every **20 seconds**. Membership expires after **90 seconds**, with
-   garbage collection every **30 seconds**. The
-   [peer inventory](/examples/agent-network/peers.example.json) is illustrative;
-   no runtime loads it or replaces directory membership with it.
-4. Manually merge the recipe's `mcp.servers.network` fragment into the coordinator's
-   project configuration with `codemode: false` and six explicit tool permissions.
-   Preserve the existing endpoint guard and its exact URL allowlist, including `/`.
-   Review inherited/ancestor configuration; project-local does not mean isolated.
-   Never edit global configuration or install services as part of this setup.
-   Keep provider keys out of files/logs and out of the bridge child environment;
-   the guard strips that environment, whereas MCP `environment: {}` does not.
-5. Inspect the actual MCP catalog; for the recipe's `network` server, direct tool
-   names are `network_a2a_whoami`, `network_a2a_list_agents`,
-   `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`
-   and `network_a2a_cancel_task`. If unavailable, report the setup blocker rather
-   than inventing a tool call. Use `network_a2a_list_agents` to discover cards and
-   exact approved URLs. `opencode mcp list` or a catalog receipt alone does not
-   prove model-callable readiness; verify an actual completed request.
-
-### Delegate, continue and stop
-
-- Send a bounded task and explicit acceptance criteria with
-  `network_a2a_send_message({ peer_url, text, blocking: false })`.
-  Retain the discovered peer URL and **returned** `contextId` and task `id`; never guess IDs.
-- Poll `network_a2a_get_task({ peer_url, task_id })` using that task ID. Inspect
-  the actual A2A state and artifacts: MCP success is not task completion.
-  Distinguish completed, failed/rejected, canceled and pending work; surface
-  tool errors and unknown tasks instead of reporting success.
-- Continue the same peer with
-  `network_a2a_send_message({ peer_url, text, context_id, blocking: false })`,
-  using the returned context ID and **omitting `task_id`**. Retain the new task ID.
-  Do not reuse a handle with another peer or silently restart an unknown/stale context.
-- Choose one absolute local deadline for submission plus waiting; bound each call
-  and polling sleep by its remaining time. Keep polling bounded and reserve
-  **eight calls** for intervention within the guard's **40-attempt connection budget**.
-  Do not increase the budget, poll rapidly, or reconnect to evade exhaustion.
-  A gateway admits only one active turn; concurrent work fails busy, not queued.
-- A local timeout/abort is **not remote cancellation**. Keep the handle and last
-  observed state. If submission yields no handle, report **uncertain** and do not
-  resend automatically. Explicitly cancel only when requested with
-  `network_a2a_cancel_task({ peer_url, task_id })`; inspect the truthful result or
-  surface the cancellation error, including a race lost to completion.
-- Bridge 4.0.2 cannot pass `context_id` through `a2a_send_streaming`. Use
-  nonblocking send plus polling for continuation; polling is not SSE streaming.
-  Unary bridge calls have a **60-second** budget versus the gateway's default
-  **120-second** prompt budget, so do not depend on long blocking sends.
-- For host code, reuse the [typed task helper](/examples/agent-network/client-guide.md)
-  and its monotonic `performance.now()` deadlines. It does **not** govern the
-  model's direct MCP calls; apply these rules explicitly when using those tools.
-- On success or failure, close owned MCP connections, stop owned heartbeat loops,
-  unregister workers and stop owned gateway/directory processes. Verify process
-  exit and released ports. Never reuse managed-demo URLs/profiles after cleanup.
-  Report task outcome, verified artifacts and cleanup using sanitized evidence.
-  Do not publish raw prompts, reasoning or provider diagnostics.
-
-### Verify the setup
-
-- Provider-free real-bridge checks:
-  `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
-- Opt-in **billable** real-model acceptance:
-  `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make network-demo`.
-  This managed experiment verifies its own generated configuration and stops its
-  endpoints; it does not leave a persistent network configured for later tasks.
-- Done means the intended worker cards were discovered, the actual remote task
-  completed with the expected artifact, and owned-resource cleanup was verified.
-  Do not claim real-model E2E from provider-free fixtures or catalog arrival.
+Provider-free gate: `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
+This verifies the adapter boundary, not real-model E2E or model reasoning. The managed
+network/topology lab is retired; history at `a70b639` and factual findings remain.
+Production `make e2e` and the single-gateway `make demo` remain opt-in and billable.
 
 ## Lessons Learned
 
+- 2026-10-27: Pitfall: Port-release probes mistook TCP TIME_WAIT for a leaked listener. Prevention: Match server socket-reuse semantics and verify listener/process absence before classifying a failed raw bind as cleanup failure.
 - 2026-10-27: Pitfall: Renaming a test and dropping receipt hooks broke external acceptance. Prevention: Treat consumed test-name filters and receipt environment variables as APIs; search their callers and run external acceptance before accepting a test reduction.
 - 2026-10-27: Pitfall: Timed lifecycle tests conflated fixture startup with their intended boundary. Prevention: Use lightweight, request-level peer handshakes; distinguish fixture cold-start cost from the failure under test, and never treat sleeps or process existence as readiness.
 - 2026-10-27: Pitfall: Independent test-budget exceptions exceeded the combined cap. Prevention: Reserve shared headroom before delegation; reconcile expanded counts across scopes and remove cross-layer duplicates only after naming their retained boundary replacements.

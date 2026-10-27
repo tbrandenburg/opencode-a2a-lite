@@ -3,7 +3,7 @@
 `task-client.ts` is an example-local host helper, not a production client API or
 an orchestrator. It uses the existing official MCP client → endpoint guard →
 a2abridge 4.0.2 → gateway path. It creates no registry, queue, retry loop or server.
-`checks.ts` uses it; the paid model-driven coordinator remains a separate caller.
+The provider-free interop gate uses it; model-driven callers remain operator-owned.
 
 ## Supported flow
 
@@ -102,12 +102,13 @@ make check
 
 Download the documented 4.0.2 Linux amd64 release and verify both archive and
 executable hashes using the existing [download instructions](/examples/agent-network/README.md#prerequisites).
-The target fails for an absent/wrong binary. It launches two real gateways and
+The target fails for an absent/wrong binary. It launches real gateways and
 controlled ACP subprocesses with synthetic environments, no provider/model or
 OpenCode installation, reusing the existing directory, guard, MCP and lifecycle
 helpers. It checks actual ACP session receipts, continuation/isolation, failed and
 stale contexts, timeout/abort retention, explicit cancellation/errors/losing races,
-and guarded call receipts within one 40-call connection.
+and guarded call receipts. Two independent scenario connections each retain eight
+intervention calls within the 40-attempt cap; denials count too.
 
 To deterministically stall MCP, the gate verifies the executable of the exact
 child PID of its owned proxy, pauses it, then resumes it in `finally`. A timed-out
@@ -115,6 +116,8 @@ submission reaches the guard, but may or may not reach ACP after resumption; its
 outcome remains uncertain. There is no guessed handle or automatic resend.
 Deterministic SDK tests separately observe abort delivery during hung tool calls.
 
-This is focused issue #13 evidence, **not completion of issue #10**: no CI download
-step, broad streaming/discovery/security acceptance expansion, or claim about a
-model's native tool registration. The paid `make network-demo` stays opt-in.
+CI downloads and checksums the pinned bridge and runs this gate without provider
+secrets. It also checks the six-tool catalog, discovery, fresh-context SSE text and
+stored output, local endpoint/tool denials and reflected-identifier receipt privacy.
+It does not prove a model's native tool registration or model output quality. The
+managed model-driven lab is retired; historical failures remain documented.

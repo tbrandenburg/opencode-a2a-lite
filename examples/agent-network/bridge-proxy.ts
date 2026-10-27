@@ -4,11 +4,12 @@ import * as fs from "node:fs";
 import { constants as os } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
-import { taskMetadata } from "./guard-task.js";
-import { envelopeMetadata } from "./topology-envelope.js";
-import { createResultMetadata, submittedIdentifiers, type Audit } from "./topology-evidence.js";
-
-export { createResultMetadata, submittedIdentifiers } from "./topology-evidence.js";
+import {
+  taskMetadata,
+  createResultMetadata,
+  submittedIdentifiers,
+  type Audit,
+} from "./guard-task.js";
 
 const digest = "bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2";
 export const tools = [
@@ -253,9 +254,6 @@ async function main(): Promise<void> {
         tool,
         ...call,
         inputHash: inputHash(args),
-        ...(tool === "a2a_send_message" && typeof args.text === "string"
-          ? { inputEnvelope: envelopeMetadata(args.text) }
-          : {}),
         taskIdOmitted: !Object.hasOwn(args, "task_id"),
         ...(typeof args.blocking === "boolean" ? { blocking: args.blocking } : {}),
         at: new Date().toISOString(),

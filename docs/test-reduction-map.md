@@ -1,5 +1,12 @@
 # Test reduction: complete baseline mapping
 
+> Historical #23 selection map, not the current test inventory. P2 subsequently
+> retired the managed lab and its research-only cases N08/N09/N11/N14–N18.
+> Retired paths resolve in [a70b639 tests](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/tests/agent-network).
+> Guard/catalog/framing, typed handles/deadlines/uncertainty/budgets and SIGINT/SIGTERM
+> cleanup remain; N10 now uses a tiny fixed partial receipt, not a topology report.
+> Reflected identifier privacy and unique receipt pairing remain independently tested.
+
 Baseline: `64e5b27092a62e09e5c5503aa4f4795ef4444be7`. This enumerates **361 expanded leaf cases** with one decision per case, including removed permutations. The selected inventory has **69 expanded cases** before the separate #22 correction. See [measurement and risk evidence](/docs/test-reduction.md).
 
 KEEP means the named behavior remains; REPLACE points to its selected boundary or representative, not a claim of identical permutation coverage. REMOVE records accepted loss. `package-smoke` is the separately required installed-package workflow and `SDK-reproducer` the pre-existing independent cancellation control/defect demonstration, not displaced Bun suites. IDs are stable labels; gaps are deliberate removals, not skipped tests.

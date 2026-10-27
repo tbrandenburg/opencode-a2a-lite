@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke release doctor demo network-demo topology-investigation interop-test e2e e2e-tck clean
+.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke release doctor demo interop-test e2e e2e-tck clean
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -51,14 +51,8 @@ doctor: ## Check local development prerequisites
 demo: ## Build and verify a real isolated A2A CLI conversation (uses live credentials)
 	bash scripts/demo.sh
 
-network-demo: ## Run an isolated real OpenCode/MCP/A2A team (A2ABRIDGE_BIN and live credentials required)
-	bun run network-demo
-
 interop-test: ## Check context/deadline contracts through pinned real MCP/A2A bridge (no provider)
 	bun tests/agent-network/interop.ts
-
-topology-investigation: ## List or explicitly opt into the 27-case investigation (ARGS='--list' or '--live --faults --allow-cancel')
-	bun run topology-investigation $(ARGS)
 
 e2e: build ## Run isolated real-model acceptance (billable; requires Linux and live credentials)
 	bun tests/e2e.ts

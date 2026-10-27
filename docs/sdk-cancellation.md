@@ -8,8 +8,19 @@ The local regression work does not fix the upstream SDK.
 ## Decision and ownership
 
 Retain [the request-handler adapter](/src/request-handler.ts) with the exactly pinned
-`@a2a-js/sdk` 1.3.0. Registry inspection during this work returned `latest: 1.3.0`
-and `next: 1.3.0`; no fixed published upgrade was available in that check.
+`@a2a-js/sdk` 1.3.0. Public metadata checked **2026-10-27 22:14 UTC**:
+[upstream PR #799](https://github.com/a2aproject/a2a-js/pull/799) merged on
+2026-10-26 at 13:32:23 UTC as `42ecdabe0cdf143c30056bd68c8d0f26b9186719`,
+closing #798. However, the [npm registry](https://registry.npmjs.org/@a2a-js%2fsdk)
+still lists `latest: 1.3.0` and `next: 1.3.0`, published 2026-09-29 at
+10:45:20.329 UTC with gitHead `29417a5bb4038f804f310ce4fffd267a9375aa90`.
+The [latest official release](https://github.com/a2aproject/a2a-js/releases/tag/v1.3.0)
+is likewise v1.3.0, published 2026-09-29 at 10:40:16 UTC, before the merge.
+The upgrade/removal gate remains **blocked on a published dependency release**;
+no fixed published candidate was available to validate. The earlier issue #1
+reproduction against main at `d305950c6a804ee2fd147aa865ada9fe6c7e1688` is
+historical evidence, not a claim about current main. A merged fix is not a
+validated published upgrade; retain the reproducer and removal checks below.
 
 The SDK remains responsible for the task store, event bus, request handling and
 artifact merging. The adapter observes terminal saves through the public

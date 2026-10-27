@@ -56,6 +56,16 @@ export async function freePort() {
   return address.port;
 }
 
+// Rebind the actual released port, not an unrelated ephemeral port.
+export async function verifyReleased(url: string) {
+  const server = createServer();
+  await new Promise<void>((done, fail) => {
+    server.once("error", fail);
+    server.listen(Number(new URL(url).port), "127.0.0.1", done);
+  });
+  await new Promise<void>((done, fail) => server.close((error) => (error ? fail(error) : done())));
+}
+
 export async function until<T>(
   probe: () => Promise<T | undefined>,
   label: string,
@@ -87,12 +97,7 @@ export async function stop(child: ChildProcess) {
   }
 }
 
-export async function directory(
-  binary: string,
-  profile: Profile,
-  signal?: AbortSignal,
-  deferShutdown = false,
-) {
+export async function directory(binary: string, profile: Profile, signal?: AbortSignal) {
   signal?.throwIfAborted();
   const port = await freePort();
   signal?.throwIfAborted();
@@ -109,7 +114,10 @@ export async function directory(
       reject(new Error("Directory failed to execute"));
     });
   });
-  const close = owned(() => stop(child), deferShutdown ? undefined : signal);
+  const close = owned(async () => {
+    await stop(child);
+    await verifyReleased(url);
+  }, signal);
   try {
     await interrupted(
       Promise.race([
@@ -148,7 +156,7 @@ export async function mcp(profile: Profile, connection: NetworkConnection, signa
     stderr: "pipe",
   });
   transport.stderr?.on("data", () => undefined);
-  const client = new Client({ name: "opencode-a2a-network-experiment", version: "0.1.1" });
+  const client = new Client({ name: "opencode-a2a-interop", version: "0.1.1" });
   const close = owned(async () => {
     try {
       await client.close();

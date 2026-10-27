@@ -1,5 +1,10 @@
 # Authorized live acceptance results
 
+> Historical once-only live results; failure tables and Git provenance below are
+> unchanged. The managed topology lab is retired, not fixed. Its source remains at
+> [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
+> Production `make e2e` remains opt-in; retirement does not resolve E2E06.
+
 ## Verdict
 
 **Live acceptance is BROKEN; the comparative verdict remains INCOMPLETE.**

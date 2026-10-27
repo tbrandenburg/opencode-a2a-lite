@@ -1,5 +1,12 @@
 # Deterministic test selection
 
+> Historical #23 measurements and decisions below are retained unchanged. P2 later
+> retired the managed network/topology lab, not adapter regressions. Research paths
+> and historical commands refer to [a70b639 source](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network)
+> and [tests](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/tests/agent-network).
+> The final acceptance-command section is current; historical counts are not the
+> current inventory. Retirement is not a pass for the recorded live failures.
+
 Issue [#23](https://github.com/tbrandenburg/opencode-a2a-lite/issues/23) refocuses
 the maintained deterministic suite, including release/demo tooling and network
 examples. Production behavior and the runtime/SDK pins are not part of this
@@ -248,23 +255,21 @@ test-only benchmark or the original matrix.
 
 ## Required and opt-in acceptance
 
-| Command                                                                | Purpose                                                                                  | Provider                                                      |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `make check`                                                           | Formatting, lint, strict types, deterministic unit/integration suite, build              | None                                                          |
-| `make package-smoke`                                                   | Install and execute the real packed npm artifact outside this checkout                   | None                                                          |
-| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Real pinned bridge, gateway and controlled ACP process boundaries                        | None                                                          |
-| `make topology-investigation ARGS='--faults --allow-cancel'`           | Six separately reported controlled negative experiments; intentionally incomplete matrix | None                                                          |
-| `make e2e`                                                             | Retained 14-scenario production CLI/real-model acceptance                                | Billable, explicit opt-in                                     |
-| `make demo`                                                            | Streamed real CLI conversation and marker recall                                         | Billable, explicit opt-in                                     |
-| `make network-demo`                                                    | Model-issued guarded MCP collaboration                                                   | Billable, explicit opt-in                                     |
-| `make topology-investigation ARGS='--live …'`                          | Selected fixed-schedule model-issued MCP cases                                           | Billable, explicit opt-in                                     |
-| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Separately installed official protocol checks                                            | External prerequisites; see [acceptance](/docs/acceptance.md) |
+| Command                                                                | Purpose                                                                     | Provider                                                      |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `make check`                                                           | Formatting, lint, strict types, deterministic unit/integration suite, build | None                                                          |
+| `make package-smoke`                                                   | Install and execute the real packed npm artifact outside this checkout      | None                                                          |
+| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Real pinned bridge, gateway and controlled ACP process boundaries           | None                                                          |
+| `make e2e`                                                             | Retained 14-scenario production CLI/real-model acceptance                   | Billable, explicit opt-in                                     |
+| `make demo`                                                            | Streamed real CLI conversation and marker recall                            | Billable, explicit opt-in                                     |
+| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Separately installed official protocol checks                               | External prerequisites; see [acceptance](/docs/acceptance.md) |
 
 Check free loopback ports before service-based validation. Tests/harnesses use
 ephemeral ports or probe their chosen port; an occupied listener is never stopped.
 Provider-free fixtures establish transport/policy behavior, not live-model success.
-Live acceptance and installed-package/real-bridge workflows are not removed or
-relabeled to reduce the deterministic count.
+Production live acceptance and installed-package/real-bridge workflows remain.
+The managed lab's fault/model runners were explicitly retired as features, not
+excluded from test discovery or relabeled as passing boundary acceptance.
 
 The portable upstream-only SDK cancellation reproducer remains outside the passing
 suite: `node scripts/repro-sdk-cancellation.mjs 0` is the control; arguments `1`

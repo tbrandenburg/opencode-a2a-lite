@@ -1,5 +1,10 @@
 # Fixed-schedule topology investigation
 
+> Historical research guide; the managed topology runner, workloads and scorers
+> are retired. Commands below require the [pre-retirement a70b639 source](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network),
+> not the current checkout. Original findings/failures are unchanged; retirement
+> makes no reliability or defect-resolution claim.
+
 ## Question and limits
 
 See the [recorded investigation findings](/docs/topology-investigation-findings.md)
@@ -111,7 +116,7 @@ and role labels match.
 
 ## Reproduce safely
 
-Follow the [binary/prerequisite recipe](/examples/agent-network/README.md#prerequisites).
+Follow the [historical binary/prerequisite recipe](https://github.com/tbrandenburg/opencode-a2a-lite/blob/a70b639/examples/agent-network/README.md#prerequisites).
 Pins: Linux x86_64, Bun **1.3.9**, OpenCode **2.0.28**, a2abridge **4.0.2**, A2A
 **1.0**, `openai/gpt-6-luna`, and locked dependency versions. The runner verifies
 the executable binary digest. Supply the provider key securely in the environment;

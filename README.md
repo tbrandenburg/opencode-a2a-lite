@@ -25,6 +25,17 @@ Architecture: **A2A 1.0 → stable ACP v1 → OpenCode 2.0.28**. The gateway has
 OpenCode HTTP adapter, database, recovery engine, or automatic prompt retry.
 See [architecture](/docs/architecture.md) and [pitfalls](/docs/pitfalls.md).
 
+## Scope freeze
+
+The adapter contract covers protocol mapping, admission, streaming, context continuity,
+cancellation, and owned-resource cleanup. Opaque model reasoning and output quality
+are outside that contract; protocol completion is not proof of answer correctness.
+Network/topology templates are research artifacts, not adapter features; no new
+schedules, roles, scorers, or orchestration-platform work is in scope.
+Active example TypeScript must not exceed production TypeScript by physical line
+count. The managed network/topology lab is retired; only small guard/interop helpers
+and manual usage guidance remain. Retirement does not resolve historical defects.
+
 ## Highlights
 
 - **Official SDKs:** A2A JSON-RPC/SSE and stable ACP v1, without OpenCode HTTP adapters.
@@ -39,7 +50,7 @@ See [architecture](/docs/architecture.md) and [pitfalls](/docs/pitfalls.md).
 - Linux, Bun **1.3.9**, and exactly **`opencode v2.0.28`** on PATH.
 - Reviewed OpenCode provider/model configuration and real model access for prompts.
 - The separate official [`a2a` CLI](https://github.com/a2aproject/a2a-cli) (tested with **0.3.1**) is the client, not part of this gateway.
-- Contributors also need Node.js **22+** for the subprocess compatibility probe,
+- Contributors also need Node.js **22+** for the independent SDK reproducer and npm packaging,
   `jq` for stream-verifier tests, and GNU `timeout` for the live demo. Packaging checks need npm.
 
 ### One-command launch (unreleased)
@@ -405,33 +416,25 @@ see [the exact acceptance scope](/docs/acceptance.md).
 
 ## Development
 
-For a real OpenCode coordinator delegating through MCP/a2abridge to two independent
-A2A workers, see the opt-in [agent network experiment](/examples/agent-network/README.md)
-and [recorded findings](/docs/agent-network-findings.md). `make network-demo` uses
-live provider access and a separately verified bridge binary; it does not run in CI.
-The example also documents a [manual peer inventory and project-local MCP setup](/examples/agent-network/README.md)
-and [caller-owned conversation handles and bounded waits](/examples/agent-network/client-guide.md).
+The managed multiworker network/topology lab has been retired, including its model
+profiles, readiness plugin, schedules, scorers, fixtures and runner commands. It was
+research, not an adapter feature. Historical [network findings](/docs/agent-network-findings.md),
+[topology findings](/docs/topology-investigation-findings.md),
+[integrity diagnostics](/docs/topology-integrity-diagnostics.md) and
+[authorized live results](/docs/authorized-live-acceptance.md) preserve original
+failures and Git provenance; retirement does not make E2E06 or topology failures pass.
+The pre-retirement source remains at
+[a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
 
-For six fixed logical collaboration schedules, three matched workloads and six
-separately labeled negative experiments, see the
-[27-case topology investigation](/docs/topology-investigation.md).
-`make topology-investigation ARGS='--list'` is provider-free; model invocation
-requires explicit `--live`. This compares fixed schedules over a physical MCP
-star, not an arbitrary graph orchestration platform.
-The [recorded topology findings](/docs/topology-investigation-findings.md) retain
-the failed cases and incomplete comparative verdict; this is not a reliability claim.
-The separate [post-change diagnostics](/docs/topology-integrity-diagnostics.md)
-record provider-free acceptance. The [authorized live results](/docs/authorized-live-acceptance.md)
-retain the E2E06 and topology contract failures alongside a successful fanout;
-the merged implementation does not make those failed checks pass or establish reliability.
-Reports separate modified-input integrity from retries/uncertain resends and retain
-expected versus observed task hashes; local turn deadlines preserve incomplete
-status and returned handles without implying remote cancellation.
-The [handoff integrity contract](/docs/topology-integrity.md) permits formatting/key-order
-changes only in validated request envelopes, preserves exact inbound artifact strings,
-and separates guarded-route verification from strict submission-parameter compliance.
-With the pinned bridge binary, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`
-runs focused provider-free MCP interoperability checks, separately from `make check`.
+For operator-owned OpenCode → guarded MCP/a2abridge → A2A usage, see the
+[manual recipe](/examples/agent-network/README.md) and
+[typed handles/deadlines](/examples/agent-network/client-guide.md).
+`A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` retains
+provider-free real-bridge coverage of the adapter boundary: catalog/discovery,
+actual fresh-context SSE, continuation, busy, cancellation, uncertainty, guard
+denials, receipt privacy and attempt budgets. It does not claim model reasoning
+quality or model-callable readiness. The single-gateway `make demo` and 14-scenario
+production `make e2e` remain opt-in; no managed multiworker runner remains.
 
 ```sh
 make install
@@ -447,7 +450,7 @@ also exclude generated/user directories.
 Tests use the official ACP SDK with a controlled subprocess peer, not a paid model.
 They cover lifecycle failures, ordering, permissions, busy/stale contexts, cancellation
 races, timeouts, and cleanup. The [CI workflow](/.github/workflows/ci.yml) runs locked
-installation, `make check`, and `make package-smoke` on pushes and pull requests
+installation, `make check`, `make package-smoke`, and checksummed bridge interop on pushes and pull requests
 without provider secrets. The package smoke uses a disposable npm cache and consumer
 directory outside the checkout, installs runtime dependencies from the registry,
 and runs the installed `bin` via `npm exec`. It uses the controlled ACP fixture
