@@ -39,17 +39,17 @@ disposable working copy replaced tracing; they do not ship in the maintained sui
 
 ## Selected result and comparable timings
 
-The test-bearing revision is `5f756b5`; production `src/`, example implementation,
+The final test-bearing revision is `aab8b00`; production `src/`, example implementation,
 scripts, dependency pins, build and CI commands have zero diff from the baseline.
 The [complete 361-row mapping](/docs/test-reduction-map.md) records 41 KEEP,
-164 REPLACE and 156 REMOVE decisions and enumerates the selected 69 cases.
+170 REPLACE and 150 REMOVE decisions and enumerates the selected 69 cases.
 
 | Group                          |  Before | Selected |
 | ------------------------------ | ------: | -------: |
-| Adapter core/configuration/ACP |     148 |       22 |
+| Adapter core/configuration/ACP |     148 |       21 |
 | Adapter HTTP/cancellation      |      67 |       21 |
 | Release/demo tooling           |      26 |        8 |
-| Agent-network examples         |     120 |       18 |
+| Agent-network examples         |     120 |       19 |
 | **Expanded total**             | **361** |   **69** |
 
 The 69-case selection is above the approximate 62-case allocation for named risks:
@@ -61,39 +61,51 @@ context/admission scenarios are replaced by retained real HTTP boundaries.
 
 | After run | Expanded cases | Assertions | Failures / skips | Whole-process wall time |
 | --------- | -------------: | ---------: | ---------------- | ----------------------: |
-| 1         |             69 |      1,304 | 0 / 0            |                 33.819s |
-| 2         |             69 |      1,304 | 0 / 0            |                 32.586s |
-| 3         |             69 |      1,304 | 0 / 0            |                 34.182s |
+| 1         |             69 |      1,318 | 0 / 0            |                 32.047s |
+| 2         |             69 |      1,318 | 0 / 0            |                 31.881s |
+| 3         |             69 |      1,318 | 0 / 0            |                 31.801s |
 
-After median: **33.819s**, a **53.39% observed reduction** against 72.563s.
+After median: **31.881s**, a **56.06% observed reduction** against 72.563s.
 The 45s planning hypothesis was met locally, not imposed as a deadline or CI gate.
 The three timing runs were sequential and used the exact command above.
+Scheduler load and concurrent development activity were not controlled. The
+earlier pre-review selection also had 69 cases, with times 33.819s, 32.586s and
+34.182s (median 33.819s, 1,304 assertions). Those observations remain historical
+evidence, not the accepted final inventory: adversarial review found missing
+protocol rejection and external interruption receipts despite that passing count.
+The intermediate `6fa56ac` selection recorded 32.776s, 32.596s and 32.858s
+(median 32.776s), then a later gate failed H03 before its marker was observed.
+After replacing the unnecessary SDK-loaded negative peer, an agent gate exposed
+the corresponding H12 startup timeout. The final lightweight peer handles both
+negative modes without changing deadlines; its three runs are the table above.
 
 First-run leaf-time attribution, reported separately from whole-process timing:
 
 | File                                   | Before leaf seconds | After leaf seconds |
 | -------------------------------------- | ------------------: | -----------------: |
-| `tests/server.test.ts`                 |              23.492 |              8.030 |
-| `tests/acp-client.test.ts`             |              15.137 |              6.075 |
-| `tests/context-http.test.ts`           |              10.914 |              7.997 |
-| `tests/cancellation-transport.test.ts` |               7.331 |              3.737 |
+| `tests/server.test.ts`                 |              23.492 |              7.527 |
+| `tests/acp-client.test.ts`             |              15.137 |              5.207 |
+| `tests/context-http.test.ts`           |              10.914 |              7.779 |
+| `tests/cancellation-transport.test.ts` |               7.331 |              3.770 |
 
-Physical deterministic test lines: **4,783 → 2,560**; supporting fixture lines:
-**331 → 328**; combined **5,114 → 2,888**. Source stays **8 files / 997 lines**.
+Physical deterministic test lines: **4,783 → 2,583**; supporting fixture lines:
+**331 → 343**; combined **5,114 → 2,926**. The twelve additional fixture lines
+provide the lightweight initialization/protocol peer; aggregate maintained code
+and actual setup counts shrink. Source stays **8 files / 997 lines**.
 The maintained deterministic inventory is **26 → 21 files**, with no relocated
 duplicate suites or new discovery exclusions.
 
 Disposable fixture-entry counters observed these setup counts, outside the timed
 runs (both instrumented validations passed). Version probes are not ACP sessions:
 
-| Setup                                      | Before |  After |
-| ------------------------------------------ | -----: | -----: |
-| Shared ACP peer executions                 |     49 |     19 |
-| Cancellation-transport peer executions     |      4 |      2 |
-| New initialization-barrier peer executions |      0 |      2 |
-| **Controlled ACP process executions**      | **53** | **23** |
-| Executable version probes                  |     57 |     24 |
-| Real Git release fixture setups            |     11 |      5 |
+| Setup                                       | Before |  After |
+| ------------------------------------------- | -----: | -----: |
+| Shared ACP peer executions                  |     49 |     19 |
+| Cancellation-transport peer executions      |      4 |      2 |
+| New initialization/protocol peer executions |      0 |      3 |
+| **Controlled ACP process executions**       | **53** | **24** |
+| Executable version probes                   |     57 |     25 |
+| Real Git release fixture setups             |     11 |      5 |
 
 The baseline cancellation-peer counter was collected in a separate passing
 four-case file run because its initial counter was placed after connection close;
@@ -108,8 +120,8 @@ record only fixture kind and version/run, not argv, environment or model content
 | Continuation, isolated conversations, unknown and post-restart stale IDs through unary **and** streaming HTTP             | H08, H09                             |
 | Synchronous admission before allocation; busy causes no ACP submission; hold until cancellation settles                   | E8, H10, C09                         |
 | Offered permission rejection versus cancellation when no reject exists                                                    | A2 (two actual permission exchanges) |
-| Process death/deadlines, fail-closed startup, owned descendant cleanup without signaling another owner                    | A4–A8, H03/H04/H05, N10              |
-| Concurrent/repeated cancel preserves identical chunks and empty final append; store and stream agree                      | C01, C04 comparator, C08             |
+| Process death/deadlines, fail-closed startup, owned descendant cleanup without signaling another owner                    | A4–A8, H03/H04/H05/H12, N10          |
+| Concurrent/repeated cancel preserves identical chunks and empty final append; store and stream agree                      | C01, independent SDK comparator, C08 |
 | Cancel loses to completion/failure; bounded failure; old terminal cancel cannot affect next turn                          | C02, C03, C06, C08, C10              |
 | Explicit generator-return ownership versus disconnected/paused HTTP persistence                                           | C05 versus C07/C08                   |
 | Loopback/trusted workspace and sanitized rejection; no early readiness; existing listener survives conflict               | C1/C3/C4/C5, I4, H01/H03/H05/H11     |
@@ -139,13 +151,17 @@ not evidence that startup reached that boundary.
 - N07 performs 24 fractional polls, then seven same-connection calls to exercise
   the eight-call reserve. N16 has five explicit judge observations, including one
   valid result and four corruptions. Neither hides a removed Cartesian matrix.
+- N10 has two expanded signal cases, SIGINT and SIGTERM, preserving the external
+  acceptance name-filter/receipt contract. N17 includes one fixed optimal selection
+  with incorrect declared cost/value and proves actual scoring propagates failure
+  to BROKEN; it does not derive its expected totals from the scorer.
 - Small direct CLI and identity assertions retain predicate representatives:
   unknown/duplicate/missing flags, absent/relative trust roots, decimal/range port
   rejection, four field-specific identity bounds, three malformed runtime
   containers/elements, a control character and an empty comma-delimited field.
 - Accepted losses include alias/control-character permutations, dedicated context
   capacity and role/reference/media-type variants, some subprocess transport/auth/
-  protocol-version/session-deadline variants, generator pause/resume timing,
+  session-deadline variants, generator pause/resume timing,
   refinement/diamond semantic variants, overlap-scorer mutations and malformed
   experiment tables. The mapping explicitly identifies these; retained checks do
   not establish identical exhaustive coverage.
@@ -165,8 +181,11 @@ from an external acceptance command.
 
 ## Deliberately seeded fault evidence
 
-Three faults were applied independently in a disposable issue-scoped worktree at
-`5f756b5`, then removed. Each command exited 1 on a behavioral assertion, not a
+Four faults were applied independently in a disposable issue-scoped worktree at
+`6fa56ac`, then removed. H12 was also fault-seeded again at final `aab8b00` after
+changing its peer; the three mandatory tests and production code are unchanged.
+The mandatory faults had also been detected at the initial selection. Each
+command exited 1 on a behavioral assertion, not a
 compiler or fixture-startup error:
 
 | Temporary production fault                     | Exact focused command                                          | Observed sensitivity                                              |
@@ -174,10 +193,36 @@ compiler or fixture-startup error:
 | Restore stock SDK cancellation consumer        | `bun test ./tests/request-handler-cancellation.test.ts -t C01` | 1 failure: six extra persisted parts under two concurrent cancels |
 | Remove streaming explicit-context preservation | `bun test ./tests/context-http.test.ts -t H09`                 | 1 failure: fresh/continued tasks failed instead of completing     |
 | Release admission before cancellation settles  | `bun test ./tests/cancellation.test.ts -t C09`                 | 1 failure: premature request completed instead of failing busy    |
+| Remove ACP protocol-version rejection          | `bun test ./tests/server.test.ts -t H12`                       | 1 failure: incompatible startup resolved instead of rejecting     |
 
 After restoring those edits, the disposable worktree had an empty `git diff`.
 The coordinator's subsequent three full coverage/JUnit runs passed 69/69 with
-zero skips. These three manual fault seeds are not a general mutation score.
+zero skips. These four manual fault seeds are not a general mutation score.
+
+## Adversarial review corrections
+
+The first 69-case selection passed while a removed ACP protocol-version check
+still allowed HTTP readiness. Review restored H12 rather than treating executable
+version mismatch or initialization timeout as equivalent coverage.
+
+The coordinator's first controlled run recorded **N1–N5 WORKING, N6 BROKEN** under
+`.test-results/topology-investigation/3cd6572e-bcea-4351-94b7-4b41135270a1/`.
+The reduction had renamed the consumed lifecycle test, removed its receipt writer
+and retained only SIGTERM. N10 now restores both signals, exact-port rebind proof,
+the unchanged external filter and private JSONL receipts. A separate coordinator
+run at `.test-results/topology-investigation/c48b25e6-c271-4f40-9815-57d8b95c4421/`
+verified **N1–N6 WORKING with cleanup=true**. The first failed evidence remains
+unchanged. The overall six-case invocation is intentionally INCOMPLETE (6/27),
+exiting 1 at the script/2 through make because live cases were not enabled.
+
+Two medium scorer gaps were corrected in N17: failed dimensions cannot become
+WORKING, and an optimal selection with false declared totals must fail correctness.
+To retain 69 cases, redundant E3 mixed-parts unit coverage was replaced by retained
+real HTTP H02, and the normal C04 stock-SDK comparator was removed in favor of the
+pre-existing independent portable comparator. No deleted table was moved to a new
+optional suite. Obsolete private stock-fixture mode was removed after reference
+search; the independent script remains unchanged and was verified with 0/1/2
+cancel requests (control exit 0; known-defect cases intentionally exit 1).
 
 ## Validation boundary
 
