@@ -17,6 +17,33 @@ import type { Check } from "./topology-scores.js";
 
 export const sha256 = (text: string | Buffer) => createHash("sha256").update(text).digest("hex");
 export type Audit = Record<string, unknown>;
+// Submitted arguments are model-controlled, not returned handle provenance.
+export function submittedIdentifiers(args: Record<string, unknown>) {
+  return {
+    contextPresent: Object.hasOwn(args, "context_id"),
+    ...(typeof args.context_id === "string" ? { contextHash: sha256(args.context_id) } : {}),
+    taskPresent: Object.hasOwn(args, "task_id"),
+    ...(typeof args.task_id === "string" ? { taskHash: sha256(args.task_id) } : {}),
+  };
+}
+export function submittedIdentifier(call: Audit, field: "context" | "task") {
+  const digest = call[`${field}Hash`];
+  if (Object.hasOwn(call, `${field}Present`))
+    return {
+      present: call[`${field}Present`] !== false,
+      hash: typeof digest === "string" && /^[a-f0-9]{64}$/.test(digest) ? digest : null,
+    };
+  return {
+    present: Object.hasOwn(call, field),
+    hash: typeof call[field] === "string" ? sha256(call[field]) : null,
+  };
+}
+export function matchesSubmitted(call: Audit, field: "context" | "task", expected: string | null) {
+  const submitted = submittedIdentifier(call, field);
+  return expected === null
+    ? !submitted.present
+    : submitted.present && submitted.hash === sha256(expected);
+}
 export function parseTurn(text: string): TurnOutput {
   const value: unknown = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
   assert(isRecord(value), "Invalid worker envelope");
@@ -103,7 +130,7 @@ export function correlateSubmission(
       entry.event === "call" &&
       entry.tool === "a2a_send_message" &&
       entry.peer === expectation.peerUrl &&
-      (entry.context ?? null) === (expectation.submittedContextId ?? null),
+      matchesSubmitted(entry, "context", expectation.submittedContextId ?? null),
   );
   if (calls.length === 0)
     throw new SubmissionError(
@@ -142,8 +169,12 @@ export function workerReceipt(
   if (observation) expected.workerInputHash = sha256(observation.input);
   const sent = submission(expected, text, audit);
   const result = sent.result;
-  if (sent.call.context !== undefined && result?.contextId !== undefined)
-    assert.equal(result.contextId, sent.call.context, "Continuation handle mismatch");
+  if (submittedIdentifier(sent.call, "context").present && result?.contextId !== undefined)
+    assert(
+      typeof result.contextId === "string" &&
+        matchesSubmitted(sent.call, "context", result.contextId),
+      "Continuation handle mismatch",
+    );
   const observations = audit.filter(
     (entry) =>
       entry.event === "result" &&
@@ -156,7 +187,8 @@ export function workerReceipt(
             call.event === "call" &&
             call.tool === "a2a_get_task" &&
             call.peer === expected.peerUrl &&
-            call.task === result?.taskId &&
+            typeof result?.taskId === "string" &&
+            matchesSubmitted(call, "task", result.taskId) &&
             pairedResult(call, audit) === entry,
         )),
   );
@@ -183,7 +215,7 @@ export function workerReceipt(
     peerUrl: expected.peerUrl,
     contextId: typeof result?.contextId === "string" ? result.contextId : null,
     taskId: typeof result?.taskId === "string" ? result.taskId : null,
-    submittedContextId: typeof sent.call.context === "string" ? sent.call.context : null,
+    submittedContextId: expected.submittedContextId ?? null,
     taskIdOmitted: sent.call.taskIdOmitted === true,
     state:
       typeof result?.taskId === "string" && typeof result.contextId === "string"
@@ -217,18 +249,22 @@ export function auditOperations(
         (other) =>
           other.inputHash === entry.inputHash &&
           other.peer === entry.peer &&
-          (other.context ?? null) === (entry.context ?? null),
+          JSON.stringify(submittedIdentifier(other, "context")) ===
+            JSON.stringify(submittedIdentifier(entry, "context")),
       ).length === 1,
   );
   const extra = sends.some(
     (entry) =>
       sends.filter(
-        (other) => other.peer === entry.peer && (other.context ?? null) === (entry.context ?? null),
+        (other) =>
+          other.peer === entry.peer &&
+          JSON.stringify(submittedIdentifier(other, "context")) ===
+            JSON.stringify(submittedIdentifier(entry, "context")),
       ).length >
       expected.filter(
         (input) =>
           input.peerUrl === entry.peer &&
-          (input.submittedContextId ?? null) === (entry.context ?? null),
+          matchesSubmitted(entry, "context", input.submittedContextId ?? null),
       ).length,
   );
   const uncertainResend = sends.some((entry, index) => {
@@ -283,13 +319,13 @@ export function auditOperations(
           );
         }),
       ) &&
-      sends.length === expected.length &&
+      sends.length <= expected.length &&
       sends.every(
         (entry) =>
           expected.filter(
             (input) =>
               input.peerUrl === entry.peer &&
-              (input.submittedContextId ?? null) === (entry.context ?? null) &&
+              matchesSubmitted(entry, "context", input.submittedContextId ?? null) &&
               (input.inputEnvelope
                 ? input.inputHash === input.inputEnvelope.rawHash &&
                   equivalentInput(input.inputEnvelope, entry.inputHash, entry.inputEnvelope)
@@ -297,6 +333,7 @@ export function auditOperations(
           ).length === 1,
       ),
     noUncertainResends,
+    submissionsObserved: sends.length === expected.length,
     workerInputsObserved:
       baseline ||
       (sends.length > 0 &&
@@ -316,4 +353,13 @@ export function auditOperations(
         ),
       ),
   };
+}
+
+export function inputIntegrityCheck(evidence: {
+  inputIntegrity: boolean;
+  submissionsObserved: boolean;
+  workerInputsObserved: boolean;
+}): Check {
+  if (!evidence.inputIntegrity) return "fail";
+  return evidence.submissionsObserved && evidence.workerInputsObserved ? "pass" : "unknown";
 }

@@ -1,6 +1,6 @@
 import type { runTopologyCase } from "./topology-run.js";
 import { CASE_MATRIX, steps } from "./topology-cases.js";
-import { sha256 } from "./topology-evidence.js";
+import { matchesSubmitted, sha256, submittedIdentifier } from "./topology-evidence.js";
 import type { Score } from "./topology-scores.js";
 import { envelopeFields, inputDifference } from "./topology-envelope.js";
 import { isRecord } from "./topology-workloads.js";
@@ -19,8 +19,6 @@ const auditFields = [
   "id",
   "tool",
   "peer",
-  "context",
-  "task",
   "inputHash",
   "artifactHash",
   "taskId",
@@ -125,7 +123,7 @@ export function detailEvidence(result: Result) {
         call.event === "call" &&
         call.tool === "a2a_send_message" &&
         call.peer === entry.peerUrl &&
-        (call.context ?? null) === (entry.submittedContextId ?? null),
+        matchesSubmitted(call, "context", entry.submittedContextId ?? null),
     );
     return entry.inputEnvelope && calls.length === 1
       ? inputDifference(entry.inputEnvelope, calls[0]!.inputHash, calls[0]!.inputEnvelope)
@@ -158,6 +156,17 @@ export function detailEvidence(result: Result) {
     })),
     audit: result.audit.map((entry) => ({
       ...scalars(entry, auditFields),
+      ...(entry.event === "call"
+        ? Object.fromEntries(
+            (["context", "task"] as const).flatMap((field) => {
+              const identifier = submittedIdentifier(entry, field);
+              return [
+                [`${field}Present`, identifier.present],
+                ...(identifier.hash ? [[`${field}Hash`, identifier.hash]] : []),
+              ];
+            }),
+          )
+        : {}),
       ...(isRecord(entry.inputEnvelope) ? { inputEnvelope: metadata(entry.inputEnvelope) } : {}),
       ...(Array.isArray(entry.tools)
         ? {

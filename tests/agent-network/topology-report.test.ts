@@ -10,9 +10,10 @@ import {
   scoreOperations,
 } from "../../examples/agent-network/topology-scores.js";
 import type { runTopologyCase } from "../../examples/agent-network/topology-run.js";
-import { verifyContributions } from "../../examples/agent-network/topology-evidence.js";
+import { sha256, verifyContributions } from "../../examples/agent-network/topology-evidence.js";
 import { sanitizedFailure } from "../../examples/agent-network/topology-failures.js";
 import { scoreCorrectness } from "../../examples/agent-network/topology-verdicts.js";
+import { submittedIdentifiers, toolDecision } from "../../examples/agent-network/bridge-proxy.js";
 
 const passed = score({ checked: "pass" });
 function result(): Awaited<ReturnType<typeof runTopologyCase>> {
@@ -76,6 +77,22 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
   const root = mkdtempSync(join(tmpdir(), "topology-report-test-"));
   const secret = "provider-private-sentinel";
   const marker = "host-marker-not-for-serialization";
+  const peer = "http://127.0.0.1:4101/";
+  const args = { peer_url: peer, context_id: secret, task_id: secret, text: secret };
+  expect(toolDecision("a2a_send_message", args, [peer], 1)).toBeUndefined();
+  const identifiers = submittedIdentifiers(args);
+  expect(identifiers).toEqual({
+    contextPresent: true,
+    contextHash: sha256(secret),
+    taskPresent: true,
+    taskHash: sha256(secret),
+  });
+  expect(JSON.stringify(identifiers)).not.toContain(secret);
+  expect(submittedIdentifiers({})).toEqual({ contextPresent: false, taskPresent: false });
+  expect(submittedIdentifiers({ context_id: null })).toEqual({
+    contextPresent: true,
+    taskPresent: false,
+  });
   const sample = result();
   try {
     verifyContributions(
@@ -120,6 +137,8 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
         id: "send-1",
         tool: "a2a_send_message",
         peer: "http://127.0.0.1:4101/",
+        context: secret,
+        task: secret,
         inputHash: "a".repeat(64),
         inputEnvelope: {
           kind: "known",
@@ -143,6 +162,22 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
         artifactHash: "b".repeat(64),
         ok: true,
         rawAnswer: secret,
+      },
+      {
+        event: "call",
+        connection: "connection-1",
+        id: "unknown-hashed",
+        tool: "a2a_send_message",
+        peer,
+        ...identifiers,
+      },
+      {
+        event: "call",
+        connection: "connection-1",
+        id: "known-poll",
+        tool: "a2a_get_task",
+        peer,
+        ...submittedIdentifiers({ context_id: "context-1", task_id: "task-1" }),
       },
     ],
     handles: [
@@ -177,6 +212,17 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
     expect(saved.evidence.receipts[0].outputHash).toBe(saved.evidence.audit[1].artifactHash);
     expect(saved.evidence.expectations[0].markerHash).toMatch(/^[a-f0-9]{64}$/);
     expect(saved.evidence.audit[0].inputEnvelope.fields).toEqual({ instructions: "c".repeat(64) });
+    expect(saved.evidence.audit[0]).toMatchObject(identifiers);
+    expect(saved.evidence.audit[0]).not.toHaveProperty("context");
+    expect(saved.evidence.audit[0]).not.toHaveProperty("task");
+    expect(saved.evidence.audit[2]).toMatchObject(identifiers);
+    expect(saved.evidence.audit[3]).toMatchObject({
+      contextPresent: true,
+      contextHash: sha256("context-1"),
+      taskPresent: true,
+      taskHash: sha256("task-1"),
+    });
+    expect(saved.evidence.audit[1]).toMatchObject({ taskId: "task-1", contextId: "context-1" });
     expect(statSync(report.root).mode & 0o777).toBe(0o700);
     expect(statSync(join(report.root, "summary.json")).mode & 0o777).toBe(0o600);
     const summary = JSON.parse(summaryText);

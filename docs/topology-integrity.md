@@ -30,7 +30,9 @@ Only a validated request object with these fields receives a structured digest:
 Unknown/missing fields, duplicate object keys (including escaped aliases), invalid
 JSON and incorrect types are rejected from structured comparison. Parsing is
 bounded to 4 MiB, 4,096 syntax tokens and depth eight. String contents are not
-tokenized as nested artifacts. Object keys in the validated envelope/maps/facts
+tokenized as nested artifacts. A forward-only sticky lexer consumes at its current
+cursor, including JSON whitespace, and rejects an invalid escape or unterminated
+string without searching again at later quotes. Object keys in the validated envelope/maps/facts
 are sorted for hashing; arrays stay ordered and strings stay unchanged. Equivalent
 JSON escapes represent the same string, not a rewrite of its value. This is a
 restricted schema digest, not a claim of general RFC 8785 conformance.
@@ -48,6 +50,12 @@ only; its URL/tool/budget decisions and forwarded bytes are unchanged.
    not supply a handle. Missing, repeated and wrong-binding calls have distinct
    finite criteria. Returned real task/context handles remain in the run's handle
    ledger even if semantic validation fails; no handle is fabricated.
+   New guard call receipts store submitted `context_id`/`task_id` as SHA256
+   `contextHash`/`taskHash` plus explicit `contextPresent`/`taskPresent` flags,
+   never raw argument strings. Exact expected-ID hashes bind continuations and
+   polls; an unknown or explicitly supplied non-string ID is not an omitted ID.
+   Returned `contextId`/`taskId` remain actual result values. No forwarded argument
+   is rewritten, authorized by its hash, or replaced with a guessed handle.
 3. Compare expected content with guarded-call metadata only under the same known
    contract (or an exact legacy raw hash). Different raw hashes with equal known
    digests mean encoding-only differences. A changed field is not a retry.
@@ -61,6 +69,9 @@ only; its URL/tool/budget decisions and forwarded bytes are unchanged.
 5. Operational input integrity uses the same metadata comparison and checks
    captured worker bytes against the corresponding paired send. Missing expected
    submissions cannot become integrity success through a vacuous `every()`.
+   Missing sends remain unobserved (unknown), including interruption after stage
+   preparation but before submission; observed changed bytes, extra sends or bad
+   bindings still fail independently, even during an abort.
 
 `operations.guardedPath` establishes a captured single guarded connection/catalog
 and paired calls/results, independent of whether MCP returned an error.
@@ -94,10 +105,14 @@ Assertion frame extraction searches the stack for an actual `at` frame in the
 allowlisted example modules, rather than truncating before large diffs. Neither
 assertion diffs nor exception messages are persisted. Reports retain score
 dimensions and real handle provenance, not raw model/provider text.
+Report projection also hashes legacy raw call `context`/`task` fields; historical
+receipt files themselves are not rewritten. Recognized returned handles remain
+available in result records, receipts and the handle ledger, while submitted
+arguments are represented only by presence and validated bounded hash metadata.
 
 ## Counterexample checklist and maintained workload disclosure
 
-The suite grows from 69 to **70 expanded cases**, using one spare case. No old
+The suite remains at **70 expanded cases** after focused review fixes. No old
 parameter table is restored. The existing N11 property checks remain three
 64-subset oracle workloads, unchanged.
 
@@ -110,14 +125,21 @@ parameter table is restored. The existing N11 property checks remain three
   input integrity while one completed send remains not-a-retry.
 - **N19 parser representatives:** unexpected field, duplicate `final`, malformed
   object, invalid colon syntax, excessive depth, token count and byte size reject.
-  These are seven named fixed parser representatives, not an exhaustive grammar
-  corpus. Guard-to-worker byte mutation fails even if the worker input equals the
+  Review adds one escaped duplicate-key alias and two malformed-string workloads:
+  each has 200,000 escaped quotes (400,006-byte prefix), one ending in invalid
+  `\q`, the other unterminated. Both execute in one owned child with a three-second
+  OS SIGKILL deadline including startup and verified reaping. These are ten named
+  fixed parser representatives, not an exhaustive grammar corpus or timing
+  benchmark. Guard-to-worker byte mutation fails even if the worker input equals the
   original host envelope.
 - **N19 policy:** omitted explicit nonblocking and supplied task ID fail policy;
   nonblocking omission does not fail captured guarded-route evidence.
 - **N14:** modified single send is not a retry; correlation retains its real
   returned handles. Missing, duplicate, unresolved/uncertain and ambiguous-result
   evidence cannot create successful submissions or invented handles.
+  The actual stage executor is interrupted at its submit-prompt boundary after
+  expectation preparation: zero sends leave integrity unknown/overall incomplete;
+  observed corruption still makes an aborted run broken.
 - **N15:** wrong peer/context/task, continuation replacement, unrelated/unpaired
   terminal result, changed actual worker input and artifact hash fail at their
   respective boundaries. Missing/changed/repeated facts, inherited proof,
@@ -127,6 +149,14 @@ parameter table is restored. The existing N11 property checks remain three
 - **N17:** persisted JSON/summary/Markdown exclude provider/marker sentinels,
   malicious fact IDs and nested metadata payloads while retaining hashed IDs,
   finite contribution counts, independent dimensions and paired handle provenance.
+  Legacy raw unknown context/task arguments and new guard-helper hashes are both
+  projected without sentinel content; genuine returned handles remain raw. N19
+  checks hashed continuation/poll binding, explicit-null rejection and duplicate
+  detection across legacy and new receipt metadata.
+
+The separate pre-existing quadratic duplicate scan in `verifyContributions()` is
+not changed by this envelope/privacy slice; large fact-list hardening remains a
+coordinator-owned follow-up, not a claimed fix.
 
 ## Reproduction and pending live gate
 
@@ -164,20 +194,28 @@ returned its monthly-quota error; official documentation was used instead.
 
 ### Provider-free implementation evidence
 
-| Command                                  | Observed result                                                                                                                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bun test ./tests/agent-network`         | 19 pass, zero failures, 970 assertions.                                                                                                                                                                |
-| `bun test ./tests`                       | 70 pass across 21 files, zero failures, 1,360 assertions; one observed run took 34.78 s, not a timing benchmark.                                                                                       |
-| `bun run fmt-check`                      | 105 matched files formatted.                                                                                                                                                                           |
-| `bun run lint`                           | Exit zero; seven existing warnings in `src/`, no new example/test warnings.                                                                                                                            |
-| `bun run typecheck` / `bun run build`    | Exit zero.                                                                                                                                                                                             |
-| Pinned `make interop-test` command above | Exit zero, `providerFreeContextInterop:true`; first fixture connection used 30 attempts, within 40/eight-reserve limits. Expected terminal-subscription diagnostics appeared during negative fixtures. |
-| `git diff --check`                       | Exit zero.                                                                                                                                                                                             |
+| Command                                  | Observed result                                                                                                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test ./tests/agent-network`         | 19 pass, zero failures, 1,002 assertions.                                                                                                                                                                          |
+| `bun test ./tests`                       | 70 pass across 21 files, zero failures, 1,392 assertions; one observed review-fix run took 33.45 s, not a timing benchmark.                                                                                        |
+| `bun run fmt-check`                      | 105 matched files formatted.                                                                                                                                                                                       |
+| `bun run lint`                           | Exit zero; seven existing warnings in `src/`, no new example/test warnings.                                                                                                                                        |
+| `bun run typecheck` / `bun run build`    | Exit zero.                                                                                                                                                                                                         |
+| Pinned `make interop-test` command above | Review-fix run failed at `receipts-and-budget`: the external fixture still requires raw `call.context`, now intentionally hashed. Earlier context/deadline/cancel boundaries ran; later subcases were not reached. |
+| `git diff --check`                       | Exit zero.                                                                                                                                                                                                         |
 
-Interop's owned shutdown/released-port checks passed; an independent process
-inspection found zero remaining interop-fixture processes. The worktree's
+Interop's owned shutdown/released-port checks passed despite that fixture failure;
+independent binds to its four printed loopback ports confirmed release. The
+fixture's assertion must check `contextPresent` and the SHA256 of the actual
+returned context, and `taskPresent:false`, before complete real-bridge acceptance
+can be claimed. That fixture update is outside this focused fix's write scope.
+The worktree's
 `make lint` wrapper could not find a worktree-local `node_modules/.bin/oxlint`;
 the direct Bun lint/typecheck/build scripts resolved installed ancestor tooling
-and passed without dependency/shared-state changes. A test-fixture union typing
-error found during development was corrected before the final gates. These are
-provider-free results; the five-case live gate above remains pending.
+and passed without dependency/shared-state changes. Two temporary type-narrowing
+errors and new lexer/test-size lint warnings found during review-fix development
+were corrected before the final deterministic gates. Restoring the original
+lexer, legacy raw-field projection and missing-send predicate made N19/N17/N14
+fail respectively (one focused run: one pass, three failures); those temporary
+faults were removed. These are provider-free results; complete interop acceptance
+is blocked as described above, and the five-case live gate remains pending.

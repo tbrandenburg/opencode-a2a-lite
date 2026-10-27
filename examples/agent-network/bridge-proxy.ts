@@ -6,6 +6,9 @@ import { dirname, isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { taskMetadata } from "./guard-task.js";
 import { envelopeMetadata } from "./topology-envelope.js";
+import { submittedIdentifiers } from "./topology-evidence.js";
+
+export { submittedIdentifiers } from "./topology-evidence.js";
 
 const digest = "bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2";
 export const tools = [
@@ -244,8 +247,7 @@ async function main(): Promise<void> {
         id,
         tool,
         ...(typeof args.peer_url === "string" ? { peer: args.peer_url } : {}),
-        ...(typeof args.context_id === "string" ? { context: args.context_id } : {}),
-        ...(typeof args.task_id === "string" ? { task: args.task_id } : {}),
+        ...submittedIdentifiers(args),
         inputHash: inputHash(args),
         ...(tool === "a2a_send_message" && typeof args.text === "string"
           ? { inputEnvelope: envelopeMetadata(args.text) }

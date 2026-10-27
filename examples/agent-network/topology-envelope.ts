@@ -66,9 +66,12 @@ function fact(value: unknown): boolean {
 // string contents) first; input bytes, nesting and token count are bounded.
 function unambiguous(text: string): boolean {
   const tokens: string[] = [];
-  for (const match of text.matchAll(
-    /"(?:[^"\\]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"|[{}[\]:,]|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g,
-  )) {
+  const lexer =
+    /[ \t\r\n]+|"(?:[^"\\]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"|[{}[\]:,]|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/y;
+  while (lexer.lastIndex < text.length) {
+    const match = lexer.exec(text);
+    if (!match) return false;
+    if (/^[ \t\r\n]/.test(match[0])) continue;
     if (tokens.length === 4096) return false;
     tokens.push(match[0]);
   }

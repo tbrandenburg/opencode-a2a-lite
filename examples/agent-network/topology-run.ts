@@ -5,6 +5,7 @@ import type { StepExpectation, StepReceipt } from "./topology-receipts.js";
 import {
   auditOperations,
   correlateSubmission,
+  inputIntegrityCheck,
   sha256,
   workerReceipt,
   type Audit,
@@ -158,11 +159,7 @@ export async function runTopologyCase(test: ExperimentCase, controls: TopologyCo
                 ),
               ),
         noHiddenRetries: checked(operations.noHiddenRetries),
-        inputIntegrity: !operations.inputIntegrity
-          ? "fail"
-          : operations.workerInputsObserved
-            ? "pass"
-            : "unknown",
+        inputIntegrity: inputIntegrityCheck(operations),
         noUncertainResends: operations.noUncertainResends,
         cleanup: checked(cleanupErrors.length === 0 && heartbeatErrors.length === 0),
       },
