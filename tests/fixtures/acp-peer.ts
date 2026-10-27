@@ -24,7 +24,7 @@ agent.onRequest(acp.methods.agent.initialize, async (request) => {
   initialized++;
   if (mode === "startup-exit") process.exit(12);
   if (request.params.protocolVersion !== 1 || initialized !== 1) throw new Error("bad initialize");
-  return { protocolVersion: 1, agentCapabilities: {} };
+  return { protocolVersion: mode === "protocol-version" ? 2 : 1, agentCapabilities: {} };
 });
 agent.onRequest(acp.methods.agent.session.new, async (request) => {
   if (request.params.cwd !== process.cwd() || request.params.mcpServers.length)

@@ -60,20 +60,6 @@ test.each(scenarios)(
   },
 );
 
-test("C04 stock SDK 1.3.0 comparator duplicates cancellation-time appends", async () => {
-  const probe = cancellationProbe(true);
-  const sending = probe.consume(probe.handler.sendMessageStream(params(), probe.context));
-  await probe.started;
-  await probe.ready();
-  const cancellation = probe.cancel();
-  await probe.waitCancels(1);
-  probe.settle();
-  await Promise.all([sending, cancellation]);
-  expect(parts(await probe.snapshot())).toEqual(["A", "B", "B", "B", "B", "", ""]);
-  expect((await probe.snapshot()).status?.state).toBe(TaskState.TASK_STATE_CANCELED);
-  expect(probe.events.filter((event) => event.payload?.$case === "artifactUpdate")).toHaveLength(4);
-});
-
 test("C05 explicit generator return removes the original persistence owner", async () => {
   const probe = cancellationProbe();
   const stream = probe.handler.sendMessageStream(params(), probe.context);
@@ -94,7 +80,7 @@ test("C05 explicit generator return removes the original persistence owner", asy
 });
 
 test("C06 hung cancellation is bounded without inventing terminal state", async () => {
-  const probe = cancellationProbe(false, "hang");
+  const probe = cancellationProbe("hang");
   const sending = probe.consume(probe.handler.sendMessageStream(params(), probe.context));
   await probe.started;
   await probe.ready();

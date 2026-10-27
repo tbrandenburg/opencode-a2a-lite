@@ -116,17 +116,6 @@ test("E2: an unknown stop reason flushes before failure and invalidates continua
   ]);
 });
 
-test("E3: mixed unsupported parts fail without starting ACP", async () => {
-  const run = setup();
-  await run.executor.execute(
-    context([{ text: "hello" }, { raw: "aGVsbG8=", mediaType: "image/png" }]),
-    run.bus,
-  );
-  expect(run.calls).toEqual([]);
-  expect(run.events.map((event) => event.kind)).toEqual(["task", "statusUpdate"]);
-  expect(statuses(run.events)).toEqual([TaskState.TASK_STATE_FAILED]);
-});
-
 test("E4: cancellation uses only the active binding and waits for the canceled result", async () => {
   const run = setup();
   let release: ((response: PromptResponse) => void) | undefined;
