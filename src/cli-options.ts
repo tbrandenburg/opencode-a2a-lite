@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
+import { parseIdentity } from "./identity.js";
 
 type Options =
   | { action: "help" }
@@ -14,9 +15,14 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
   const explicit = flags.get("--workspace");
   const workspace = explicit === undefined ? env.A2A_WORKSPACE : resolve(explicit);
   if (!workspace || !isAbsolute(workspace)) throw new StartupError("workspace");
+  const identity = parseIdentity(env);
   return {
     action: "run",
-    server: { workspace, port: parsePort(flags.get("--port") ?? env.A2A_PORT) },
+    server: {
+      workspace,
+      port: parsePort(flags.get("--port") ?? env.A2A_PORT),
+      ...(identity === undefined ? {} : { identity }),
+    },
   };
 }
 

@@ -46,6 +46,7 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
     const gateway = createGateway({
       workspace: profile.cwd,
       port: 0,
+      identity: { name: spec.id, description: spec.description },
       acp: { executable: profile.executable, env: profile.env },
       createExecutor(bridge) {
         return createAgentExecutor({
@@ -85,9 +86,6 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
     }, signal);
     const ready = await interrupted(gateway.start(), signal);
     signal?.throwIfAborted();
-    // The reusable gateway returns its live SDK card; give each demo worker a role identity.
-    ready.card.name = spec.id;
-    ready.card.description = spec.description;
     const response = await fetch(new URL(".well-known/agent-card.json", ready.url), {
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(5_000)])
@@ -95,6 +93,7 @@ For a lifecycle probe asking for a long story, continue writing as requested unt
     });
     const card = await response.json();
     assert.equal(card.name, spec.id);
+    assert.equal(card.description, spec.description);
     assert.equal(card.supportedInterfaces[0].url, ready.url);
     signal?.throwIfAborted();
     return {

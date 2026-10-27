@@ -5,6 +5,8 @@ const messages = {
   directory:
     "Workspace must be an existing directory; select a trusted directory with --workspace or A2A_WORKSPACE.",
   port: "Invalid port: use an integer from 0 through 65535 with --port or A2A_PORT.",
+  identity:
+    "Invalid worker identity: use nonblank strings without control characters; name <=128, description <=1024, and up to 16 tags of <=64 characters (A2A_TAGS is comma-separated).",
   occupied: "Loopback port is in use; choose another --port or A2A_PORT (0 selects a free port).",
   executable:
     "ACP startup failed: OpenCode is unavailable; install the reviewed OpenCode 2.0.28 executable on PATH.",

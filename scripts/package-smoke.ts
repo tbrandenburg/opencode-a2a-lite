@@ -78,9 +78,11 @@ try {
   ];
   const exec = (args: string[], overrides: NodeJS.ProcessEnv = {}) =>
     run([...command, ...args], consumer, { ...isolated, ...overrides }, 120_000);
-  const help = exec(["--help"]);
+  const invalidIdentity = { A2A_NAME: "private-identity\n", A2A_DESCRIPTION: "", A2A_TAGS: "," };
+  const help = exec(["--help"], invalidIdentity);
   assert.equal(help.status, 0, "installed npm exec --help failed");
   assert.match(help.stdout, /Usage: opencode-a2a-lite/);
+  assert.match(help.stdout, /A2A_NAME/);
   assert.equal(exec(["-h"]).status, 0);
   const installs = readdirSync(join(temp, "cache", "_npx"));
   assert.equal(installs.length, 1);
@@ -90,7 +92,7 @@ try {
     false,
   );
   for (const flag of ["--version", "-v"]) {
-    const result = exec([flag]);
+    const result = exec([flag], invalidIdentity);
     assert.equal(result.status, 0);
     assert.equal(result.stdout.trim(), manifest.version);
   }
@@ -101,7 +103,7 @@ try {
     assert.match(result.stderr, phrase);
     assert.doesNotMatch(
       result.stderr,
-      /PRIVATE_PEER_DIAGNOSTIC|unknown-private-input|Error:|\n\s+at /,
+      /PRIVATE_PEER_DIAGNOSTIC|unknown-private-input|private-identity|Error:|\n\s+at /,
     );
   };
   reject([], /trusted absolute workspace/, { A2A_WORKSPACE: "" });
@@ -141,6 +143,22 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
 `,
   );
   chmodSync(peer, 0o755);
+  for (const metadata of [invalidIdentity, { A2A_TAGS: "text,,review" }]) {
+    reject(["--workspace", ".", "--port", "0"], /Invalid worker identity/, metadata);
+    assert.equal(existsSync(record), false, "invalid identity must not start ACP");
+  }
+  const direct = join(modules, manifest.name, "dist/src/server.js");
+  const invalidDirect = run([process.execPath, direct], consumer, {
+    ...isolated,
+    A2A_WORKSPACE: consumer,
+    A2A_PORT: "0",
+    ...invalidIdentity,
+  });
+  assert.equal(invalidDirect.status, 1);
+  assert.equal(invalidDirect.stdout, "");
+  assert.match(invalidDirect.stderr, /Invalid worker identity/);
+  assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
+  assert.equal(existsSync(record), false);
   reject(["--workspace", ".", "--port", "0"], /exactly opencode v2.0.28/, {
     PEER_MODE: "executable-version",
   });
@@ -173,24 +191,41 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
     {
       termination: "SIGTERM",
       args: [],
-      env: { ...isolated, A2A_WORKSPACE: consumer, A2A_PORT: "0" },
+      env: {
+        ...isolated,
+        A2A_WORKSPACE: consumer,
+        A2A_PORT: "0",
+        A2A_NAME: " planner ",
+        A2A_DESCRIPTION: " Plans work ",
+        A2A_TAGS: "planning,text,planning",
+      },
       port: undefined,
     },
     {
       termination: "SIGTERM",
-      args: ["--workspace", consumer],
+      args: ["--workspace", consumer, "--port", "0"],
       env: { ...isolated, A2A_PORT: undefined },
-      port: "41241",
+      port: undefined,
     },
     {
       termination: "SIGTERM",
       args: [],
-      env: { ...isolated, A2A_WORKSPACE: consumer, A2A_PORT: "0" },
+      env: {
+        ...isolated,
+        A2A_WORKSPACE: consumer,
+        A2A_PORT: "0",
+        A2A_NAME: " reviewer ",
+        A2A_TAGS: "review,text,review",
+      },
       port: undefined,
       entry: join(modules, manifest.name, "dist/src/server.js"),
     },
   ] as const;
   for (const scenario of scenarios) {
+    const metadata: NodeJS.ProcessEnv = scenario.env;
+    const probe = createServer();
+    await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
+    await new Promise<void>((done, fail) => probe.close((error) => (error ? fail(error) : done())));
     rmSync(record, { force: true });
     const invocation =
       "entry" in scenario ? [process.execPath, scenario.entry] : [...command, ...scenario.args];
@@ -209,6 +244,20 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       assert.equal(response.status, 200);
       const card = await response.json();
       assert.equal(card.version, manifest.version);
+      assert.equal(card.name, metadata.A2A_NAME?.trim() ?? "OpenCode A2A Lite");
+      assert.equal(
+        card.description,
+        metadata.A2A_DESCRIPTION?.trim() ??
+          "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
+      );
+      assert.deepEqual(
+        card.skills[0].tags,
+        "entry" in scenario
+          ? ["text", "review"]
+          : metadata.A2A_NAME
+            ? ["text", "planning"]
+            : ["text"],
+      );
       assert.equal(card.supportedInterfaces[0].url, ready.url);
       const owned = peerRecord(record)!;
       assert.equal(owned.cwd, consumer);
