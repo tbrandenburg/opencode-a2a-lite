@@ -12,6 +12,7 @@ import {
 import type { runTopologyCase } from "../../examples/agent-network/topology-run.js";
 import { verifyContributions } from "../../examples/agent-network/topology-evidence.js";
 import { sanitizedFailure } from "../../examples/agent-network/topology-failures.js";
+import { scoreCorrectness } from "../../examples/agent-network/topology-verdicts.js";
 
 const passed = score({ checked: "pass" });
 function result(): Awaited<ReturnType<typeof runTopologyCase>> {
@@ -196,6 +197,18 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
       operations: scoreOperations(),
     };
     expect(overall(dimensions)).toBe("INCOMPLETE");
+    expect(overall(sample.scores)).toBe("BROKEN");
+    const incorrectTotals = scoreCorrectness("V1", {
+      selected: ["A", "B", "C", "F"],
+      cost: 0,
+      value: 0,
+      proof: {},
+    });
+    expect(incorrectTotals.checks.totals).toBe("fail");
+    expect(incorrectTotals.status).toBe("fail");
+    expect(overall({ ...dimensions, operations: passed, correctness: incorrectTotals })).toBe(
+      "BROKEN",
+    );
     expect(overall({ ...dimensions, operations: score({ cleanup: "pending" }) })).toBe(
       "INCOMPLETE",
     );

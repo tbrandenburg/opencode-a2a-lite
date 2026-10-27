@@ -10,8 +10,6 @@ import {
 import { TaskNotFoundError } from "@a2a-js/sdk/errors";
 import {
   AgentEvent,
-  DefaultRequestHandler,
-  InMemoryTaskStore,
   ServerCallContext,
   type AgentExecutor,
   type ExecutionEventBus,
@@ -38,7 +36,7 @@ export async function until(check: () => boolean | Promise<boolean>, timeout = 1
   }
 }
 
-export function cancellationProbe(stock = false, failure?: "hang") {
+export function cancellationProbe(failure?: "hang") {
   const started = Promise.withResolvers<RequestContext>();
   const finish = Promise.withResolvers<void>();
   const events: StreamResponse[] = [];
@@ -81,9 +79,7 @@ export function cancellationProbe(stock = false, failure?: "hang") {
       if (failure === "hang") await new Promise<never>(() => undefined);
     },
   };
-  const handler = stock
-    ? new DefaultRequestHandler(card, new InMemoryTaskStore(), executor)
-    : createRequestHandler(card, executor, 100);
+  const handler = createRequestHandler(card, executor, 100);
   const context = new ServerCallContext({});
   const snapshot = async () =>
     handler.getTask({ id: (await started.promise).taskId, tenant: "" }, context);
