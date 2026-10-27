@@ -8,6 +8,41 @@ import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { proxyArgs, record, type Profile, type NetworkConnection } from "./profiles.js";
 import { interrupted, owned } from "./lifecycle.js";
 
+export type CallOptions = { deadline: number; signal?: AbortSignal };
+export class ToolError extends Error {}
+
+export async function callTool(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+  error = false,
+  options: CallOptions = { deadline: performance.now() + 60_000 },
+) {
+  options.signal?.throwIfAborted();
+  const remaining = Math.ceil(options.deadline - performance.now());
+  if (remaining <= 0) throw new DOMException("Local call deadline", "TimeoutError");
+  const timeout = AbortSignal.timeout(remaining);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  const result = await client.callTool({ name, arguments: args }, CallToolResultSchema, {
+    signal,
+    timeout: remaining,
+    maxTotalTimeout: remaining,
+    resetTimeoutOnProgress: false,
+  });
+  assert(Array.isArray(result.content), "Expected MCP content");
+  const text = result.content
+    .map((part: unknown) => {
+      const content = record(part);
+      if (content.type !== "text") return "";
+      assert.equal(typeof content.text, "string");
+      return content.text;
+    })
+    .join("");
+  if (result.isError && !error) throw new ToolError(text);
+  assert.equal(Boolean(result.isError), error, "Unexpected MCP tool error status");
+  return error ? text : (JSON.parse(text) as unknown);
+}
+
 export async function freePort() {
   const server = createServer();
   await new Promise<void>((done, fail) => {
@@ -123,28 +158,28 @@ export async function mcp(profile: Profile, connection: NetworkConnection, signa
     await close();
     throw error;
   }
+  let attempts = 0;
   return {
     client,
     close,
-    async call(name: string, args: Record<string, unknown>, error = false) {
+    proxyPid: transport.pid,
+    get remainingCalls() {
+      return 40 - attempts;
+    },
+    async call(name: string, args: Record<string, unknown>, error = false, options?: CallOptions) {
       signal?.throwIfAborted();
-      const result = await interrupted(
-        client.callTool({ name, arguments: args }, CallToolResultSchema, {
-          timeout: 150_000,
-        }),
-        signal,
-      );
-      assert.equal(Boolean(result.isError), error, "Unexpected MCP tool error status");
-      assert(Array.isArray(result.content), "Expected MCP content");
-      const text = result.content
-        .map((part: unknown) => {
-          const content = record(part);
-          if (content.type !== "text") return "";
-          assert.equal(typeof content.text, "string");
-          return content.text;
-        })
-        .join("");
-      return error ? text : (JSON.parse(text) as unknown);
+      const deadline = options?.deadline ?? performance.now() + 60_000;
+      const signals = [signal, options?.signal].filter((value) => value !== undefined);
+      const combined = signals.length ? AbortSignal.any(signals) : undefined;
+      combined?.throwIfAborted();
+      if (deadline <= performance.now())
+        throw new DOMException("Local call deadline", "TimeoutError");
+      assert(attempts < 40, "Local MCP call budget exhausted");
+      attempts++;
+      return callTool(client, name, args, error, {
+        deadline,
+        ...(combined ? { signal: combined } : {}),
+      });
     },
   };
 }
@@ -157,7 +192,12 @@ export function payloadText(value: unknown) {
     .flatMap((artifact: unknown) => {
       const parts = record(artifact).parts;
       assert(Array.isArray(parts));
-      return parts.map((part: unknown) => record(part).text ?? "");
+      return parts.map((part: unknown) => {
+        const item = record(part);
+        if (typeof item.text === "string") return item.text;
+        const content = item.content ? record(item.content) : undefined;
+        return content?.$case === "text" ? content.value : "";
+      });
     })
     .join("")
     .trim();
