@@ -97,6 +97,32 @@ bun src/cli.ts --workspace . --port 0
 
 ### Configure and run
 
+Name workers before their first Agent Card is published, using the existing launch
+command (run each in a separate terminal and use its printed readiness URL):
+
+```sh
+A2A_NAME=planner A2A_DESCRIPTION='Plans implementation work' A2A_TAGS='planning,design' \
+  bun src/cli.ts --workspace . --port 0
+A2A_NAME=reviewer A2A_DESCRIPTION='Reviews proposed changes' A2A_TAGS='review' \
+  bun src/cli.ts --workspace . --port 0
+```
+
+These variables also work with the packaged launch command and `make run`.
+Names (128 characters), descriptions (1,024), and tags (64 each, up to 16 supplied
+entries) are trimmed and must be nonblank and contain no control characters.
+`A2A_TAGS` is a comma-separated list with no quoting or escaping inside the value:
+commas separate tags, and empty entries are invalid. Tags are case-sensitive,
+deduplicated in input order, and appended after the retained `text` tag.
+Omitted fields keep their existing defaults. Identity is descriptive metadata,
+not authentication, permissions, model selection, or additional skills.
+
+The API accepts `createGateway({ workspace, identity: { name, description, tags } })`,
+where each identity field is optional and `tags` is an array (an empty array adds
+no tags). Identity is validated and copied before resources are created; the core
+API does not read identity environment variables. Do not mutate a running card to
+set worker identity. Invalid metadata fails startup without echoing its values;
+help/version remain independent of metadata validation.
+
 For the isolated demo, securely provide `OPENAI_API_KEY` in the environment.
 The demo uses `openai/gpt-6-luna` and a disposable, tool-restricted workspace;
 it does not modify your OpenCode configuration.
@@ -308,13 +334,16 @@ Do not rerun the bump command to recover an existing release tag.
 
 ## Configuration
 
-| Setting                | Description                                              | Default                                              |
-| ---------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
-| `A2A_WORKSPACE`        | Existing, trusted absolute workspace path                | Required                                             |
-| `A2A_PORT`             | Loopback HTTP port; `0` chooses an OS-assigned free port | `41241`                                              |
-| OpenCode configuration | Provider, model, agent, tool/plugin/MCP permissions      | Operator-controlled workspace and launch environment |
-| `OPENAI_API_KEY`       | Credential used by the isolated demo and live probes     | Required for those commands; never printed           |
-| `TCK_DIR`              | External checkout of the pinned official TCK             | Required only for `make e2e-tck`                     |
+| Setting                | Description                                               | Default                                              |
+| ---------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
+| `A2A_WORKSPACE`        | Existing, trusted absolute workspace path                 | Required                                             |
+| `A2A_PORT`             | Loopback HTTP port; `0` chooses an OS-assigned free port  | `41241`                                              |
+| `A2A_NAME`             | Descriptive worker name, at most 128 characters           | `OpenCode A2A Lite`                                  |
+| `A2A_DESCRIPTION`      | Descriptive worker summary, at most 1,024 characters      | Existing plain-text ACP gateway description          |
+| `A2A_TAGS`             | Up to 16 comma-separated tags, at most 64 characters each | No additional tags; `text` is retained               |
+| OpenCode configuration | Provider, model, agent, tool/plugin/MCP permissions       | Operator-controlled workspace and launch environment |
+| `OPENAI_API_KEY`       | Credential used by the isolated demo and live probes      | Required for those commands; never printed           |
+| `TCK_DIR`              | External checkout of the pinned official TCK              | Required only for `make e2e-tck`                     |
 
 The production gateway inherits OpenCode configuration; it does not use a separate
 HTTP API selector or silently choose another backend. Never commit credentials.

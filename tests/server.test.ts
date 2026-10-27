@@ -110,6 +110,46 @@ test("default executor returns assistant text and persists its completed task", 
   });
 });
 
+test("first discovery serves isolated identity snapshots and preserves unspecified card fields", async () => {
+  await freePort();
+  const tags = [" planning ", "text", "planning", "review"];
+  const identity = { name: " planner ", description: " Plans work ", tags };
+  const planner = gateway("normal", { identity });
+  identity.name = "changed-before-start";
+  tags.push("changed-before-start");
+  const baseline = await gateway().start();
+  const planned = await planner.start();
+  const reviewed = await gateway("normal", { identity: { name: "reviewer" } }).start();
+  const read = async (url: string) => {
+    const response = await fetch(new URL(".well-known/agent-card.json", url));
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const original = await read(baseline.url);
+  const configured = await read(planned.url);
+  const partial = await read(reviewed.url);
+  expect(original.name).toBe("OpenCode A2A Lite");
+  expect(original.description).toBe(
+    "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
+  );
+  expect(original.skills[0].tags).toEqual(["text"]);
+  expect(configured).toEqual({
+    ...original,
+    name: "planner",
+    description: "Plans work",
+    supportedInterfaces: [{ ...original.supportedInterfaces[0], url: planned.url }],
+    skills: [{ ...original.skills[0], tags: ["text", "planning", "review"] }],
+  });
+  expect(partial).toEqual({
+    ...original,
+    name: "reviewer",
+    supportedInterfaces: [{ ...original.supportedInterfaces[0], url: reviewed.url }],
+  });
+  planned.card.skills[0]!.tags.push("isolated");
+  expect((await read(reviewed.url)).skills[0].tags).toEqual(["text"]);
+  expect((await read(baseline.url)).skills[0].tags).toEqual(["text"]);
+});
+
 async function rpc(url: string, method: string, params: object) {
   const response = await fetch(url, {
     method: "POST",

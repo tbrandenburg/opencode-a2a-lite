@@ -12,18 +12,21 @@ import { createAgentExecutor, EXPLICIT_CONTEXT, type ExecutorOptions } from "./e
 import { createRequestHandler } from "./request-handler.js";
 import { parseOptions } from "./cli-options.js";
 import { reportStartupError, StartupError } from "./startup-error.js";
+import { validateIdentity, type WorkerIdentity } from "./identity.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
   workspace: string;
   host?: string;
   port?: number;
+  identity?: WorkerIdentity;
   acp?: Omit<AcpBridgeOptions, "cwd">;
   executor?: ExecutorOptions;
   createExecutor?: (bridge: AcpBridge) => AgentExecutor;
 }
 
 export function createGateway(options: ServerOptions) {
+  const identity = validateIdentity(options.identity);
   if (!isAbsolute(options.workspace)) throw new StartupError("workspace");
   const host = options.host ?? "127.0.0.1";
   if (!["127.0.0.1", "::1"].includes(host)) throw new Error("Only loopback hosts are supported");
@@ -92,8 +95,9 @@ export function createGateway(options: ServerOptions) {
         const executor =
           options.createExecutor?.(bridge) ?? createAgentExecutor(bridge, options.executor);
         const card: AgentCard = {
-          name: "OpenCode A2A Lite",
+          name: identity.name ?? "OpenCode A2A Lite",
           description:
+            identity.description ??
             "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
           supportedInterfaces: [],
           provider: undefined,
@@ -113,7 +117,7 @@ export function createGateway(options: ServerOptions) {
               id: "text-prompt",
               name: "Text prompt",
               description: "Run a plain text prompt or context follow-up in the trusted workspace.",
-              tags: ["text"],
+              tags: [...new Set(["text", ...(identity.tags ?? [])])],
               examples: ["Reply with a short greeting."],
               inputModes: ["text/plain"],
               outputModes: ["text/plain"],

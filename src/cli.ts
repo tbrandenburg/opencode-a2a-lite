@@ -17,6 +17,10 @@ Linux, Bun 1.3.9, exact OpenCode 2.0.28 on PATH, and configured provider require
   --version, -v      Print package version without starting OpenCode.
 
 Flags override A2A_WORKSPACE (absolute only) and A2A_PORT.
+Optional identity: A2A_NAME (128 characters), A2A_DESCRIPTION (1024),
+and A2A_TAGS (up to 16 comma-separated tags, 64 characters each; no escaping).
+Values are trimmed, nonblank and control-free; tags deduplicate after text.
+Identity describes the worker, not authentication or permissions.
 No implicit current-directory trust. OpenCode configuration is inherited;
 review tools/plugins/MCP and provider configuration. This is not a sandbox.
 Never expose through a public proxy. Use the separate official a2a CLI as client.`);
