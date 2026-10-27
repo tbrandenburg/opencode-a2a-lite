@@ -4,6 +4,31 @@ A fixed, reproducible acceptance experiment, not a general agent orchestration p
 It uses real model calls and can incur provider charges. It does not install services,
 modify global OpenCode configuration, or leave a network running after completion.
 
+## Six-topology investigation
+
+The separate [27-case investigation guide](/docs/topology-investigation.md) defines
+six logical schedules, three matched variants, a coordinator-only baseline,
+role-semantic checks and six provider-free controlled negative experiments.
+It preserves independent transport, structural topology, role semantics,
+correctness and operational verdicts. The physical worker transport remains a
+coordinator-mediated guarded MCP star.
+
+```sh
+make topology-investigation ARGS='--list'
+# Billable; same prerequisites and verified binary as below. No automatic retries.
+A2ABRIDGE_BIN="$PWD/.test-results/agent-network-tools/a2abridge" \
+  make topology-investigation ARGS='--live --faults --allow-cancel'
+```
+
+The negative fixtures issue explicit cancellation only with `--allow-cancel`;
+the 21 live-model cases do not request remote cancellation. Results are private,
+progressive files beneath a unique ignored `.test-results/topology-investigation/`
+directory. A subset or fixture-only invocation remains an incomplete 27-case
+investigation and exits nonzero; that is not a failed assertion in the fixture.
+Per-case files retain allowlisted task/hash/timing provenance and hashed proof
+markers after profile cleanup; summaries show independent dimension counts and
+execution/persistence timestamps without duplicating detailed evidence.
+
 ## Topology
 
 ```text

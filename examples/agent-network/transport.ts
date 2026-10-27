@@ -87,7 +87,12 @@ export async function stop(child: ChildProcess) {
   }
 }
 
-export async function directory(binary: string, profile: Profile, signal?: AbortSignal) {
+export async function directory(
+  binary: string,
+  profile: Profile,
+  signal?: AbortSignal,
+  deferShutdown = false,
+) {
   signal?.throwIfAborted();
   const port = await freePort();
   signal?.throwIfAborted();
@@ -104,7 +109,7 @@ export async function directory(binary: string, profile: Profile, signal?: Abort
       reject(new Error("Directory failed to execute"));
     });
   });
-  const close = owned(() => stop(child), signal);
+  const close = owned(() => stop(child), deferShutdown ? undefined : signal);
   try {
     await interrupted(
       Promise.race([

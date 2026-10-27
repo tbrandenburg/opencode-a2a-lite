@@ -411,6 +411,18 @@ and [recorded findings](/docs/agent-network-findings.md). `make network-demo` us
 live provider access and a separately verified bridge binary; it does not run in CI.
 The example also documents a [manual peer inventory and project-local MCP setup](/examples/agent-network/README.md)
 and [caller-owned conversation handles and bounded waits](/examples/agent-network/client-guide.md).
+
+For six fixed logical collaboration schedules, three matched workloads and six
+separately labeled negative experiments, see the
+[27-case topology investigation](/docs/topology-investigation.md).
+`make topology-investigation ARGS='--list'` is provider-free; model invocation
+requires explicit `--live`. This compares fixed schedules over a physical MCP
+star, not an arbitrary graph orchestration platform.
+The [recorded topology findings](/docs/topology-investigation-findings.md) retain
+the failed cases and incomplete comparative verdict; this is not a reliability claim.
+Reports separate modified-input integrity from retries/uncertain resends and retain
+expected versus observed task hashes; local turn deadlines preserve incomplete
+status and returned handles without implying remote cancellation.
 With the pinned bridge binary, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`
 runs focused provider-free MCP interoperability checks, separately from `make check`.
 
