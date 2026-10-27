@@ -140,7 +140,11 @@ test("H03 ACP startup timeout never opens HTTP or advertises early readiness", a
 
 test("H12 incompatible ACP protocol rejects startup without HTTP discovery and retires terminally", async () => {
   const port = await freePort();
-  const instance = gateway("protocol-version", { port });
+  const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
+  const instance = gateway("protocol-2", {
+    port,
+    acp: { args: [peer, "--protocol-2"], versionArgs: [peer, "--protocol-2", "--version"] },
+  });
   await expect(instance.start()).rejects.toThrow("ACP startup failed");
   await expect(fetch(`http://127.0.0.1:${port}/.well-known/agent-card.json`)).rejects.toThrow();
   await expect(instance.start()).rejects.toThrow("closed");
