@@ -10,7 +10,7 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function gateway(maxContexts = 100, allocation?: Promise<void>) {
+function gateway(allocation?: Promise<void>) {
   const calls: string[] = [];
   const started = Promise.withResolvers<void>();
   const instance = createGateway({
@@ -24,206 +24,164 @@ function gateway(maxContexts = 100, allocation?: Promise<void>) {
       closeTimeoutMs: 600,
     },
     createExecutor(bridge) {
-      return createAgentExecutor(
-        {
-          async newSession() {
-            calls.push("session");
-            started.resolve();
-            await allocation;
-            return bridge.newSession();
-          },
-          prompt(session, text, onText) {
-            calls.push(`${session}:${text}`);
-            return bridge.prompt(session, text, onText);
-          },
-          cancel: (session) => bridge.cancel(session),
+      return createAgentExecutor({
+        async newSession() {
+          calls.push("session");
+          started.resolve();
+          await allocation;
+          return bridge.newSession();
         },
-        { maxContexts },
-      );
+        prompt(session, text, onText) {
+          calls.push(`${session}:${text}`);
+          return bridge.prompt(session, text, onText);
+        },
+        cancel: (session) => bridge.cancel(session),
+      });
     },
   });
   gateways.push(instance);
   return { instance, calls, started: started.promise };
 }
 
+type WireTask = {
+  id: string;
+  contextId: string;
+  status: { state: string; message?: { parts: { text: string }[] } };
+  artifacts?: { artifactId: string; parts: { text: string }[] }[];
+};
+type WireEvent = {
+  task?: WireTask;
+  artifactUpdate?: {
+    artifact: NonNullable<WireTask["artifacts"]>[number];
+    append?: boolean;
+    lastChunk?: boolean;
+  };
+  statusUpdate?: { status: WireTask["status"] };
+};
+
 async function rpc(url: string, method: string, params: object) {
-  const response = await fetch(url, {
+  return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(5_000),
   });
-  return response.json();
 }
 
-function message(text: string, contextId?: string) {
-  return {
+async function stored(url: string, id: string): Promise<WireTask> {
+  const response = await rpc(url, "GetTask", { id });
+  return ((await response.json()) as { result: WireTask }).result;
+}
+
+async function send(url: string, method: string, text: string, contextId?: string) {
+  const response = await rpc(url, method, {
     message: { messageId: crypto.randomUUID(), role: "ROLE_USER", parts: [{ text }], contextId },
-  };
+  });
+  expect(response.status).toBe(200);
+  if (method === "SendMessage") {
+    const task = ((await response.json()) as { result: { task: WireTask } }).result.task;
+    expect(await stored(url, task.id)).toEqual(task);
+    return task;
+  }
+  expect(response.headers.get("content-type")).toContain("text/event-stream");
+  const wire = await response.text();
+  const events = wire
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => (JSON.parse(line.slice(5)) as { result: WireEvent }).result);
+  const task = events[0]?.task;
+  if (!task) throw new Error("Missing initial SSE task");
+  expect(task.status.state).toBe("TASK_STATE_SUBMITTED");
+  const snapshot = await stored(url, task.id);
+  expect(events.at(-1)?.statusUpdate?.status).toEqual(snapshot.status);
+  if (snapshot.status.state === "TASK_STATE_COMPLETED") {
+    expect(events[1]?.statusUpdate?.status.state).toBe("TASK_STATE_WORKING");
+    const chunks = events.flatMap((event) => (event.artifactUpdate ? [event.artifactUpdate] : []));
+    expect(chunks.map((chunk) => [chunk.append ?? false, chunk.lastChunk ?? false])).toEqual([
+      [false, false],
+      [true, false],
+      [true, true],
+    ]);
+    expect(new Set(chunks.map((chunk) => chunk.artifact.artifactId)).size).toBe(1);
+    expect(chunks.flatMap((chunk) => chunk.artifact.parts)).toEqual(
+      snapshot.artifacts?.[0]?.parts ?? [],
+    );
+    expect(
+      events.filter((event) => event.statusUpdate?.status.state === "TASK_STATE_COMPLETED"),
+    ).toHaveLength(1);
+  }
+  expect(wire).not.toMatch(/wrong-session|child|private|late-idle/);
+  return snapshot;
 }
 
-test("HTTP same-context follow-ups reuse sessions; separate contexts remain isolated", async () => {
-  const run = gateway();
-  const ready = await run.instance.start();
-  const alpha = await rpc(ready.url, "SendMessage", message("alpha"));
-  const beta = await rpc(ready.url, "SendMessage", message("beta"));
-  const again = await rpc(
-    ready.url,
-    "SendMessage",
-    message("alpha again", alpha.result.task.contextId),
-  );
-  const other = await rpc(
-    ready.url,
-    "SendMessage",
-    message("beta again", beta.result.task.contextId),
-  );
-  expect(alpha.result.task.contextId).not.toBe(beta.result.task.contextId);
-  expect(again.result.task.id).not.toBe(alpha.result.task.id);
-  expect(again.result.task.contextId).toBe(alpha.result.task.contextId);
-  expect(other.result.task.contextId).toBe(beta.result.task.contextId);
-  expect([alpha, beta, again, other].map((body) => body.result.task.status.state)).toEqual(
-    Array(4).fill("TASK_STATE_COMPLETED"),
-  );
-  expect(run.calls).toEqual([
-    "session",
-    "session-1:alpha",
-    "session",
-    "session-2:beta",
-    "session-1:alpha again",
-    "session-2:beta again",
-  ]);
-});
+test.each([
+  { id: "H08", method: "SendMessage" },
+  { id: "H09", method: "SendStreamingMessage" },
+])(
+  "$id $method context lifecycle preserves continuation/isolation and rejects unknown/stale IDs",
+  async ({ method }) => {
+    const run = gateway();
+    const ready = await run.instance.start();
+    const unknown = await send(ready.url, method, "hello", "unknown");
+    expect(unknown.status.state).toBe("TASK_STATE_FAILED");
+    expect(unknown.status.message?.parts[0]?.text).toContain("Unknown or expired");
+    expect(run.calls).toEqual([]);
+    const alpha = await send(ready.url, method, "alpha");
+    const beta = await send(ready.url, method, "beta");
+    const again = await send(ready.url, method, "alpha again", alpha.contextId);
+    const other = await send(ready.url, method, "beta again", beta.contextId);
+    expect(alpha.contextId).not.toBe(beta.contextId);
+    expect(again.id).not.toBe(alpha.id);
+    expect(again.contextId).toBe(alpha.contextId);
+    expect(other.contextId).toBe(beta.contextId);
+    expect([alpha, beta, again, other].map((task) => task.status.state)).toEqual(
+      Array(4).fill("TASK_STATE_COMPLETED"),
+    );
+    expect(
+      [alpha, beta, again, other].map((task) =>
+        task.artifacts?.[0]?.parts.map((part) => part.text),
+      ),
+    ).toEqual([
+      ["turn-1:", "alpha", ""],
+      ["turn-2:", "beta", ""],
+      ["turn-3:", "alpha again", ""],
+      ["turn-4:", "beta again", ""],
+    ]);
+    expect(run.calls).toEqual([
+      "session",
+      "session-1:alpha",
+      "session",
+      "session-2:beta",
+      "session-1:alpha again",
+      "session-2:beta again",
+    ]);
+    await run.instance.close();
+    const restarted = gateway();
+    const fresh = await restarted.instance.start();
+    const stale = await send(fresh.url, method, "follow up", alpha.contextId);
+    expect(stale.status.state).toBe("TASK_STATE_FAILED");
+    expect(stale.status.message?.parts[0]?.text).toContain("Unknown or expired");
+    expect(restarted.calls).toEqual([]);
+    const accepted = await send(fresh.url, method, "new conversation");
+    expect(accepted.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(restarted.calls).toEqual(["session", "session-1:new conversation"]);
+  },
+);
 
-test("HTTP explicit unknown and post-restart stale contexts fail without ACP submission", async () => {
-  const first = gateway();
-  const ready = await first.instance.start();
-  const unknown = await rpc(ready.url, "SendMessage", message("hello", "unknown"));
-  expect(unknown.result.task.status.state).toBe("TASK_STATE_FAILED");
-  expect(unknown.result.task.status.message.parts[0].text).toContain("Unknown or expired");
-  expect(first.calls).toEqual([]);
-  const accepted = await rpc(ready.url, "SendMessage", message("remember"));
-  await first.instance.close();
-  const second = gateway();
-  const restarted = await second.instance.start();
-  const stale = await rpc(
-    restarted.url,
-    "SendMessage",
-    message("follow up", accepted.result.task.contextId),
-  );
-  expect(stale.result.task.status.state).toBe("TASK_STATE_FAILED");
-  expect(second.calls).toEqual([]);
-  const fresh = await rpc(restarted.url, "SendMessage", message("new conversation"));
-  expect(fresh.result.task.status.state).toBe("TASK_STATE_COMPLETED");
-  expect(second.calls).toEqual(["session", "session-1:new conversation"]);
-});
-
-test("HTTP finite context capacity rejects new contexts but preserves retained follow-ups", async () => {
-  const run = gateway(1);
-  const ready = await run.instance.start();
-  const accepted = await rpc(ready.url, "SendMessage", message("first"));
-  const rejected = await rpc(ready.url, "SendMessage", message("new"));
-  expect(rejected.result.task.status.state).toBe("TASK_STATE_FAILED");
-  expect(rejected.result.task.status.message.parts[0].text).toContain("capacity");
-  expect(run.calls).toEqual(["session", "session-1:first"]);
-  const followup = await rpc(
-    ready.url,
-    "SendMessage",
-    message("again", accepted.result.task.contextId),
-  );
-  expect(followup.result.task.status.state).toBe("TASK_STATE_COMPLETED");
-  expect(run.calls).toEqual(["session", "session-1:first", "session-1:again"]);
-});
-
-test("HTTP busy during allocation rejects immediately without session creation or submission", async () => {
+test("H10 HTTP busy during allocation rejects without session creation or submission", async () => {
   const release = Promise.withResolvers<void>();
-  const run = gateway(100, release.promise);
+  const run = gateway(release.promise);
   const ready = await run.instance.start();
-  const pending = rpc(ready.url, "SendMessage", message("first"));
+  const pending = send(ready.url, "SendMessage", "first");
   try {
     await run.started;
-    const rejected = await rpc(ready.url, "SendMessage", message("second"));
-    expect(rejected.result.task.status.state).toBe("TASK_STATE_FAILED");
-    expect(rejected.result.task.status.message.parts[0].text).toContain("busy");
+    const rejected = await send(ready.url, "SendMessage", "second");
+    expect(rejected.status.state).toBe("TASK_STATE_FAILED");
+    expect(rejected.status.message?.parts[0]?.text).toContain("busy");
     expect(run.calls).toEqual(["session"]);
   } finally {
     release.resolve();
   }
-  const completed = await pending;
-  expect(completed.result.task.status.state).toBe("TASK_STATE_COMPLETED");
+  expect((await pending).status.state).toBe("TASK_STATE_COMPLETED");
   expect(run.calls).toEqual(["session", "session-1:first"]);
-});
-
-test("HTTP streaming preserves explicit context checks and reuses a retained context", async () => {
-  const run = gateway();
-  const ready = await run.instance.start();
-  const accepted = await rpc(ready.url, "SendMessage", message("first"));
-  for (const contextId of ["unknown", accepted.result.task.contextId]) {
-    const response = await fetch(ready.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "SendStreamingMessage",
-        params: message("again", contextId),
-      }),
-      signal: AbortSignal.timeout(5_000),
-    });
-    const text = await response.text();
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
-    expect(text).toContain(contextId === "unknown" ? "TASK_STATE_FAILED" : "TASK_STATE_COMPLETED");
-    expect(text).not.toContain(
-      contextId === "unknown" ? "TASK_STATE_WORKING" : "TASK_STATE_FAILED",
-    );
-  }
-  expect(run.calls).toEqual(["session", "session-1:first", "session-1:again"]);
-});
-
-test("HTTP active prompt rejects same-context and new-context work without ACP submission", async () => {
-  const run = gateway();
-  const ready = await run.instance.start();
-  const response = await fetch(ready.url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "SendStreamingMessage",
-      params: message("cancel"),
-    }),
-    signal: AbortSignal.timeout(5_000),
-  });
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Missing SSE body");
-  const decoder = new TextDecoder();
-  let text = "";
-  while (!text.includes('"ready"')) {
-    const chunk = await reader.read();
-    if (chunk.done) throw new Error("Prompt ended before ready");
-    text += decoder.decode(chunk.value, { stream: true });
-  }
-  const snapshot = text.split("\n").find((line) => line.startsWith("data:"));
-  if (!snapshot) throw new Error("Missing task snapshot");
-  const task = JSON.parse(snapshot.slice(5)).result.task;
-  const same = await rpc(ready.url, "SendMessage", message("same", task.contextId));
-  const other = await rpc(ready.url, "SendMessage", message("other"));
-  expect([same, other].map((body) => body.result.task.status.state)).toEqual([
-    "TASK_STATE_FAILED",
-    "TASK_STATE_FAILED",
-  ]);
-  expect([same, other].map((body) => body.result.task.status.message.parts[0].text)).toEqual([
-    expect.stringContaining("busy"),
-    expect.stringContaining("busy"),
-  ]);
-  expect(run.calls).toEqual(["session", "session-1:cancel"]);
-  await rpc(ready.url, "CancelTask", { id: task.id });
-  while (true) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    text += decoder.decode(chunk.value, { stream: true });
-  }
-  expect(text).toContain("TASK_STATE_CANCELED");
-  const followup = await rpc(ready.url, "SendMessage", message("after", task.contextId));
-  expect(followup.result.task.status.state).toBe("TASK_STATE_COMPLETED");
-  expect(run.calls).toEqual(["session", "session-1:cancel", "session-1:after"]);
 });

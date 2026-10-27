@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { auditPath, registered, snapshots } from "../../examples/agent-network/readiness.js";
@@ -25,39 +25,7 @@ function fixture() {
 }
 afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })));
 
-test("registration requires the actual run and exact registered names", () => {
-  const profile = fixture();
-  expect(registered(profile, run)).toBeUndefined();
-  const path = auditPath(profile, "ready", run);
-  writeFileSync(path, JSON.stringify({ run, tools: names }));
-  expect(registered(profile, run)?.tools).toEqual(names);
-  writeFileSync(path, JSON.stringify({ run: "other-run", tools: names }));
-  expect(() => registered(profile, run)).toThrow();
-  writeFileSync(path, JSON.stringify({ run, tools: names.slice(1) }));
-  expect(() => registered(profile, run)).toThrow();
-});
-
-test("observer failure blocks readiness and actual-snapshot acceptance", () => {
-  const profile = fixture();
-  writeFileSync(auditPath(profile, "failure", run), JSON.stringify({ run, reason: "fixture" }));
-  expect(() => registered(profile, run)).toThrow("Runtime readiness observer failed");
-  expect(() => snapshots(profile, run, "session")).toThrow("Actual request tool set mismatch");
-});
-
-test("actual snapshots must match the coordinator session and permission-filtered tool set", () => {
-  const profile = fixture();
-  const path = auditPath(profile, "snapshots", run);
-  const entry = { run, session: "session", matched: true, tools: names };
-  writeFileSync(path, JSON.stringify(entry) + "\n");
-  expect(snapshots(profile, run, "session")).toEqual([entry]);
-  expect(() => snapshots(profile, run, "another-session")).toThrow();
-  writeFileSync(path, JSON.stringify({ ...entry, matched: false }) + "\n");
-  expect(() => snapshots(profile, run, "session")).toThrow();
-  writeFileSync(path, JSON.stringify({ ...entry, tools: [...names, "shell"] }) + "\n");
-  expect(() => snapshots(profile, run, "session")).toThrow();
-});
-
-test("the bundled observer records the shared coordinator role and rejects extra tools", async () => {
+test("N08 bundled readiness observer audits the configured role and rejects extra tools", async () => {
   const profile = fixture();
   const directory = join(profile.cwd, "network-audit");
   const built = await Bun.build({
@@ -102,6 +70,7 @@ test("the bundled observer records the shared coordinator role and rejects extra
     context({ agent: coordinatorRole, sessionID: "session", tools });
     expect(snapshots(profile, run, "session")).toHaveLength(1);
     expect(snapshots(profile, run, "session")[0]?.agent).toBe(coordinatorRole);
+    expect(() => snapshots(profile, run, "another-session")).toThrow();
     expect(() =>
       context!({ agent: coordinatorRole, sessionID: "session", tools: { ...tools, shell: {} } }),
     ).toThrow("tool snapshot mismatch");

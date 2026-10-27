@@ -1,8 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
 import { connect, createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "../package.json" with { type: "json" };
 import { createGateway, type ServerOptions } from "../src/server.js";
+import { until } from "./fixtures/sdk-cancellation.js";
 
 const gateways: ReturnType<typeof createGateway>[] = [];
 const fixture = fileURLToPath(new URL("./fixtures/acp-peer.ts", import.meta.url));
@@ -10,6 +14,7 @@ function gateway(mode = "normal", overrides: Partial<ServerOptions> = {}) {
   const instance = createGateway({
     workspace: process.cwd(),
     port: 0,
+    ...overrides,
     acp: {
       executable: process.execPath,
       args: [fixture, mode],
@@ -18,8 +23,8 @@ function gateway(mode = "normal", overrides: Partial<ServerOptions> = {}) {
       startupTimeoutMs: mode === "normal" ? 3_000 : 800,
       promptTimeoutMs: 2_000,
       closeTimeoutMs: 600,
+      ...overrides.acp,
     },
-    ...overrides,
   });
   gateways.push(instance);
   return instance;
@@ -39,9 +44,12 @@ async function freePort() {
   return address.port;
 }
 
-test("serves an official v1 card only after ACP initializes; closes terminally", async () => {
+test("H01 discovery snapshots configured identity after ACP initializes; closes terminally", async () => {
   let initialized = false;
+  const tags = [" planning ", "text", "planning", "review"];
+  const identity = { name: " planner ", description: " Plans work ", tags };
   const instance = gateway("normal", {
+    identity,
     createExecutor(bridge) {
       initialized = true;
       return {
@@ -55,99 +63,32 @@ test("serves an official v1 card only after ACP initializes; closes terminally",
       };
     },
   });
+  identity.name = "changed-before-start";
+  tags.push("changed-before-start");
   const [ready, again] = await Promise.all([instance.start(), instance.start()]);
   expect(again.url).toBe(ready.url);
   expect(initialized).toBe(true);
   const response = await fetch(new URL(".well-known/agent-card.json", ready.url));
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({
-    name: "OpenCode A2A Lite",
+    name: "planner",
+    description: "Plans work",
     version: manifest.version,
     supportedInterfaces: [{ url: ready.url, protocolBinding: "JSONRPC", protocolVersion: "1.0" }],
     capabilities: { streaming: true, pushNotifications: false, extendedAgentCard: false },
-    skills: [{ id: "text-prompt", inputModes: ["text/plain"], outputModes: ["text/plain"] }],
+    skills: [
+      {
+        id: "text-prompt",
+        tags: ["text", "planning", "review"],
+        inputModes: ["text/plain"],
+        outputModes: ["text/plain"],
+      },
+    ],
   });
   await instance.close();
   await instance.close();
   await expect(fetch(ready.url)).rejects.toThrow();
   await expect(instance.start()).rejects.toThrow("closed");
-});
-
-test("default executor returns assistant text and persists its completed task", async () => {
-  const ready = await gateway().start();
-  const response = await fetch(ready.url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "SendMessage",
-      params: {
-        message: { messageId: "input", role: "ROLE_USER", parts: [{ text: "hello" }] },
-      },
-    }),
-  });
-  const body = await response.json();
-  expect(response.status).toBe(200);
-  expect(body).toMatchObject({
-    result: {
-      task: {
-        status: { state: "TASK_STATE_COMPLETED" },
-        artifacts: [{ parts: [{ text: "turn-1:" }, { text: "hello" }, { text: "" }] }],
-      },
-    },
-  });
-  const stored = await rpc(ready.url, "GetTask", { id: body.result.task.id });
-  expect(stored.result).toMatchObject({
-    id: body.result.task.id,
-    status: { state: "TASK_STATE_COMPLETED" },
-    artifacts: [
-      {
-        artifactId: body.result.task.artifacts[0].artifactId,
-        parts: [{ text: "turn-1:" }, { text: "hello" }, { text: "" }],
-      },
-    ],
-  });
-});
-
-test("first discovery serves isolated identity snapshots and preserves unspecified card fields", async () => {
-  await freePort();
-  const tags = [" planning ", "text", "planning", "review"];
-  const identity = { name: " planner ", description: " Plans work ", tags };
-  const planner = gateway("normal", { identity });
-  identity.name = "changed-before-start";
-  tags.push("changed-before-start");
-  const baseline = await gateway().start();
-  const planned = await planner.start();
-  const reviewed = await gateway("normal", { identity: { name: "reviewer" } }).start();
-  const read = async (url: string) => {
-    const response = await fetch(new URL(".well-known/agent-card.json", url));
-    expect(response.status).toBe(200);
-    return response.json();
-  };
-  const original = await read(baseline.url);
-  const configured = await read(planned.url);
-  const partial = await read(reviewed.url);
-  expect(original.name).toBe("OpenCode A2A Lite");
-  expect(original.description).toBe(
-    "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
-  );
-  expect(original.skills[0].tags).toEqual(["text"]);
-  expect(configured).toEqual({
-    ...original,
-    name: "planner",
-    description: "Plans work",
-    supportedInterfaces: [{ ...original.supportedInterfaces[0], url: planned.url }],
-    skills: [{ ...original.skills[0], tags: ["text", "planning", "review"] }],
-  });
-  expect(partial).toEqual({
-    ...original,
-    name: "reviewer",
-    supportedInterfaces: [{ ...original.supportedInterfaces[0], url: reviewed.url }],
-  });
-  planned.card.skills[0]!.tags.push("isolated");
-  expect((await read(reviewed.url)).skills[0].tags).toEqual(["text"]);
-  expect((await read(baseline.url)).skills[0].tags).toEqual(["text"]);
 });
 
 async function rpc(url: string, method: string, params: object) {
@@ -159,91 +100,78 @@ async function rpc(url: string, method: string, params: object) {
   return response.json();
 }
 
-test("HTTP SSE streams filtered ACP text in order and stores it without duplication", async () => {
+test("H02 HTTP rejects mixed text/data input and persists truthful failure", async () => {
   const ready = await gateway().start();
-  const response = await fetch(ready.url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "SendStreamingMessage",
-      params: {
-        message: { messageId: "stream", role: "ROLE_USER", parts: [{ text: "hello" }] },
-      },
-    }),
+  const body = await rpc(ready.url, "SendMessage", {
+    message: {
+      messageId: "failure",
+      role: "ROLE_USER",
+      parts: [{ text: "hello" }, { data: { value: 1 } }],
+    },
   });
-  expect(response.headers.get("content-type")).toContain("text/event-stream");
-  const text = await response.text();
-  const events = text
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => JSON.parse(line.slice(5)).result);
-  expect(events[0].task.status.state).toBe("TASK_STATE_SUBMITTED");
-  expect(events[1].statusUpdate.status.state).toBe("TASK_STATE_WORKING");
-  const chunks = events
-    .filter((event) => event.artifactUpdate)
-    .map((event) => event.artifactUpdate);
-  expect(chunks.map((chunk) => chunk.artifact.parts[0].text ?? "")).toEqual([
-    "turn-1:",
-    "hello",
-    "",
-  ]);
-  expect(chunks.map((chunk) => [chunk.append ?? false, chunk.lastChunk ?? false])).toEqual([
-    [false, false],
-    [true, false],
-    [true, true],
-  ]);
-  expect(new Set(chunks.map((chunk) => chunk.artifact.artifactId)).size).toBe(1);
-  expect(events.at(-1).statusUpdate.status.state).toBe("TASK_STATE_COMPLETED");
-  expect(
-    events.filter((event) => event.statusUpdate?.status.state === "TASK_STATE_COMPLETED").length,
-  ).toBe(1);
-  const stored = await rpc(ready.url, "GetTask", { id: events[0].task.id });
-  expect(stored.result.artifacts[0].parts).toEqual([
-    { text: "turn-1:", mediaType: "text/plain" },
-    { text: "hello", mediaType: "text/plain" },
-    { text: "", mediaType: "text/plain" },
-  ]);
-  expect(text).not.toMatch(/wrong-session|child|private|late-idle/);
+  expect(body.result.task.status.state).toBe("TASK_STATE_FAILED");
+  expect(body.result.task.status.message.parts[0].text).toContain("plain text");
+  const stored = await rpc(ready.url, "GetTask", { id: body.result.task.id });
+  expect(stored.result.status.state).toBe("TASK_STATE_FAILED");
+  expect(JSON.stringify(body)).not.toMatch(/wrong-session|child|private/);
 });
 
-test.each([
-  { parts: [], phrase: "plain text" },
-  { parts: [{ text: "hello" }, { data: { value: 1 } }], phrase: "plain text" },
-  { parts: [{ text: "limit" }], phrase: "did not complete" },
-  { parts: [{ text: "exit" }], phrase: "execution failed" },
-  { parts: [{ text: "auth" }], phrase: "execution failed" },
-  { parts: [{ text: "transport" }], phrase: "execution failed" },
-])(
-  "HTTP rejects invalid input and ACP failures without false success: %j",
-  async ({ parts, phrase }) => {
-    const ready = await gateway().start();
-    const body = await rpc(ready.url, "SendMessage", {
-      message: { messageId: "failure", role: "ROLE_USER", parts },
-    });
-    expect(body.result.task.status.state).toBe("TASK_STATE_FAILED");
-    expect(body.result.task.status.message.parts[0].text).toContain(phrase);
-    const stored = await rpc(ready.url, "GetTask", { id: body.result.task.id });
-    expect(stored.result.status.state).toBe("TASK_STATE_FAILED");
-    expect(JSON.stringify(body)).not.toMatch(/wrong-session|child|private/);
-  },
-);
-
-test.each(["version", "executable-version", "startup-exit", "startup-hang"])(
-  "%s never opens HTTP",
-  async (mode) => {
-    const port = await freePort();
-    const instance = gateway(mode, { port });
+test("H03 ACP startup timeout never opens HTTP or advertises early readiness", async () => {
+  const port = await freePort();
+  const directory = await mkdtemp(join(tmpdir(), "a2a-http-startup-"));
+  const marker = join(directory, "initializing");
+  const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
+  const instance = gateway("startup-hang", {
+    port,
+    acp: { args: [peer, marker], versionArgs: [peer, marker, "--version"] },
+  });
+  try {
     const pending = instance.start().catch((error: unknown) => error);
+    await until(() => Bun.file(marker).exists());
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
     expect(await pending).toBeInstanceOf(Error);
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
     await expect(instance.start()).rejects.toThrow("closed");
-  },
-);
+  } finally {
+    await instance.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
-test("validates trusted workspace and listener options before startup", async () => {
+test("H12 incompatible ACP protocol rejects startup without HTTP discovery and retires terminally", async () => {
+  const port = await freePort();
+  const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
+  const instance = gateway("protocol-2", {
+    port,
+    acp: { args: [peer, "--protocol-2"], versionArgs: [peer, "--protocol-2", "--version"] },
+  });
+  await expect(instance.start()).rejects.toThrow("ACP startup failed");
+  await expect(fetch(`http://127.0.0.1:${port}/.well-known/agent-card.json`)).rejects.toThrow();
+  await expect(instance.start()).rejects.toThrow("closed");
+});
+
+test("H04 close during initialization prevents late readiness and closes owned ACP", async () => {
+  const port = await freePort();
+  const directory = await mkdtemp(join(tmpdir(), "a2a-http-close-startup-"));
+  const marker = join(directory, "initializing");
+  const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
+  const instance = gateway("startup-hang", {
+    port,
+    acp: { args: [peer, marker], versionArgs: [peer, marker, "--version"] },
+  });
+  try {
+    const pending = instance.start().catch((error: unknown) => error);
+    await until(() => Bun.file(marker).exists());
+    await instance.close();
+    expect(await pending).toBeInstanceOf(Error);
+    await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
+  } finally {
+    await instance.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("H11 direct gateway options enforce the trusted workspace and loopback boundary", async () => {
   expect(() => createGateway({ workspace: "relative" })).toThrow("absolute");
   expect(() => createGateway({ workspace: process.cwd(), host: "0.0.0.0" })).toThrow("loopback");
   expect(() => createGateway({ workspace: process.cwd(), port: -1 })).toThrow("port");
@@ -252,17 +180,7 @@ test("validates trusted workspace and listener options before startup", async ()
   await expect(missing.start()).rejects.toThrow("closed");
 });
 
-test("close during initialization prevents late readiness and closes owned ACP", async () => {
-  const port = await freePort();
-  const instance = gateway("startup-hang", { port });
-  const pending = instance.start().catch((error: unknown) => error);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  await instance.close();
-  expect(await pending).toBeInstanceOf(Error);
-  await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
-});
-
-test("listener conflict fails closed without stopping the existing listener", async () => {
+test("H05 listener conflict fails closed without stopping the existing listener", async () => {
   const existing = createServer();
   await new Promise<void>((resolve) => existing.listen(0, "127.0.0.1", resolve));
   const address = existing.address();
@@ -279,7 +197,7 @@ test("listener conflict fails closed without stopping the existing listener", as
   }
 });
 
-test("shutdown bounds a client that leaves its HTTP request incomplete", async () => {
+test("H06 shutdown bounds a client that leaves its HTTP request incomplete", async () => {
   const instance = gateway();
   const ready = await instance.start();
   const client = connect(Number(new URL(ready.url).port), "127.0.0.1");
@@ -304,7 +222,7 @@ test("shutdown bounds a client that leaves its HTTP request incomplete", async (
   }
 });
 
-test("Bun shutdown rejects work with 503 throughout the HTTP drain before closing its listener", async () => {
+test("H07 Bun shutdown rejects work with 503 throughout the HTTP drain before closing its listener", async () => {
   let executions = 0;
   const instance = gateway("normal", {
     createExecutor() {

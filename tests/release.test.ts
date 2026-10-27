@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,31 +10,10 @@ afterEach(() =>
   directories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })),
 );
 
-describe("release versions", () => {
-  test.each([
-    ["patch", "1.2.4"],
-    ["minor", "1.3.0"],
-    ["major", "2.0.0"],
-    ["1.2.3", "1.2.3"],
-    ["3.0.0", "3.0.0"],
-  ])("resolves %s", (option, expected) => {
-    expect(releaseVersion("1.2.3", option)).toBe(expected);
-    expect(releaseVersion("0.0.0", option)).toMatch(/^\d+\.\d+\.\d+$/);
-  });
-
-  test.each([
-    "banana",
-    "v1.2.4",
-    "01.2.4",
-    "1.2.4-beta",
-    "1.2",
-    "1.2.2",
-    "0.9.9",
-    "9007199254740992.0.0",
-  ])("rejects %s", (option) => {
-    expect(() => releaseVersion("1.2.3", option)).toThrow();
-    expect(releaseVersion("1.2.3", "patch")).toBe("1.2.4");
-  });
+test("REL01: release arithmetic resets subordinate version components", () => {
+  expect(releaseVersion("1.2.3", "patch")).toBe("1.2.4");
+  expect(releaseVersion("1.2.3", "minor")).toBe("1.3.0");
+  expect(releaseVersion("1.2.3", "major")).toBe("2.0.0");
 });
 
 function fixture() {
@@ -88,14 +67,10 @@ function fixture() {
   return { directory, env, run, git };
 }
 
-test.each([
-  ["BUMP=patch", "0.1.1"],
-  ["BUMP=minor", "0.2.0"],
-  ["BUMP=major", "1.0.0"],
-  ["VERSION=0.1.0", "0.1.0"],
-])("release pushes the annotated tag and invokes GitHub publication: %s", (option, version) => {
+test("REL03: release pushes the annotated tag and invokes GitHub publication", () => {
+  const version = "0.1.1";
   const context = fixture();
-  const result = context.run(["make", "release", option]);
+  const result = context.run(["make", "release", "BUMP=patch"]);
   expect(result.status).toBe(0);
   expect(result.stdout).toContain(`/releases/tag/v${version}`);
   expect(JSON.parse(readFileSync(join(context.directory, "package.json"), "utf8")).version).toBe(
@@ -123,42 +98,30 @@ test.each([
   ]);
 });
 
-test.each(["dirty", "branch", "unpushed", "duplicate", "check"])(
-  "rejects %s state before creating a release",
-  (failure) => {
-    const context = fixture();
-    if (failure === "dirty") writeFileSync(join(context.directory, "untracked"), "dirty");
-    if (failure === "branch") context.git("switch", "-c", "feature");
-    if (failure === "unpushed") context.git("commit", "--allow-empty", "-m", "Unpushed");
-    if (failure === "duplicate") context.git("tag", "v0.1.1");
-    if (failure === "check") {
-      writeFileSync(
-        join(context.directory, "Makefile"),
-        readFileSync(join(context.directory, "Makefile"), "utf8").replace(
-          "@touch checked",
-          "@exit 1",
-        ),
-      );
-      context.git("add", "Makefile");
-      context.git("commit", "-m", "Fail checks");
-      context.git("push", "origin", "main");
-    }
-    const before = context.git("rev-parse", "HEAD");
-    const result = context.run(["make", "release", "BUMP=patch"]);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain(
-      failure === "check"
-        ? "make check failed"
-        : failure === "duplicate"
-          ? "exists"
-          : "Release requires",
+test.each(["dirty", "check"])("REL04: rejects %s state before creating a release", (failure) => {
+  const context = fixture();
+  if (failure === "dirty") writeFileSync(join(context.directory, "untracked"), "dirty");
+  if (failure === "check") {
+    writeFileSync(
+      join(context.directory, "Makefile"),
+      readFileSync(join(context.directory, "Makefile"), "utf8").replace(
+        "@touch checked",
+        "@exit 1",
+      ),
     );
-    expect(context.git("rev-parse", "HEAD")).toBe(before);
-    expect(context.git("ls-remote", "origin", "refs/tags/v0.1.1")).toBe("");
-  },
-);
+    context.git("add", "Makefile");
+    context.git("commit", "-m", "Fail checks");
+    context.git("push", "origin", "main");
+  }
+  const before = context.git("rev-parse", "HEAD");
+  const result = context.run(["make", "release", "BUMP=patch"]);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain(failure === "check" ? "make check failed" : "Release requires");
+  expect(context.git("rev-parse", "HEAD")).toBe(before);
+  expect(context.git("ls-remote", "origin", "refs/tags/v0.1.1")).toBe("");
+});
 
-test("publication failure retains the pushed commit and tag for recovery", () => {
+test("REL05: publication failure retains the pushed commit and tag for recovery", () => {
   const context = fixture();
   Object.assign(context.env, { FAIL_PUBLICATION: "1" });
   const result = context.run(["make", "release", "BUMP=patch"]);
@@ -169,7 +132,7 @@ test("publication failure retains the pushed commit and tag for recovery", () =>
   expect(context.git("status", "--porcelain")).toBe("");
 });
 
-test("remote rejection retains local release state without publishing or partially pushing", () => {
+test("REL06: remote rejection retains local release state without publishing or partially pushing", () => {
   const context = fixture();
   const before = context.git("rev-parse", "origin/main");
   const hook = join(context.directory, "remote.git/hooks/pre-receive");

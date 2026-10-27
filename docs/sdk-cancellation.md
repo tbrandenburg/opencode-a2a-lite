@@ -70,8 +70,9 @@ node "$REPRO/repro.mjs" 1
 
 The store observer in this script delegates to one SDK `InMemoryTaskStore`; it
 only signals when the initial artifact has been saved. No SDK internals are
-patched. The normal suite separately asserts the known stock defect so it can
-stay green while the standalone reproducer expresses the desired invariant.
+patched. This standalone reproducer is the independent stock-SDK comparator;
+the normal suite tests the adapter's exact-artifact invariant rather than
+duplicating the known-defect demonstration.
 
 ## Generator lifetime is not HTTP connection lifetime
 

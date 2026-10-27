@@ -448,6 +448,8 @@ for startup/lifecycle, not a live model or evidence of registry publication.
 Live probes are opt-in; they never run as part of ordinary CI.
 See [quality baseline](/docs/quality-baseline.md) for warning-first size/complexity
 reporting, whole-test runtime, native function/line coverage, and measurement limits.
+See [deterministic test selection](/docs/test-reduction.md) for the compact-suite
+risk mapping, before/after evidence and required versus opt-in acceptance commands.
 
 ### Real acceptance
 
