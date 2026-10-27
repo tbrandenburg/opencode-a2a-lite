@@ -231,9 +231,20 @@ additional comparable full-suite timing runs, `make package-smoke` (12 allowlist
 package files, real installed CLI/direct server and owned cleanup), and the pinned
 `make interop-test` (provider-free real bridge, 28 attempts, 40-call limit with the
 eight-call reserve). Production code and external acceptance scripts are unchanged.
-Billable live-model acceptance is pending explicit authorization; provider-free
-passes do not fulfill that gate. This report does not claim the issue's merged/
-live-acceptance definition of done has been met.
+Billable live-model acceptance was pending at that provider-free verification;
+those passes did not fulfill it. The user subsequently authorized one live run
+on integration revision `a7f178d`: `make e2e` passed E2E01–05, then failed at
+E2E06 with `Private diagnostics withheld`; E2E07–14 were not reached. Harness
+cleanup passed, and no retry was used to replace the failure. Production `src/`
+and the live harness are unchanged by this refactor. The exact failing sub-step
+and cause are unestablished; follow-up [#27](https://github.com/tbrandenburg/opencode-a2a-lite/issues/27)
+tracks the retained observation alongside the earlier diagnostic issue #19.
+The run's private evidence root is
+`.test-results/authorized-live/47844f6a-827d-40c2-9685-0e98ff622252/`.
+This report does not claim the issue's merged/live-acceptance definition of done
+has been met. The separately authorized topology results belong to
+[PR #26](https://github.com/tbrandenburg/opencode-a2a-lite/pull/26), not this
+test-only benchmark or the original matrix.
 
 ## Required and opt-in acceptance
 
