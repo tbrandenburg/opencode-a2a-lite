@@ -17,6 +17,8 @@ export interface StepExpectation {
   readonly peerUrl: string | null;
   readonly marker: string;
   inputHash?: string;
+  inputEnvelope?: import("./topology-envelope.js").EnvelopeMetadata;
+  workerInputHash?: string;
   submittedContextId?: string | null;
 }
 export interface StepReceipt {

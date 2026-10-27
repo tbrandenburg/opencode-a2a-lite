@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { expect, test } from "bun:test";
 import { sanitizedFailure } from "../../examples/agent-network/topology-failures.js";
-import { parseTurn } from "../../examples/agent-network/topology-evidence.js";
+import { parseTurn, verifyContributions } from "../../examples/agent-network/topology-evidence.js";
 
 test("N18 real assertion failures retain an allowlisted source frame without private values", () => {
   try {
@@ -25,4 +25,25 @@ test("N18 real assertion failures retain an allowlisted source frame without pri
     frame: null,
     criterion: "runtime-error",
   });
+  const fact = {
+    id: "bounds",
+    kind: "bounds" as const,
+    minCost: 0 as const,
+    capacity: 9,
+    notes: Array.from({ length: 80 }, (_, index) => `private-diff-sentinel-${index}`),
+  };
+  try {
+    verifyContributions("{}", [
+      [fact],
+      [{ ...fact, notes: fact.notes.map(() => "changed-private-sentinel") }],
+    ]);
+    throw new Error("Expected conflicting contribution rejection");
+  } catch (error) {
+    expect(error).toBeInstanceOf(assert.AssertionError);
+    expect((error as Error).stack!.split("\n").length).toBeGreaterThan(20);
+    expect(sanitizedFailure(error).frame).toMatch(
+      /^examples\/agent-network\/topology-evidence\.ts:\d+$/,
+    );
+    expect(JSON.stringify(sanitizedFailure(error))).not.toContain("sentinel");
+  }
 });

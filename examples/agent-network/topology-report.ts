@@ -44,6 +44,8 @@ export function caseRecord(result: Result) {
           kind: result.failure.kind,
           frame: result.failure.frame,
           criterion: result.failure.criterion,
+          ...(result.failure.mismatch ? { mismatch: result.failure.mismatch } : {}),
+          ...(result.failure.contributions ? { contributions: result.failure.contributions } : {}),
         }
       : null,
   };

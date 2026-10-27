@@ -24,7 +24,12 @@ import {
   until,
 } from "../../examples/agent-network/transport.js";
 import { createTaskClient, type Submission } from "../../examples/agent-network/task-client.js";
-import { verifyContributions } from "../../examples/agent-network/topology-evidence.js";
+import {
+  pairedResult,
+  sha256,
+  verifyContributions,
+} from "../../examples/agent-network/topology-evidence.js";
+import { detailEvidence } from "../../examples/agent-network/topology-report-evidence.js";
 import { verifyReleased } from "../../examples/agent-network/topology-resources.js";
 
 const lifecycle = createLifecycle();
@@ -58,6 +63,7 @@ let stage = "startup";
 const subcases: { id: string; passed: boolean; attemptedCalls: number; criteria: string[] }[] = [];
 const connectionAttempts: number[] = [];
 let attemptedCalls = 0;
+let reflectionVerified = false;
 try {
   const registry = await directory(binary, profile, lifecycle.signal);
   lifecycle.releases.push(registry.close);
@@ -282,8 +288,38 @@ try {
   const calls = audit.filter((entry) => entry.event === "call");
   assert(calls.length <= 40);
   assert.equal(calls.length, 40 - connection.remainingCalls);
-  const continuation = calls.find((entry) => entry.context === a.handle.contextId);
-  assert(continuation && !("task" in continuation));
+  const continuation = calls.find(
+    (entry) =>
+      entry.tool === "a2a_send_message" &&
+      entry.contextPresent === true &&
+      entry.contextHash === sha256(a.handle.contextId),
+  );
+  assert(continuation && continuation.taskPresent === false);
+  assert(
+    audit.some(
+      (entry) =>
+        entry.event === "result" &&
+        entry.taskId === a.handle.taskId &&
+        entry.contextId === a.handle.contextId,
+    ),
+  );
+  assert(
+    audit.some(
+      (entry) =>
+        entry.event === "result" &&
+        entry.taskId === continued.handle.taskId &&
+        entry.contextId === a.handle.contextId,
+    ),
+  );
+  assert(
+    audit.some(
+      (entry) =>
+        entry.event === "result" &&
+        entry.taskId === stale.handle.taskId &&
+        entry.contextId === failed.handle.contextId &&
+        entry.state === "TASK_STATE_FAILED",
+    ),
+  );
   assert.equal(
     calls.filter((entry) => entry.tool === "a2a_send_message" && entry.inputHash === uncertainHash)
       .length,
@@ -370,6 +406,93 @@ try {
       "real ACP altered authoritative fact rejected; expected BROKEN topology",
     ],
   });
+  stage = "unknown-context-reflection-privacy";
+  const sentinel = "PRIVATE-UNKNOWN-CONTEXT-SENTINEL";
+  const submitted = record(
+    await negatives.call(
+      "a2a_send_message",
+      {
+        peer_url: peers[3]!,
+        context_id: sentinel,
+        text: "reflection-must-not-run",
+        blocking: false,
+      },
+      false,
+      limits(),
+    ),
+  );
+  const reflected = record(submitted.task ?? submitted);
+  assert.equal(
+    reflected.contextId,
+    sentinel,
+    "Guard must forward the actual MCP context unchanged",
+  );
+  assert(typeof reflected.id === "string" && /^[a-f0-9-]{36}$/.test(reflected.id));
+  await setTimeout(100, undefined, { signal: lifecycle.signal });
+  const observed = record(
+    await negatives.call(
+      "a2a_get_task",
+      { peer_url: peers[3]!, task_id: reflected.id },
+      false,
+      limits(),
+    ),
+  );
+  const terminal = record(observed.task ?? observed);
+  assert.equal(record(terminal.status).state, "TASK_STATE_FAILED");
+  assert.equal(terminal.contextId, sentinel);
+  assert.equal(terminal.id, reflected.id);
+  assert(JSON.stringify(terminal).includes("Unknown or expired context"));
+  assert(
+    !lines(join(root, "acp-3.jsonl")).some((entry) => entry.command === "reflection-must-not-run"),
+  );
+  const receiptFile = join(root, "mcp-receipts.jsonl");
+  const privacyAudit = lines(receiptFile);
+  assert(!readFileSync(receiptFile, "utf8").includes(sentinel));
+  const submittedCall = privacyAudit.find(
+    (entry) => entry.event === "call" && entry.contextHash === sha256(sentinel),
+  );
+  assert(
+    submittedCall && submittedCall.contextPresent === true && submittedCall.taskPresent === false,
+  );
+  const initial = pairedResult(submittedCall, privacyAudit);
+  assert(
+    initial &&
+      initial.taskId === reflected.id &&
+      initial.contextHash === sha256(sentinel) &&
+      initial.contextUntrusted === true &&
+      !("contextId" in initial),
+  );
+  const stored = privacyAudit.find(
+    (entry) =>
+      entry.event === "result" &&
+      entry.taskId === reflected.id &&
+      entry.state === "TASK_STATE_FAILED",
+  );
+  assert(
+    stored &&
+      stored.contextHash === sha256(sentinel) &&
+      stored.contextUntrusted === true &&
+      !("contextId" in stored),
+  );
+  const evidenceFile = join(root, "reflection-evidence.json");
+  writeFileSync(
+    evidenceFile,
+    JSON.stringify({
+      evidenceClass: "provider-free-controlled-ACP",
+      ...detailEvidence({
+        id: "V1/T1-pipeline",
+        audit: privacyAudit,
+        expectations: [],
+        receipts: [],
+        coordinatorTurns: [],
+        extractionFailures: 0,
+        heartbeatFailures: 0,
+      }),
+    }),
+    { mode: 0o600 },
+  );
+  assert(!readFileSync(evidenceFile, "utf8").includes(sentinel));
+  reflectionVerified = true;
   attemptedCalls += 40 - negatives.remainingCalls;
   connectionAttempts.push(40 - negatives.remainingCalls);
   assert(connectionAttempts.every((count) => count <= 40));
@@ -379,6 +502,7 @@ try {
       attemptedCalls: calls.length,
       budget: 40,
       reserved: 8,
+      untrustedContextReflectionSanitized: reflectionVerified,
     }),
   );
 } catch (error) {
@@ -404,6 +528,7 @@ try {
         cleanup: failures.length === 0,
         failed: process.exitCode === 1,
         failedStage: process.exitCode === 1 ? stage : null,
+        untrustedContextReflectionSanitized: reflectionVerified,
       }),
       { mode: 0o600 },
     );

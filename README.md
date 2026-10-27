@@ -420,9 +420,16 @@ requires explicit `--live`. This compares fixed schedules over a physical MCP
 star, not an arbitrary graph orchestration platform.
 The [recorded topology findings](/docs/topology-investigation-findings.md) retain
 the failed cases and incomplete comparative verdict; this is not a reliability claim.
+The separate [post-change diagnostics](/docs/topology-integrity-diagnostics.md)
+record provider-free acceptance. The [authorized live results](/docs/authorized-live-acceptance.md)
+retain the E2E06 and topology contract failures alongside a successful fanout;
+the draft changes remain unmerged, without a reliability claim.
 Reports separate modified-input integrity from retries/uncertain resends and retain
 expected versus observed task hashes; local turn deadlines preserve incomplete
 status and returned handles without implying remote cancellation.
+The [handoff integrity contract](/docs/topology-integrity.md) permits formatting/key-order
+changes only in validated request envelopes, preserves exact inbound artifact strings,
+and separates guarded-route verification from strict submission-parameter compliance.
 With the pinned bridge binary, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`
 runs focused provider-free MCP interoperability checks, separately from `make check`.
 

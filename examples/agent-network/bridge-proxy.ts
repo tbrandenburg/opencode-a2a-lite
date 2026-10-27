@@ -5,6 +5,10 @@ import { constants as os } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { taskMetadata } from "./guard-task.js";
+import { envelopeMetadata } from "./topology-envelope.js";
+import { createResultMetadata, submittedIdentifiers, type Audit } from "./topology-evidence.js";
+
+export { createResultMetadata, submittedIdentifiers } from "./topology-evidence.js";
 
 const digest = "bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2";
 export const tools = [
@@ -163,7 +167,8 @@ async function main(): Promise<void> {
     { env, stdio: ["pipe", "pipe", "pipe"] },
   );
   child.stderr.resume();
-  const requests = new Map<string, { method: unknown; tool: string }>();
+  const requests = new Map<string, { method: unknown; tool: string; call?: Audit }>();
+  const metadata = createResultMetadata();
   let count = 0;
   let failed = false;
   let closed = false;
@@ -238,20 +243,26 @@ async function main(): Promise<void> {
       }
       if (id === undefined) throw new Error("transport");
       const args = record(params.arguments) ? params.arguments : {};
+      const call = {
+        ...(typeof args.peer_url === "string" ? { peer: args.peer_url } : {}),
+        ...submittedIdentifiers(args),
+      };
       audit({
         event: "call",
         id,
         tool,
-        ...(typeof args.peer_url === "string" ? { peer: args.peer_url } : {}),
-        ...(typeof args.context_id === "string" ? { context: args.context_id } : {}),
-        ...(typeof args.task_id === "string" ? { task: args.task_id } : {}),
+        ...call,
         inputHash: inputHash(args),
+        ...(tool === "a2a_send_message" && typeof args.text === "string"
+          ? { inputEnvelope: envelopeMetadata(args.text) }
+          : {}),
         taskIdOmitted: !Object.hasOwn(args, "task_id"),
         ...(typeof args.blocking === "boolean" ? { blocking: args.blocking } : {}),
         at: new Date().toISOString(),
       });
+      requests.set(id, { method: packet.method, tool, call });
     }
-    if (id !== undefined && typeof packet.method === "string")
+    if (id !== undefined && typeof packet.method === "string" && packet.method !== "tools/call")
       requests.set(id, { method: packet.method, tool });
     await send(child.stdin, packet);
   }).then(
@@ -276,7 +287,7 @@ async function main(): Promise<void> {
         id,
         tool: request.tool,
         ok: !packet.error && record(packet.result) && packet.result.isError !== true,
-        ...(!packet.error ? taskMetadata(packet.result) : {}),
+        ...(!packet.error ? metadata.capture(taskMetadata(packet.result), request.call) : {}),
         at: new Date().toISOString(),
       });
     if (request && id !== undefined) requests.delete(id);

@@ -10,7 +10,7 @@ Continuation uses returned context_id on the same peer and MUST omit task_id. Ne
 Execute only this host-declared stage, then stop. Submit independent stage tasks together before waiting, so real execution overlaps.
 Each declared case owns one connection with 40 attempts; stop ordinary work at 32, reserving eight for intervention. Never reconnect.
 Host readiness observes worker completion in memory; it does not call workers for you. Host supplies hashes; do not calculate SHA256.
-Worker inputs must be copied exactly as supplied. Never invent completion, proof, facts or handles.`;
+Worker inputs must preserve supplied field values exactly; only outer JSON whitespace and object-key order may differ. Never parse/reformat nested inbound artifact strings. Never invent completion, proof, facts or handles.`;
 
 export const envelopeInstructions = `Return ONLY JSON with exactly facts,inputHashes,proof,answer,evaluation.
 facts is the deduplicated union of your private facts and inbound facts, without inventing or changing facts.
