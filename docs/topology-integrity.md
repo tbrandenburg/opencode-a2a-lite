@@ -180,7 +180,7 @@ The separate pre-existing quadratic duplicate scan in `verifyContributions()` is
 not changed by this envelope/privacy slice; large fact-list hardening remains a
 coordinator-owned follow-up, not a claimed fix.
 
-## Reproduction and pending live gate
+## Reproduction and live acceptance boundary
 
 Provider-free commands from the worktree root:
 
@@ -199,14 +199,16 @@ owned resources; never stop another owner's listeners. Interop is real-bridge,
 controlled-ACP evidence, not live-model topology acceptance. Use a unique ignored
 output directory for new diagnostics, never the original matrix directory.
 
-**Live gate remains pending explicit billable opt-in, owned by the coordinator.**
-Predeclare V1 coordinator-only reference, pipeline, fanout, refinement and judge
-in that order, one attempt each. Require an actual completed model-issued MCP
-handoff with exact artifact/proof integrity; retain remaining failures and missing
-evidence. Do not retry for a favorable result, run an autonomous/full matrix,
-pool new diagnostics with the original matrix or claim an 80% pass rate. A partial
-five-case report intentionally leaves the 27-case comparative verdict incomplete.
-Stop unsafe continuation if owned cleanup fails.
+**The user authorized the live gate; it was executed once at `a7f178d`.**
+The V1 coordinator reference and fanout worked; pipeline, refinement and judge
+failed at their recorded contract checks. The production E2E harness stopped at
+E2E06 after five passed scenarios. See the
+[authorized live report](/docs/authorized-live-acceptance.md) and follow-ups #27/#28.
+Fanout establishes a completed model-issued MCP workflow with exact artifact/proof
+integrity; remaining failures and missing evidence are retained. No favorable-result
+retry, autonomous/full matrix, pooling with original observations or 80% pass-rate
+claim follows. Cleanup passed, and future paid reproduction requires another
+explicit decision after the bounded diagnostic follow-ups.
 
 Research: [RFC 8785 §§3.1, 3.2.3 and Appendix E](https://www.rfc-editor.org/rfc/rfc8785.html)
 explain duplicate-key rejection, ordered arrays and immutable string subtypes;
@@ -243,10 +245,10 @@ were corrected before the final deterministic gates. Restoring the original
 lexer, legacy raw-field projection and missing-send predicate made N19/N17/N14
 fail respectively (one focused run: one pass, three failures); those temporary
 faults were removed. At that revision, complete interop acceptance was blocked as
-described above. The follow-up below resolves that blocker; the five-case live
-gate remains pending.
+described above. The follow-up below resolved that blocker before the separately
+recorded authorized live gate.
 
-### Reflected-result privacy correction and current validation
+### Reflected-result privacy correction: retained worktree validation
 
 The interop fixture now checks `contextPresent`, the exact SHA256 of the actual
 returned context, and `taskPresent:false`, plus exact fresh/continuation/stale
@@ -272,4 +274,7 @@ acceptance. One full deterministic run recorded two fixture-marker timeouts
 (H03/H04); those unchanged tests passed in isolation and the next standalone full
 run passed 70/70 without deadline or assertion changes. Those earlier failures
 are retained rather than presented as a clean first attempt. No live-model or
-paid acceptance was run.
+paid acceptance was run in that implementation worktree. The subsequent
+[coordinator checks](/docs/topology-integrity-diagnostics.md) include the merged
+#23 fixes; the [authorized live observations](/docs/authorized-live-acceptance.md)
+remain a separate evidence class with unresolved failures.

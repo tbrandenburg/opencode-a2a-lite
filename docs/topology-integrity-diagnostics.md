@@ -2,8 +2,10 @@
 
 ## Verdict and revision
 
-**Provider-free implementation acceptance passes; live-model acceptance is
-INCOMPLETE pending explicit billable opt-in.** This is a separate post-change
+**Provider-free implementation acceptance passes; the subsequently authorized
+live acceptance has unresolved failures.** The
+[authorized live report](/docs/authorized-live-acceptance.md) records those once-only
+outcomes separately. This is a separate post-change
 record, not a revision of the [original matrix findings](/docs/topology-investigation-findings.md)
 or a reliability claim.
 
@@ -96,22 +98,27 @@ functional diff from the frozen baseline. The guard's forwarding, endpoint/tool
 decisions, budget and deadlines are unchanged; only diagnostic metadata changed.
 Original matrix evidence was not rewritten or pooled with these new runs.
 
-## Missing live evidence and next authorized action
+## Previously pending live gate and subsequent authorized outcome
 
-No billable model request was made for this work. Required pending acceptance:
+No billable model request was made during the provider-free verification above.
+The user subsequently authorized one execution of the following declared gate:
 
 1. `make e2e`: retained fourteen real-model production scenarios.
 2. One predeclared diagnostic set, in this order, one attempt each:
    `V1/B0-coordinator`, `V1/T1-pipeline`, `V1/T2-fanout`,
    `V1/T4-refinement`, `V1/T5-judge`.
 
-Use the existing runner with that declared order and unchanged deadlines after
-explicit opt-in; retain exact outcomes and stop continuation if cleanup fails.
+That execution passed E2E01–05 then failed at E2E06; eight scenarios were not
+reached. The five-case diagnostic recorded reference/fanout WORKING and pipeline/
+refinement/judge BROKEN. Fanout now establishes a complete actual model-issued
+workflow with verified artifact/proof integrity. Cleanup passed; no failure was
+retried or replaced. See the [separate live report](/docs/authorized-live-acceptance.md)
+and follow-ups #27/#28 for precise observed boundaries and unknown causes.
+
 No automatic retry, complete matrix, alternate model, increased call budget or
 host-scripted replacement for model-issued handoffs is authorized by this report.
-At least one actual model-issued handoff with verified artifact/proof integrity
-is still unestablished. Consequently neither issue's merged/live definition of
-done, a pass-rate target nor topology superiority is claimed.
+The remaining failures block a complete live-acceptance/reliability claim, and
+neither issue's merged definition of done is claimed.
 
 The unrelated pre-existing oversized-fact CPU concern is tracked in
 [issue #24](https://github.com/tbrandenburg/opencode-a2a-lite/issues/24).
