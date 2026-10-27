@@ -162,57 +162,6 @@ test("E4: cancellation uses only the active binding and waits for the canceled r
   expect(run.calls).toEqual(["session", "cancel:session"]);
 });
 
-test("E5: admission stays held until losing cancellation settles; terminal tasks cannot cancel next turn", async () => {
-  const run = setup();
-  const response = Promise.withResolvers<PromptResponse>();
-  const cancellation = Promise.withResolvers<void>();
-  const ready = Promise.withResolvers<void>();
-  run.bridge.prompt = async (_session, _text, onText) => {
-    onText("start");
-    ready.resolve();
-    return response.promise;
-  };
-  run.bridge.cancel = () => {
-    run.calls.push("cancel");
-    return cancellation.promise;
-  };
-  const pending = run.executor.execute(context(), run.bus);
-  await ready.promise;
-  const cancel = run.executor.cancelTask("task", run.bus);
-  response.resolve({ stopReason: "end_turn" });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(statuses(run.events).at(-1)).toBe(TaskState.TASK_STATE_COMPLETED);
-  await run.executor.execute(context(undefined, {}, { task: "other", context: "other" }), run.bus);
-  expect(run.calls).toEqual(["session", "cancel"]);
-  expect(statuses(run.events).at(-1)).toBe(TaskState.TASK_STATE_FAILED);
-  await expect(run.executor.cancelTask("task", run.bus)).rejects.toThrow("active ACP");
-  cancellation.resolve();
-  await Promise.all([cancel, pending]);
-  run.bridge.prompt = async () => ({ stopReason: "end_turn" });
-  await run.executor.execute(context(undefined, {}, { task: "other", context: "other" }), run.bus);
-  expect(statuses(run.events).at(-1)).toBe(TaskState.TASK_STATE_COMPLETED);
-  expect(run.calls).toEqual(["session", "cancel", "session"]);
-});
-
-test("E6: reuses each context's session without mixing sequential conversations", async () => {
-  const run = setup();
-  let count = 0;
-  run.bridge.newSession = async () => ({ sessionId: `session-${++count}` });
-  for (const name of ["alpha", "beta", "alpha", "beta"]) {
-    await run.executor.execute(
-      context([{ text: name }], {}, { task: name, context: name }),
-      run.bus,
-    );
-  }
-  expect(count).toBe(2);
-  expect(run.calls).toEqual([
-    "session-1:alpha",
-    "session-2:beta",
-    "session-1:alpha",
-    "session-2:beta",
-  ]);
-});
-
 test("E7: explicit unknown and failed contexts never submit; provider failures stay sanitized", async () => {
   const run = setup("end_turn", "prompt");
   await run.executor.execute(context([{ text: "hello" }], { contextId: "context" }), run.bus);

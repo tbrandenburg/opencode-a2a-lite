@@ -140,12 +140,23 @@ test("H03 ACP startup timeout never opens HTTP or advertises early readiness", a
 
 test("H04 close during initialization prevents late readiness and closes owned ACP", async () => {
   const port = await freePort();
-  const instance = gateway("startup-hang", { port });
-  const pending = instance.start().catch((error: unknown) => error);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  await instance.close();
-  expect(await pending).toBeInstanceOf(Error);
-  await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
+  const directory = await mkdtemp(join(tmpdir(), "a2a-http-close-startup-"));
+  const marker = join(directory, "initializing");
+  const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
+  const instance = gateway("startup-hang", {
+    port,
+    acp: { args: [peer, marker], versionArgs: [peer, marker, "--version"] },
+  });
+  try {
+    const pending = instance.start().catch((error: unknown) => error);
+    await until(() => Bun.file(marker).exists());
+    await instance.close();
+    expect(await pending).toBeInstanceOf(Error);
+    await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
+  } finally {
+    await instance.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("H11 direct gateway options enforce the trusted workspace and loopback boundary", async () => {

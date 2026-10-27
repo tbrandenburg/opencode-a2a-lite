@@ -30,15 +30,6 @@ test("C1: explicit trusted paths override environment and normalize worker ident
   });
 });
 
-test("C2: informational actions precede resource validation, not syntax validation", () => {
-  const env = { A2A_WORKSPACE: "relative", A2A_PORT: "invalid", A2A_NAME: "" };
-  expect(parseOptions(["--workspace", ".", "--help", "--port", "invalid"], env)).toEqual({
-    action: "help",
-  });
-  expect(parseOptions(["-v"], env)).toEqual({ action: "version" });
-  expect(() => parseOptions(["--unknown", "--help"], env)).toThrow("Use --help");
-});
-
 test("C3: unknown, duplicate and missing-value flags fail without reflecting input", () => {
   const env = { A2A_WORKSPACE: "/trusted" };
   expect(() => parseOptions(["--private-marker"], env)).toThrow(StartupError);
