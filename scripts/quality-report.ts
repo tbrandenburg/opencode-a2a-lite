@@ -5,6 +5,7 @@ const expected = [
   "src/cli-options.ts",
   "src/cli.ts",
   "src/executor.ts",
+  "src/identity.ts",
   "src/request-handler.ts",
   "src/server.ts",
   "src/startup-error.ts",

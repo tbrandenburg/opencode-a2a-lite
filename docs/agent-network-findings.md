@@ -1,5 +1,53 @@
 # OpenCode / a2abridge network findings
 
+## Worker identity, manual peers and bounded waits acceptance
+
+The issue #11–#13 integration was verified on **2026-10-27**, with the same
+Bun/OpenCode/bridge/model pins listed below. No production transport, SDK pin,
+gateway admission policy or runtime package dependency changed.
+
+- Coordinator deterministic gate: `make check` with coverage/JUnit reporting;
+  **277 tests across 17 files, zero failures**, plus formatting, lint, types and
+  build. Seven advisory production size/complexity warnings remained.
+- `make package-smoke`: **12 allowlisted package files**, installed CLI and direct
+  server identity, sanitized failure cases, signals and process cleanup passed.
+- `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`: passed in
+  a synthetic environment with a fresh temporary base; **29/40 attempted calls**.
+  It exercised real MCP/guard/bridge/gateway/controlled-ACP traffic, not a model.
+  The upstream SDK emitted a terminal-task subscription diagnostic during a
+  negative scenario; the gate's outcome/cancellation assertions passed.
+- The production `make e2e` gate passed **14 scenarios, zero failures** after
+  identity integration, including context isolation, streaming, cancellation,
+  backend death, invalid credentials and shutdown. An independent process scan
+  found zero remaining live-probe processes.
+
+The manual recipe's two JSON fragments were exercised in private, configuration-
+verified projects using its fixed illustrative ports and compiled CLI launches.
+The coordinator completed a real model → MCP → A2A → gateway → ACP request;
+an independent task lookup verified the completed state and exact expected
+artifact. Both first cards had the intended identity/tags; an unlisted peer was
+denied. Heartbeats were stopped and actual directory expiration was observed.
+Four profile cleanups passed, and the three ports were reusable afterward.
+For acceptance instrumentation only, the reviewed metadata-only readiness
+observer was merged into the manual coordinator fragment: **four** permission-
+filtered snapshots passed. The published manual fragment itself has no observer
+and does not promise automatic readiness from catalog arrival.
+
+Two unchanged integrated `make network-demo` attempts were retained separately:
+
+| Start/end UTC     | Outcome | Evidence                                                                                                                                       |
+| ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 12:16:33–12:18:19 | Failed  | Interoperability, lifecycle and planning passed; contract results mismatched the unchanged oracle at `collaborate.ts:88`; cleanup passed.      |
+| 12:19:35–12:21:18 | Passed  | Both collaboration tasks, exact handoff/proof checks, 25 paired calls/results, 11 permission-filtered snapshots, heartbeat and cleanup passed. |
+
+The failing run's raw model answer was deliberately not retained, so its exact
+mismatching results are unknown. Prompt ambiguity is a hypothesis, not a proven
+cause. The separate [live contract-results follow-up](https://github.com/tbrandenburg/opencode-a2a-lite/issues/14)
+preserves the sanitized failure and investigation. No assertion was weakened,
+no automatic retry was introduced, and these two attempts are not a reliability
+benchmark. Focused provider-free issue #13 acceptance does not resolve the broader
+CI/interoperability scope of [issue #10](https://github.com/tbrandenburg/opencode-a2a-lite/issues/10).
+
 ## Scope and first observed result
 
 The first successful live run completed on **2026-10-27**, from

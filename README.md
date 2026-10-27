@@ -377,6 +377,7 @@ persistence during SDK 1.3 cancellation. See [architecture](/docs/architecture.m
 | `make install`                 | Install the frozen Bun lockfile                                    |
 | `make check`                   | Format check, lint, strict types, deterministic tests and build    |
 | `make package-smoke`           | Inspect and run an npm tarball outside the checkout; no provider   |
+| `make interop-test`            | Focused provider-free MCP/A2A checks; verified bridge required     |
 | `make dev`                     | Run the foreground TypeScript watch server                         |
 | `make build`                   | Compile TypeScript into `dist/`                                    |
 | `make run`                     | Build and run the compiled foreground server                       |
@@ -408,6 +409,10 @@ For a real OpenCode coordinator delegating through MCP/a2abridge to two independ
 A2A workers, see the opt-in [agent network experiment](/examples/agent-network/README.md)
 and [recorded findings](/docs/agent-network-findings.md). `make network-demo` uses
 live provider access and a separately verified bridge binary; it does not run in CI.
+The example also documents a [manual peer inventory and project-local MCP setup](/examples/agent-network/README.md)
+and [caller-owned conversation handles and bounded waits](/examples/agent-network/client-guide.md).
+With the pinned bridge binary, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`
+runs focused provider-free MCP interoperability checks, separately from `make check`.
 
 ```sh
 make install
