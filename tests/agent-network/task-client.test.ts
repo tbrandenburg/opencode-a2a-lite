@@ -139,6 +139,23 @@ test("sleep cannot extend deadline or start another poll", async () => {
   expect(result.task.id).toBe(initial.task.id);
 });
 
+test("fractional polling intervals never dispatch before the selected wake target", async () => {
+  const polls: number[] = [];
+  const f = await fixture((request) => {
+    if (request.name === "a2a_get_task") polls.push(performance.now());
+    return raw();
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  const intervalMs = 2.9;
+  const result = await f.peer.wait(initial, { ...options(), intervalMs, maxPolls: 24 });
+  const spacing = polls.slice(1).map((time, index) => time - polls[index]!);
+  expect(result.reason).toBe("poll-limit");
+  expect(f.calls).toHaveLength(25);
+  expect(polls).toHaveLength(24);
+  expect(Math.min(...spacing)).toBeGreaterThanOrEqual(intervalMs);
+  expect(result.handle).toEqual(initial.handle);
+});
+
 test("abort stops wait during sleep, preserves state and permits explicit cancel later", async () => {
   const f = await fixture((request) =>
     raw(request.name === "a2a_cancel_task" ? "CANCELED" : "WORKING"),

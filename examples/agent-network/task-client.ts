@@ -143,11 +143,13 @@ export function createTaskClient(connection: Connection, peerUrl: string) {
           last = await inspect("a2a_get_task", last.handle, { deadline: options.deadline, signal });
           if (last.outcome !== "pending" || options.stopWhen?.(last)) return last;
           if (count + 1 === maximum) return { ...last, reason: "poll-limit" };
-          await setTimeout(
-            Math.min(interval, Math.max(0, options.deadline - performance.now())),
-            undefined,
-            { signal },
-          );
+          const wake = Math.min(options.deadline, performance.now() + interval);
+          // Timer delivery can precede a fractional target; it is not permission to poll.
+          while (true) {
+            const delay = wake - performance.now();
+            if (delay <= 0) break;
+            await setTimeout(Math.ceil(delay), undefined, { signal });
+          }
         } catch (error) {
           if (options.signal?.aborted) return { ...last, reason: "aborted" };
           if (timeout.aborted || performance.now() >= options.deadline)
