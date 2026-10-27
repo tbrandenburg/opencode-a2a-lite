@@ -1,5 +1,90 @@
 # Repository guidance
 
+## Run A2A agents through MCP
+
+Use this path when asked to delegate through MCP/A2A:
+**OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
+Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
+
+### Set up and discover
+
+1. Follow the [manual two-worker recipe](/examples/agent-network/README.md#manual-two-worker-recipe-separate-from-the-managed-demo)
+   for runnable worker, directory, registration and project-local MCP configuration.
+   Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed a2abridge **4.0.2**, and A2A **1.0**.
+   Check free loopback ports before startup; never stop another owner's processes.
+   Keep gateways loopback-only; do not use public proxies or untrusted directories/cards.
+2. Launch each worker in an explicitly trusted workspace. Set `A2A_NAME`,
+   `A2A_DESCRIPTION` and optional comma-separated `A2A_TAGS` before startup; use
+   the actual printed readiness URL and verify `/.well-known/agent-card.json`.
+   Identity is descriptive metadata, not permission or authentication.
+3. Keep the directory running, register the exact worker root URLs, and refresh
+   heartbeats every **20 seconds**. Membership expires after **90 seconds**, with
+   garbage collection every **30 seconds**. The
+   [peer inventory](/examples/agent-network/peers.example.json) is illustrative;
+   no runtime loads it or replaces directory membership with it.
+4. Manually merge the recipe's `mcp.servers.network` fragment into the coordinator's
+   project configuration with `codemode: false` and six explicit tool permissions.
+   Preserve the existing endpoint guard and its exact URL allowlist, including `/`.
+   Review inherited/ancestor configuration; project-local does not mean isolated.
+   Never edit global configuration or install services as part of this setup.
+   Keep provider keys out of files/logs and out of the bridge child environment;
+   the guard strips that environment, whereas MCP `environment: {}` does not.
+5. Inspect the actual MCP catalog; for the recipe's `network` server, direct tool
+   names are `network_a2a_whoami`, `network_a2a_list_agents`,
+   `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`
+   and `network_a2a_cancel_task`. If unavailable, report the setup blocker rather
+   than inventing a tool call. Use `network_a2a_list_agents` to discover cards and
+   exact approved URLs. `opencode mcp list` or a catalog receipt alone does not
+   prove model-callable readiness; verify an actual completed request.
+
+### Delegate, continue and stop
+
+- Send a bounded task and explicit acceptance criteria with
+  `network_a2a_send_message({ peer_url, text, blocking: false })`.
+  Retain the discovered peer URL and **returned** `contextId` and task `id`; never guess IDs.
+- Poll `network_a2a_get_task({ peer_url, task_id })` using that task ID. Inspect
+  the actual A2A state and artifacts: MCP success is not task completion.
+  Distinguish completed, failed/rejected, canceled and pending work; surface
+  tool errors and unknown tasks instead of reporting success.
+- Continue the same peer with
+  `network_a2a_send_message({ peer_url, text, context_id, blocking: false })`,
+  using the returned context ID and **omitting `task_id`**. Retain the new task ID.
+  Do not reuse a handle with another peer or silently restart an unknown/stale context.
+- Choose one absolute local deadline for submission plus waiting; bound each call
+  and polling sleep by its remaining time. Keep polling bounded and reserve
+  **eight calls** for intervention within the guard's **40-attempt connection budget**.
+  Do not increase the budget, poll rapidly, or reconnect to evade exhaustion.
+  A gateway admits only one active turn; concurrent work fails busy, not queued.
+- A local timeout/abort is **not remote cancellation**. Keep the handle and last
+  observed state. If submission yields no handle, report **uncertain** and do not
+  resend automatically. Explicitly cancel only when requested with
+  `network_a2a_cancel_task({ peer_url, task_id })`; inspect the truthful result or
+  surface the cancellation error, including a race lost to completion.
+- Bridge 4.0.2 cannot pass `context_id` through `a2a_send_streaming`. Use
+  nonblocking send plus polling for continuation; polling is not SSE streaming.
+  Unary bridge calls have a **60-second** budget versus the gateway's default
+  **120-second** prompt budget, so do not depend on long blocking sends.
+- For host code, reuse the [typed task helper](/examples/agent-network/client-guide.md)
+  and its monotonic `performance.now()` deadlines. It does **not** govern the
+  model's direct MCP calls; apply these rules explicitly when using those tools.
+- On success or failure, close owned MCP connections, stop owned heartbeat loops,
+  unregister workers and stop owned gateway/directory processes. Verify process
+  exit and released ports. Never reuse managed-demo URLs/profiles after cleanup.
+  Report task outcome, verified artifacts and cleanup using sanitized evidence.
+  Do not publish raw prompts, reasoning or provider diagnostics.
+
+### Verify the setup
+
+- Provider-free real-bridge checks:
+  `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
+- Opt-in **billable** real-model acceptance:
+  `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make network-demo`.
+  This managed experiment verifies its own generated configuration and stops its
+  endpoints; it does not leave a persistent network configured for later tasks.
+- Done means the intended worker cards were discovered, the actual remote task
+  completed with the expected artifact, and owned-resource cleanup was verified.
+  Do not claim real-model E2E from provider-free fixtures or catalog arrival.
+
 ## Lessons Learned
 
 - 2026-10-27: Pitfall: Fractional timer delivery allowed an early extra poll on CI. Prevention: Round waits upward and recheck absolute monotonic wake/deadline targets after delivery; exercise fractional intervals with real timers.
