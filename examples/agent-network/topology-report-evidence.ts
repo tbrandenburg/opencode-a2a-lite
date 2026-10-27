@@ -2,6 +2,8 @@ import type { runTopologyCase } from "./topology-run.js";
 import { CASE_MATRIX, steps } from "./topology-cases.js";
 import { sha256 } from "./topology-evidence.js";
 import type { Score } from "./topology-scores.js";
+import { envelopeFields, inputDifference } from "./topology-envelope.js";
+import { isRecord } from "./topology-workloads.js";
 
 type Result = Awaited<ReturnType<typeof runTopologyCase>>;
 export const DIMENSIONS = [
@@ -98,6 +100,7 @@ export function reportScores(result: Result) {
     operations: projectedScore(result.scores.operations, [
       "budget",
       "guardedPath",
+      "parameterPolicy",
       "toolsDenied",
       "boundedDeadlines",
       "inputIntegrity",
@@ -116,12 +119,27 @@ export function detailEvidence(result: Result) {
         .filter((id) => Object.hasOwn(values, id))
         .map((id) => [id, hash ? sha256(values[id]!) : values[id]!]),
     );
+  const comparison = (entry: Result["expectations"][number]) => {
+    const calls = result.audit.filter(
+      (call) =>
+        call.event === "call" &&
+        call.tool === "a2a_send_message" &&
+        call.peer === entry.peerUrl &&
+        (call.context ?? null) === (entry.submittedContextId ?? null),
+    );
+    return entry.inputEnvelope && calls.length === 1
+      ? inputDifference(entry.inputEnvelope, calls[0]!.inputHash, calls[0]!.inputEnvelope)
+      : null;
+  };
   return {
     expectations: result.expectations.map((entry) => ({
       stepId: entry.stepId,
       peerUrl: entry.peerUrl,
       markerHash: sha256(entry.marker),
       inputHash: entry.inputHash ?? null,
+      workerInputHash: entry.workerInputHash ?? null,
+      inputComparison: comparison(entry),
+      ...(entry.inputEnvelope ? { inputEnvelope: metadata(entry.inputEnvelope) } : {}),
       submittedContextId: entry.submittedContextId ?? null,
     })),
     receipts: result.receipts.map((entry) => ({
@@ -140,6 +158,7 @@ export function detailEvidence(result: Result) {
     })),
     audit: result.audit.map((entry) => ({
       ...scalars(entry, auditFields),
+      ...(isRecord(entry.inputEnvelope) ? { inputEnvelope: metadata(entry.inputEnvelope) } : {}),
       ...(Array.isArray(entry.tools)
         ? {
             tools: entry.tools.filter(
@@ -162,5 +181,22 @@ export function detailEvidence(result: Result) {
     })),
     extractionFailures: result.extractionFailures,
     heartbeatFailures: result.heartbeatFailures,
+  };
+}
+
+function metadata(value: object) {
+  const entry = value as Record<string, unknown>;
+  const digest = (value: unknown) =>
+    typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : null;
+  return {
+    kind: ["known", "invalid", "text"].includes(String(entry.kind)) ? entry.kind : "invalid",
+    rawHash: digest(entry.rawHash),
+    contract: entry.contract === "topology-envelope-v1" ? entry.contract : null,
+    digest: digest(entry.digest),
+    fields: Object.fromEntries(
+      envelopeFields.flatMap((key) =>
+        isRecord(entry.fields) && digest(entry.fields[key]) ? [[key, entry.fields[key]]] : [],
+      ),
+    ),
   };
 }

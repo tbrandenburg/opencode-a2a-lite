@@ -29,6 +29,7 @@ export const checked = (condition: boolean): Check => (condition ? "pass" : "fai
 export interface OperationsEvidence {
   readonly connections: readonly { readonly calls: number; readonly interventionCalls: number }[];
   readonly guardedPath: Check;
+  readonly parameterPolicy: Check;
   readonly toolsDenied: Check;
   readonly boundedDeadlines: Check;
   readonly inputIntegrity: Check;
@@ -39,6 +40,7 @@ export interface OperationsEvidence {
 export type OperationCheck =
   | "budget"
   | "guardedPath"
+  | "parameterPolicy"
   | "toolsDenied"
   | "boundedDeadlines"
   | "inputIntegrity"
@@ -53,6 +55,7 @@ export function scoreOperations(
     return score({
       budget: "unknown",
       guardedPath: "unknown",
+      parameterPolicy: "unknown",
       toolsDenied: "unknown",
       boundedDeadlines: "unknown",
       inputIntegrity: "unknown",
@@ -75,6 +78,7 @@ export function scoreOperations(
         ),
     ),
     guardedPath: evidence.guardedPath,
+    parameterPolicy: evidence.parameterPolicy,
     toolsDenied: evidence.toolsDenied,
     boundedDeadlines: evidence.boundedDeadlines,
     inputIntegrity: evidence.inputIntegrity,

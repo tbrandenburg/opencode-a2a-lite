@@ -15,6 +15,7 @@ import { turnText } from "./topology-prompts.js";
 import type { topologySession } from "./topology-session.js";
 import type { WorkerObservation } from "./workers.js";
 import { until } from "./transport.js";
+import { envelopeMetadata } from "./topology-envelope.js";
 
 export interface StageContext {
   test: ExperimentCase;
@@ -63,6 +64,7 @@ export async function executeStages(context: StageContext) {
       const prior = context.receipts.find((entry) => entry.stepId === turn.sameContextAs);
       assert(!turn.sameContextAs || prior?.contextId, "Missing continuation handle");
       expectation.inputHash = sha256(text);
+      expectation.inputEnvelope = envelopeMetadata(text);
       expectation.submittedContextId = prior?.contextId ?? null;
       return { turn, expectation, text, contextId: prior?.contextId };
     });
@@ -71,6 +73,7 @@ export async function executeStages(context: StageContext) {
       const job = jobs[0]!;
       const prompt = `Do not contact workers. Perform this coordinator step, returning only its envelope: ${job.text}`;
       job.expectation.inputHash = sha256(prompt);
+      job.expectation.inputEnvelope = envelopeMetadata(prompt);
       const result = await context.session.prompt("solve", prompt);
       assert.equal(result.inputHash, sha256(prompt), "Coordinator inbound prompt changed");
       const output = parseTurn(result.output);

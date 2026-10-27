@@ -5,6 +5,7 @@ import { constants as os } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { taskMetadata } from "./guard-task.js";
+import { envelopeMetadata } from "./topology-envelope.js";
 
 const digest = "bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2";
 export const tools = [
@@ -246,6 +247,9 @@ async function main(): Promise<void> {
         ...(typeof args.context_id === "string" ? { context: args.context_id } : {}),
         ...(typeof args.task_id === "string" ? { task: args.task_id } : {}),
         inputHash: inputHash(args),
+        ...(tool === "a2a_send_message" && typeof args.text === "string"
+          ? { inputEnvelope: envelopeMetadata(args.text) }
+          : {}),
         taskIdOmitted: !Object.hasOwn(args, "task_id"),
         ...(typeof args.blocking === "boolean" ? { blocking: args.blocking } : {}),
         at: new Date().toISOString(),

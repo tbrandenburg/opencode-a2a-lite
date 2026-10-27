@@ -2,7 +2,13 @@ import { createLifecycle } from "./lifecycle.js";
 import type { WorkerObservation } from "./workers.js";
 import { steps, type ExperimentCase } from "./topology-cases.js";
 import type { StepExpectation, StepReceipt } from "./topology-receipts.js";
-import { auditOperations, submission, workerReceipt, type Audit } from "./topology-evidence.js";
+import {
+  auditOperations,
+  correlateSubmission,
+  sha256,
+  workerReceipt,
+  type Audit,
+} from "./topology-evidence.js";
 import { topologySession, type CoordinatorTurn } from "./topology-session.js";
 import {
   createTopologyRuntime,
@@ -102,8 +108,14 @@ export async function runTopologyCase(test: ExperimentCase, controls: TopologyCo
         const expected = expectations.find((entry) => entry.stepId === turn.id);
         if (!text || !expected) continue;
         try {
-          const sent = submission(expected, text, evidence.audit);
-          const observation = observations.find((entry) => entry.taskId === sent.result?.taskId);
+          const sent = correlateSubmission(expected, text, evidence.audit);
+          const observation = observations.find(
+            (entry) =>
+              entry.taskId === sent.result?.taskId &&
+              entry.contextId === sent.result?.contextId &&
+              entry.role === turn.actor,
+          );
+          if (observation) expected.workerInputHash = sha256(observation.input);
           stepReceipts.push(workerReceipt(turn, expected, text, observation, evidence.audit));
         } catch {
           // Keep the gap visible; missing/malformed evidence is never synthesized.
@@ -120,6 +132,7 @@ export async function runTopologyCase(test: ExperimentCase, controls: TopologyCo
     audit,
     expectations.filter((entry) => entry.peerUrl !== null && entry.inputHash !== undefined),
     !network,
+    observations,
   );
   const scores = {
     transport: scoreTransport(test.schedule, stepReceipts),
@@ -129,7 +142,8 @@ export async function runTopologyCase(test: ExperimentCase, controls: TopologyCo
     operations: scoreOperations(
       {
         connections: operations.connections,
-        guardedPath: checked(operations.guardedPath && operations.safeCalls),
+        guardedPath: operations.guardedPath ? "pass" : signal.aborted ? "unknown" : "fail",
+        parameterPolicy: checked(operations.safeCalls),
         toolsDenied: !configDenied ? "fail" : readiness ? "pass" : "unknown",
         boundedDeadlines:
           coordinatorTurns.length === 0
@@ -144,7 +158,11 @@ export async function runTopologyCase(test: ExperimentCase, controls: TopologyCo
                 ),
               ),
         noHiddenRetries: checked(operations.noHiddenRetries),
-        inputIntegrity: checked(operations.inputIntegrity),
+        inputIntegrity: !operations.inputIntegrity
+          ? "fail"
+          : operations.workerInputsObserved
+            ? "pass"
+            : "unknown",
         noUncertainResends: operations.noUncertainResends,
         cleanup: checked(cleanupErrors.length === 0 && heartbeatErrors.length === 0),
       },

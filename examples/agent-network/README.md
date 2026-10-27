@@ -6,6 +6,13 @@ modify global OpenCode configuration, or leave a network running after completio
 
 ## Six-topology investigation
 
+The [handoff integrity contract and counterexamples](/docs/topology-integrity.md)
+define the narrow outer-envelope comparison: formatting/key order may differ;
+instructions, markers, ordered facts and inbound artifact string bytes may not.
+Raw expected, guarded-call and observed-worker hashes remain separate audit evidence.
+`operations.guardedPath` verifies the route; `operations.parameterPolicy` independently
+requires explicit `blocking:false`, omitted `task_id` and permitted experiment calls.
+
 The separate [27-case investigation guide](/docs/topology-investigation.md) defines
 six logical schedules, three matched variants, a coordinator-only baseline,
 role-semantic checks and six provider-free controlled negative experiments.

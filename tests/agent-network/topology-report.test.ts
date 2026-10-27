@@ -10,6 +10,8 @@ import {
   scoreOperations,
 } from "../../examples/agent-network/topology-scores.js";
 import type { runTopologyCase } from "../../examples/agent-network/topology-run.js";
+import { verifyContributions } from "../../examples/agent-network/topology-evidence.js";
+import { sanitizedFailure } from "../../examples/agent-network/topology-failures.js";
 
 const passed = score({ checked: "pass" });
 function result(): Awaited<ReturnType<typeof runTopologyCase>> {
@@ -45,6 +47,7 @@ function result(): Awaited<ReturnType<typeof runTopologyCase>> {
       operations: score({
         budget: "pass",
         guardedPath: "fail",
+        parameterPolicy: "pass",
         toolsDenied: "pass",
         boundedDeadlines: "pass",
         inputIntegrity: "pass",
@@ -73,6 +76,19 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
   const secret = "provider-private-sentinel";
   const marker = "host-marker-not-for-serialization";
   const sample = result();
+  try {
+    verifyContributions(
+      JSON.stringify({
+        facts: [{ id: secret, kind: "bounds", minCost: 0, capacity: 999 }],
+        inputHashes: {},
+        proof: {},
+        answer: null,
+      }),
+      [[{ id: "bounds", kind: "bounds", minCost: 0, capacity: 9 }]],
+    );
+  } catch (error) {
+    sample.failure = { phase: "stages", ...sanitizedFailure(error) };
+  }
   const enriched = {
     ...sample,
     privatePayload: secret,
@@ -104,6 +120,13 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
         tool: "a2a_send_message",
         peer: "http://127.0.0.1:4101/",
         inputHash: "a".repeat(64),
+        inputEnvelope: {
+          kind: "known",
+          rawHash: "a".repeat(64),
+          digest: "b".repeat(64),
+          privatePayload: secret,
+          fields: { instructions: "c".repeat(64), marker: secret, [secret]: secret },
+        },
         blocking: false,
         taskIdOmitted: true,
         text: secret,
@@ -142,10 +165,17 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
     expect(text + summaryText + findings).not.toContain(marker);
     expect(text).not.toMatch(/privatePayload|providerDiagnostics|rawAnswer/);
     const saved = JSON.parse(text);
+    expect(saved.failure).toMatchObject({
+      criterion: "contribution-mismatch",
+      contributions: { missing: 1, extra: 1, changed: 0, repeated: 0 },
+    });
+    expect(saved.failure.contributions.identifiers).toHaveLength(2);
+    expect(saved.failure.contributions.identifiers[0]).toMatch(/^[a-f0-9]{64}$/);
     expect(saved.evidence.receipts[0].taskId).toBe(saved.evidence.audit[1].taskId);
     expect(saved.evidence.handles[0].contextId).toBe(saved.evidence.audit[1].contextId);
     expect(saved.evidence.receipts[0].outputHash).toBe(saved.evidence.audit[1].artifactHash);
     expect(saved.evidence.expectations[0].markerHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(saved.evidence.audit[0].inputEnvelope.fields).toEqual({ instructions: "c".repeat(64) });
     expect(statSync(report.root).mode & 0o777).toBe(0o700);
     expect(statSync(join(report.root, "summary.json")).mode & 0o777).toBe(0o600);
     const summary = JSON.parse(summaryText);
