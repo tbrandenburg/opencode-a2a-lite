@@ -6,6 +6,26 @@ Use this path when asked to delegate through MCP/A2A:
 **OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
+### Which MCP server?
+
+- **Implementation:** use the pinned **a2abridge 4.0.2** MCP server, launched through
+  this repository's `examples/agent-network/bridge-proxy.ts` endpoint guard.
+  The gateway is an **A2A HTTP server, not an MCP server**; do not configure its
+  HTTP URL as a remote MCP endpoint or bypass the guard with a direct bridge launch.
+- **Transport:** configure a **local stdio** server (`type: "local"`), with
+  `codemode: false`. OpenCode launches Bun → `bridge-proxy.ts` → a2abridge.
+- **Location/name:** use project-local `opencode.json` or `.opencode/opencode.json`,
+  under `mcp.servers.network`. `network` is a configuration label/tool prefix,
+  not another MCP product; renaming it requires updating the tool permission names.
+- **Required values:** absolute paths to Bun, the guard script and the verified
+  bridge binary; the running directory URL; a writable private receipt-file path;
+  and a JSON array of exact approved worker root URLs. Create the receipt parent
+  directory first. The peer argument is the JSON array, not a manifest filename.
+- **Complete configuration:** copy and adapt the
+  [project-local MCP fragment](/examples/agent-network/README.md#4-manually-merge-the-project-local-mcp-fragment),
+  including its six explicit tool permissions. Replace path placeholders with
+  literal absolute paths; JSON strings do not expand shell `$VARIABLES`.
+
 ### Set up and discover
 
 1. Follow the [manual two-worker recipe](/examples/agent-network/README.md#manual-two-worker-recipe-separate-from-the-managed-demo)
