@@ -124,9 +124,10 @@ listeners on ports 3000/5173 remained occupied and were not stopped.
 The authorized gate is now **executed**, not awaiting permission. The specific
 #22 criterion requiring one completed model-issued workflow is met by fanout;
 this does not turn the production E2E failure or three broken case contracts into
-passes. Draft PRs #25/#26 retain the deterministic/real-bridge successes alongside
-these live outcomes and remain unmerged for review, without a complete live-gate
-or reliability claim. The unrelated pre-existing oversized-fact CPU concern
+passes. PRs #21, #25 and #26 were subsequently merged into `main` on explicit
+maintainer instruction, retaining the deterministic/real-bridge successes alongside
+these live outcomes without a complete live-gate or reliability claim.
+Follow-ups #27/#28 remain open. The unrelated pre-existing oversized-fact CPU concern
 remains tracked separately in #24. A later paid reproduction requires a separate
 explicit decision after the bounded diagnostic follow-ups; a later success would
 not erase or explain these failed observations.

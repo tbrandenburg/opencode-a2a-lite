@@ -117,8 +117,9 @@ and follow-ups #27/#28 for precise observed boundaries and unknown causes.
 
 No automatic retry, complete matrix, alternate model, increased call budget or
 host-scripted replacement for model-issued handoffs is authorized by this report.
-The remaining failures block a complete live-acceptance/reliability claim, and
-neither issue's merged definition of done is claimed.
+The implementation stack has since been merged on explicit maintainer instruction.
+The remaining failures still block a complete live-acceptance/reliability claim;
+merging does not resolve the separately tracked live observations.
 
 The unrelated pre-existing oversized-fact CPU concern is tracked in
 [issue #24](https://github.com/tbrandenburg/opencode-a2a-lite/issues/24).

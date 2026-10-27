@@ -423,7 +423,7 @@ the failed cases and incomplete comparative verdict; this is not a reliability c
 The separate [post-change diagnostics](/docs/topology-integrity-diagnostics.md)
 record provider-free acceptance. The [authorized live results](/docs/authorized-live-acceptance.md)
 retain the E2E06 and topology contract failures alongside a successful fanout;
-the draft changes remain unmerged, without a reliability claim.
+the merged implementation does not make those failed checks pass or establish reliability.
 Reports separate modified-input integrity from retries/uncertain resends and retain
 expected versus observed task hashes; local turn deadlines preserve incomplete
 status and returned handles without implying remote cancellation.

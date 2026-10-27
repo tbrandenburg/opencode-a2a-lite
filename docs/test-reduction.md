@@ -241,8 +241,8 @@ and cause are unestablished; follow-up [#27](https://github.com/tbrandenburg/ope
 tracks the retained observation alongside the earlier diagnostic issue #19.
 The run's private evidence root is
 `.test-results/authorized-live/47844f6a-827d-40c2-9685-0e98ff622252/`.
-This report does not claim the issue's merged/live-acceptance definition of done
-has been met. The separately authorized topology results belong to
+The test-refactor implementation has since been merged; this does not turn the
+failed production live gate into a pass. The separately authorized topology results belong to
 [PR #26](https://github.com/tbrandenburg/opencode-a2a-lite/pull/26), not this
 test-only benchmark or the original matrix.
 
