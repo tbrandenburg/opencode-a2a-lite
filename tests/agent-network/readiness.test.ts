@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { auditPath, registered, snapshots } from "../../examples/agent-network/readiness.js";
 
 const roots: string[] = [];
@@ -14,7 +15,7 @@ const names = [
   "network_a2a_whoami",
 ];
 function fixture() {
-  const root = mkdtempSync("/tmp/opencode/network-readiness-");
+  const root = mkdtempSync(join(tmpdir(), "network-readiness-"));
   roots.push(root);
   mkdirSync(join(root, "network-audit"));
   return { root, cwd: root, executable: process.execPath, env: {} };

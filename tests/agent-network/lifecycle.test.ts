@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { createLifecycle, interrupted, owned } from "../../examples/agent-network/lifecycle.js";
@@ -125,7 +126,7 @@ test("drain retains LIFO order after a real evidence write failure", async () =>
 });
 
 test("directory interruption before readiness stops the spawned child", async () => {
-  const root = mkdtempSync("/tmp/opencode/network-interrupt-");
+  const root = mkdtempSync(join(tmpdir(), "network-interrupt-"));
   const binary = join(root, "bridge");
   const pidfile = join(root, "pid");
   writeFileSync(
@@ -161,7 +162,7 @@ test("directory interruption before readiness stops the spawned child", async ()
 });
 
 test("directory handles a nonexecutable binary without an unhandled spawn error", async () => {
-  const root = mkdtempSync("/tmp/opencode/network-directory-");
+  const root = mkdtempSync(join(tmpdir(), "network-directory-"));
   const binary = join(root, "bridge");
   writeFileSync(binary, "not executable", { mode: 0o600 });
   const profile = {

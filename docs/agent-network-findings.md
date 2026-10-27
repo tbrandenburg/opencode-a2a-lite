@@ -193,6 +193,12 @@ trials; do not turn two passes into a production success-rate claim. Failed-run
 metadata was retained privately outside the checkout. The ignored current evidence
 directory contains the final passing run, and later runs replace it.
 
+Initial hosted CI exposed another harness-only assumption: five deterministic
+fixture cases expected `/tmp/opencode` to exist. The hosted runner did not have
+that agent-host directory, so those cases failed with ENOENT. Fixtures now use
+`os.tmpdir()` and unique subdirectories rather than requiring host preparation;
+validation uses a fresh temporary base as well as clean hosted CI.
+
 Final integration gates:
 
 ```sh
