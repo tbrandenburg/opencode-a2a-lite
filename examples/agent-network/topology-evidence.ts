@@ -44,6 +44,48 @@ export function matchesSubmitted(call: Audit, field: "context" | "task", expecte
     ? !submitted.present
     : submitted.present && submitted.hash === sha256(expected);
 }
+
+// Per-connection receipt provenance, not authorization or a forwarded-result edit.
+export function createResultMetadata() {
+  const known = new Set<string>();
+  const reflected = new Set<string>();
+  const key = (peer: unknown, field: string, digest: string) =>
+    JSON.stringify([peer, field, digest]);
+  const project = (entry: Audit, peer: unknown): Audit => {
+    const output = { ...entry };
+    for (const field of ["context", "task"] as const) {
+      const value = entry[`${field}Id`];
+      if (typeof value !== "string") continue;
+      const digest = sha256(value);
+      if (!reflected.has(key(peer, field, digest))) continue;
+      delete output[`${field}Id`];
+      output[`${field}Hash`] = digest;
+      output[`${field}Untrusted`] = true;
+    }
+    return output;
+  };
+  return {
+    project,
+    capture(entry: Audit, call?: Audit): Audit {
+      const peer = call?.peer;
+      for (const field of ["context", "task"] as const) {
+        const value = entry[`${field}Id`];
+        const digest = typeof value === "string" ? sha256(value) : entry[`${field}Hash`];
+        if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) continue;
+        const identity = key(peer, field, digest);
+        const failed = ["TASK_STATE_FAILED", "TASK_STATE_REJECTED"].includes(String(entry.state));
+        const echo = call && typeof value === "string" && matchesSubmitted(call, field, value);
+        if (
+          !known.has(identity) &&
+          (entry[`${field}Untrusted`] === true || (echo && (field === "context" || failed)))
+        )
+          reflected.add(identity);
+        if (typeof value === "string" && !reflected.has(identity)) known.add(identity);
+      }
+      return project(entry, peer);
+    },
+  };
+}
 export function parseTurn(text: string): TurnOutput {
   const value: unknown = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
   assert(isRecord(value), "Invalid worker envelope");

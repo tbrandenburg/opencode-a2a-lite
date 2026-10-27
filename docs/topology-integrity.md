@@ -54,8 +54,16 @@ only; its URL/tool/budget decisions and forwarded bytes are unchanged.
    `contextHash`/`taskHash` plus explicit `contextPresent`/`taskPresent` flags,
    never raw argument strings. Exact expected-ID hashes bind continuations and
    polls; an unknown or explicitly supplied non-string ID is not an omitted ID.
-   Returned `contextId`/`taskId` remain actual result values. No forwarded argument
-   is rewritten, authorized by its hash, or replaced with a guessed handle.
+   Genuine returned `contextId`/`taskId` remain actual result values. An unknown
+   submitted context echoed by a result is not proof of an ACP conversation:
+   receipt-only provenance tracks returned identities per approved peer. Such an
+   echo is stored as `contextHash` plus `contextUntrusted:true`, including pending
+   results before an eventual failure and later failed polls. A fresh implicit
+   returned context and a recognized continuation stay exact, even on failure;
+   independently generated task IDs stay exact. Failed task-ID argument echoes
+   receive the same protection if not previously returned. The bounded request
+   map retains argument hashes, not raw submitted IDs. No forwarded argument or
+   MCP result is rewritten, authorized by its hash, or replaced with a guessed handle.
 3. Compare expected content with guarded-call metadata only under the same known
    contract (or an exact legacy raw hash). Different raw hashes with equal known
    digests mean encoding-only differences. A changed field is not a retry.
@@ -106,9 +114,11 @@ allowlisted example modules, rather than truncating before large diffs. Neither
 assertion diffs nor exception messages are persisted. Reports retain score
 dimensions and real handle provenance, not raw model/provider text.
 Report projection also hashes legacy raw call `context`/`task` fields; historical
-receipt files themselves are not rewritten. Recognized returned handles remain
-available in result records, receipts and the handle ledger, while submitted
-arguments are represented only by presence and validated bounded hash metadata.
+receipt files themselves are not rewritten. Paired legacy failed-result echoes
+are filtered as well, including their copies in receipts, expectations and the
+handle ledger; the actual failure state and generated task ID are retained.
+Recognized returned handles remain available in result records, receipts and the
+handle ledger, while untrusted identifiers use validated bounded hash metadata.
 
 ## Counterexample checklist and maintained workload disclosure
 
@@ -153,6 +163,18 @@ parameter table is restored. The existing N11 property checks remain three
   projected without sentinel content; genuine returned handles remain raw. N19
   checks hashed continuation/poll binding, explicit-null rejection and duplicate
   detection across legacy and new receipt metadata.
+  N17 also covers a legacy failed unknown-context reflection and its copied
+  receipt/expectation/handle fields, a recognized failed poll, and the actual
+  guard helper's pending-to-failed reflection handling. These are fixed named
+  flows, not a restored input matrix.
+
+Pinned provider-free interop additionally submits one deliberately unknown
+sentinel context through actual guarded MCP → a2abridge → controlled gateway,
+then performs one poll of the actual generated task. The unchanged MCP result
+echoes the context and truthfully fails with an unknown-context error, without an
+ACP prompt. Guard receipts and persisted report-evidence projection exclude the
+sentinel while retaining the exact generated task ID, hash and failure state.
+Existing fresh/continuation/stale context criteria and no-resend checks remain.
 
 The separate pre-existing quadratic duplicate scan in `verifyContributions()` is
 not changed by this envelope/privacy slice; large fact-list hardening remains a
@@ -192,7 +214,10 @@ explain duplicate-key rejection, ordered arrays and immutable string subtypes;
 `node:crypto` SHA256 support. Context7 was attempted before implementation but
 returned its monthly-quota error; official documentation was used instead.
 
-### Provider-free implementation evidence
+### Historical provider-free evidence at `8ad715e`
+
+The following retained results predate the reflected-result privacy correction
+and expanded interop write scope. Current validation follows this historical record.
 
 | Command                                  | Observed result                                                                                                                                                                                                    |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -217,5 +242,34 @@ errors and new lexer/test-size lint warnings found during review-fix development
 were corrected before the final deterministic gates. Restoring the original
 lexer, legacy raw-field projection and missing-send predicate made N19/N17/N14
 fail respectively (one focused run: one pass, three failures); those temporary
-faults were removed. These are provider-free results; complete interop acceptance
-is blocked as described above, and the five-case live gate remains pending.
+faults were removed. At that revision, complete interop acceptance was blocked as
+described above. The follow-up below resolves that blocker; the five-case live
+gate remains pending.
+
+### Reflected-result privacy correction and current validation
+
+The interop fixture now checks `contextPresent`, the exact SHA256 of the actual
+returned context, and `taskPresent:false`, plus exact fresh/continuation/stale
+returned identities. It does not drop the earlier identity assertion.
+
+| Command                               | Observed result                                                                                                                                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test ./tests/agent-network`      | 19 pass, zero failures, 1,010 assertions.                                                                                                                                                            |
+| `bun test ./tests`                    | 70 pass, zero failures, 1,400 assertions, 21 files, 35.27 s (one observation, not a benchmark).                                                                                                      |
+| `bun run fmt-check`                   | 105 matched files formatted.                                                                                                                                                                         |
+| `bun run lint`                        | Exit zero; seven baseline `src/` warnings, no new warnings.                                                                                                                                          |
+| `bun run typecheck` / `bun run build` | Exit zero.                                                                                                                                                                                           |
+| Pinned `make interop-test`            | Exit zero; `providerFreeContextInterop:true`, `untrustedContextReflectionSanitized:true`; final separately planned fixture connections used 29 and 16 attempts, each within 40/eight-reserve limits. |
+
+Interop's owned shutdown/released-port checks passed; independent bind probes
+confirmed release, and process inspection found no remaining fixture/proxy
+processes from this worktree. Expected terminal-subscription diagnostics appeared
+during the controlled negative fixtures.
+
+Temporarily restoring pre-filter guard result logging made the real-bridge
+reflection probe fail at receipt privacy; the restored filter passed complete
+acceptance. One full deterministic run recorded two fixture-marker timeouts
+(H03/H04); those unchanged tests passed in isolation and the next standalone full
+run passed 70/70 without deadline or assertion changes. Those earlier failures
+are retained rather than presented as a clean first attempt. No live-model or
+paid acceptance was run.

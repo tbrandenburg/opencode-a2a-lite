@@ -1,11 +1,28 @@
 import type { runTopologyCase } from "./topology-run.js";
 import { CASE_MATRIX, steps } from "./topology-cases.js";
-import { matchesSubmitted, sha256, submittedIdentifier } from "./topology-evidence.js";
+import {
+  createResultMetadata,
+  matchesSubmitted,
+  pairedResult,
+  sha256,
+  submittedIdentifier,
+  type Audit,
+} from "./topology-evidence.js";
 import type { Score } from "./topology-scores.js";
 import { envelopeFields, inputDifference } from "./topology-envelope.js";
 import { isRecord } from "./topology-workloads.js";
 
 type Result = Awaited<ReturnType<typeof runTopologyCase>>;
+type Evidence = Pick<
+  Result,
+  | "id"
+  | "audit"
+  | "expectations"
+  | "receipts"
+  | "coordinatorTurns"
+  | "extractionFailures"
+  | "heartbeatFailures"
+>;
 export const DIMENSIONS = [
   "transport",
   "topology",
@@ -53,7 +70,7 @@ function scalars(value: Record<string, unknown>, fields: readonly string[]) {
     }),
   );
 }
-const stepIds = (result: Result) => {
+const stepIds = (result: Pick<Result, "id">) => {
   const test = CASE_MATRIX.find((test) => test.id === result.id);
   return test ? steps(test.schedule).map((step) => step.id) : [];
 };
@@ -109,7 +126,36 @@ export function reportScores(result: Result) {
   };
 }
 
-export function detailEvidence(result: Result) {
+export function detailEvidence(result: Evidence) {
+  const handles = createResultMetadata();
+  const audit = result.audit.map((entry) =>
+    entry.event === "result"
+      ? handles.capture(
+          entry,
+          result.audit.find(
+            (call) => call.event === "call" && pairedResult(call, result.audit) === entry,
+          ),
+        )
+      : entry,
+  );
+  const submitted = (value: string | null | undefined, peer: string | null) => {
+    const filtered = handles.project({ contextId: value ?? null }, peer);
+    return Object.hasOwn(filtered, "contextId")
+      ? { submittedContextId: filtered.contextId }
+      : { submittedContextHash: filtered.contextHash, submittedContextUntrusted: true };
+  };
+  const hashes = (entry: Audit) =>
+    Object.fromEntries(
+      ["context", "task"].flatMap((field) => {
+        const digest = entry[`${field}Hash`];
+        return typeof digest === "string" && /^[a-f0-9]{64}$/.test(digest)
+          ? [
+              [`${field}Hash`, digest],
+              ...(entry[`${field}Untrusted`] === true ? [[`${field}Untrusted`, true]] : []),
+            ]
+          : [];
+      }),
+    );
   const ids = stepIds(result);
   const map = (values: Readonly<Record<string, string>>, hash = false) =>
     Object.fromEntries(
@@ -138,14 +184,13 @@ export function detailEvidence(result: Result) {
       workerInputHash: entry.workerInputHash ?? null,
       inputComparison: comparison(entry),
       ...(entry.inputEnvelope ? { inputEnvelope: metadata(entry.inputEnvelope) } : {}),
-      submittedContextId: entry.submittedContextId ?? null,
+      ...submitted(entry.submittedContextId, entry.peerUrl),
     })),
     receipts: result.receipts.map((entry) => ({
       stepId: entry.stepId,
       peerUrl: entry.peerUrl,
-      contextId: entry.contextId,
-      taskId: entry.taskId,
-      submittedContextId: entry.submittedContextId,
+      ...handles.project({ contextId: entry.contextId, taskId: entry.taskId }, entry.peerUrl),
+      ...submitted(entry.submittedContextId, entry.peerUrl),
       taskIdOmitted: entry.taskIdOmitted,
       state: entry.state,
       started: entry.started,
@@ -154,8 +199,9 @@ export function detailEvidence(result: Result) {
       outputHash: entry.outputHash,
       proofHashes: map(entry.proof, true),
     })),
-    audit: result.audit.map((entry) => ({
+    audit: audit.map((entry) => ({
       ...scalars(entry, auditFields),
+      ...hashes(entry),
       ...(entry.event === "call"
         ? Object.fromEntries(
             (["context", "task"] as const).flatMap((field) => {
@@ -176,9 +222,12 @@ export function detailEvidence(result: Result) {
           }
         : {}),
     })),
-    handles: result.handles.map((entry) =>
-      scalars(entry, ["connection", "taskId", "contextId", "state"]),
-    ),
+    handles: audit
+      .filter((entry) => entry.event === "result" && typeof entry.taskId === "string")
+      .map((entry) => ({
+        ...scalars(entry, ["connection", "taskId", "contextId", "state"]),
+        ...hashes(entry),
+      })),
     coordinatorTurns: result.coordinatorTurns.map((entry) => ({
       kind: entry.kind,
       started: entry.started,

@@ -13,7 +13,11 @@ import type { runTopologyCase } from "../../examples/agent-network/topology-run.
 import { sha256, verifyContributions } from "../../examples/agent-network/topology-evidence.js";
 import { sanitizedFailure } from "../../examples/agent-network/topology-failures.js";
 import { scoreCorrectness } from "../../examples/agent-network/topology-verdicts.js";
-import { submittedIdentifiers, toolDecision } from "../../examples/agent-network/bridge-proxy.js";
+import {
+  createResultMetadata,
+  submittedIdentifiers,
+  toolDecision,
+} from "../../examples/agent-network/bridge-proxy.js";
 
 const passed = score({ checked: "pass" });
 function result(): Awaited<ReturnType<typeof runTopologyCase>> {
@@ -190,9 +194,90 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
       },
     ],
   };
+  const reflection = {
+    ...enriched,
+    audit: [
+      ...enriched.audit,
+      {
+        event: "result",
+        connection: "connection-1",
+        id: "known-poll",
+        tool: "a2a_get_task",
+        taskId: "task-1",
+        contextId: "context-1",
+        state: "TASK_STATE_FAILED",
+        ok: true,
+      },
+      {
+        event: "call",
+        connection: "connection-1",
+        id: "reflection",
+        tool: "a2a_send_message",
+        peer,
+        context: secret,
+      },
+      {
+        event: "result",
+        connection: "connection-1",
+        id: "reflection",
+        tool: "a2a_send_message",
+        taskId: "task-reflected",
+        contextId: secret,
+        state: "TASK_STATE_FAILED",
+        ok: true,
+      },
+    ],
+    receipts: [
+      ...enriched.receipts,
+      {
+        ...enriched.receipts[0]!,
+        stepId: "review",
+        taskId: "task-reflected",
+        contextId: secret,
+        submittedContextId: secret,
+        state: "failed" as const,
+      },
+    ],
+    expectations: [
+      ...enriched.expectations,
+      { ...enriched.expectations[0]!, stepId: "review", submittedContextId: secret },
+    ],
+    handles: [
+      ...enriched.handles,
+      {
+        connection: "connection-1",
+        taskId: "task-reflected",
+        contextId: secret,
+        state: "TASK_STATE_FAILED",
+      },
+    ],
+  };
+  const metadata = createResultMetadata();
+  const reflectedCall = { peer, ...submittedIdentifiers({ context_id: secret }) };
+  const reflectedResult = {
+    taskId: "task-reflected",
+    contextId: secret,
+    state: "TASK_STATE_SUBMITTED",
+  };
+  expect(metadata.capture(reflectedResult, reflectedCall)).toEqual({
+    taskId: "task-reflected",
+    contextHash: sha256(secret),
+    contextUntrusted: true,
+    state: "TASK_STATE_SUBMITTED",
+  });
+  expect(
+    metadata.capture(
+      { ...reflectedResult, state: "TASK_STATE_FAILED" },
+      { peer, ...submittedIdentifiers({ task_id: "task-reflected" }) },
+    ),
+  ).toMatchObject({
+    taskId: "task-reflected",
+    contextHash: sha256(secret),
+    state: "TASK_STATE_FAILED",
+  });
   try {
     const report = createInvestigationReport(root);
-    report.record(enriched);
+    report.record(reflection);
     report.finish();
     const text = readFileSync(join(report.root, "V1-T4-refinement.json"), "utf8");
     const summaryText = readFileSync(join(report.root, "summary.json"), "utf8");
@@ -223,6 +308,30 @@ test("N17 persisted reports retain independent scores and handle provenance, nev
       taskHash: sha256("task-1"),
     });
     expect(saved.evidence.audit[1]).toMatchObject({ taskId: "task-1", contextId: "context-1" });
+    expect(saved.evidence.audit[4]).toMatchObject({
+      taskId: "task-1",
+      contextId: "context-1",
+      state: "TASK_STATE_FAILED",
+    });
+    expect(saved.evidence.audit[6]).toMatchObject({
+      taskId: "task-reflected",
+      contextHash: sha256(secret),
+      contextUntrusted: true,
+      state: "TASK_STATE_FAILED",
+    });
+    expect(saved.evidence.audit[6]).not.toHaveProperty("contextId");
+    expect(saved.evidence.receipts[1]).toMatchObject({
+      taskId: "task-reflected",
+      contextHash: sha256(secret),
+      submittedContextHash: sha256(secret),
+      state: "failed",
+    });
+    expect(saved.evidence.expectations[1]).toHaveProperty("submittedContextHash", sha256(secret));
+    expect(saved.evidence.handles[2]).toMatchObject({
+      taskId: "task-reflected",
+      contextHash: sha256(secret),
+      state: "TASK_STATE_FAILED",
+    });
     expect(statSync(report.root).mode & 0o777).toBe(0o700);
     expect(statSync(join(report.root, "summary.json")).mode & 0o777).toBe(0o600);
     const summary = JSON.parse(summaryText);
