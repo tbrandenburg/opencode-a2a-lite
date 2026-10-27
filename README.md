@@ -420,6 +420,8 @@ requires explicit `--live`. This compares fixed schedules over a physical MCP
 star, not an arbitrary graph orchestration platform.
 The [recorded topology findings](/docs/topology-investigation-findings.md) retain
 the failed cases and incomplete comparative verdict; this is not a reliability claim.
+The separate [post-change diagnostics](/docs/topology-integrity-diagnostics.md)
+record provider-free acceptance and the still-pending billable live gate.
 Reports separate modified-input integrity from retries/uncertain resends and retain
 expected versus observed task hashes; local turn deadlines preserve incomplete
 status and returned handles without implying remote cancellation.
