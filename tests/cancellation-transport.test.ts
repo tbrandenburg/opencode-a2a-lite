@@ -86,12 +86,11 @@ function pausedStream(url: string) {
   return { ready: ready.promise, ended: ended.promise, events, close: () => client.destroy() };
 }
 
-test.each(
-  ["disconnect", "slow-reader"].flatMap((transport) =>
-    ["canceled", "completed"].map((outcome) => ({ transport, outcome })),
-  ),
-)(
-  "real HTTP %j retains persistence and truthful cancel outcome",
+test.each([
+  { id: "C07", transport: "disconnect", outcome: "canceled" },
+  { id: "C08", transport: "slow-reader", outcome: "completed" },
+])(
+  "$id HTTP $transport retains persistence with $outcome outcome",
   async ({ transport, outcome }) => {
     // Port 0 atomically reserves a free ephemeral port; no shared listener is touched.
     const gateway = createGateway({

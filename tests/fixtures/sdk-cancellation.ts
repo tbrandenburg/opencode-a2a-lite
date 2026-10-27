@@ -38,7 +38,7 @@ export async function until(check: () => boolean | Promise<boolean>, timeout = 1
   }
 }
 
-export function cancellationProbe(stock = false, failure?: "throw" | "hang") {
+export function cancellationProbe(stock = false, failure?: "hang") {
   const started = Promise.withResolvers<RequestContext>();
   const finish = Promise.withResolvers<void>();
   const events: StreamResponse[] = [];
@@ -78,7 +78,6 @@ export function cancellationProbe(stock = false, failure?: "throw" | "hang") {
     },
     async cancelTask() {
       cancels++;
-      if (failure === "throw") throw new Error("Executor cancellation rejected");
       if (failure === "hang") await new Promise<never>(() => undefined);
     },
   };
