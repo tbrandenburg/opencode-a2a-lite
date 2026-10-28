@@ -42,6 +42,12 @@ Load the relevant page only. Each page records historical evidence and adapter-f
 
 The linked GitHub issues are the work queue for adding topology steps one at a time. Add only reviewed, evidenced adapter-focused instructions to the matching page; leave unsupported procedures visibly incomplete. Do not copy the retired managed lab into this skill.
 
-Manual use of `opencode run --server` is documented for one worker. Orchestrated multi-worker runs are not currently supported: keep them blocked until a separate scope decision authorizes them. Do not restore retired runners or add Dagu/workflow infrastructure, schedules, roles, scorers, dependencies, models, or expanded budgets/timeouts.
+OpenCode is the topology coordinator: instruct it with prompts and require it to use guarded MCP calls to actual A2A agents. Do not implement a TypeScript/host-side coordinator, direct A2A CLI calls, Dagu/workflow infrastructure, or the retired managed runner. The currently executable manual recipe covers one worker; multi-worker pages remain stubs until their issues add reviewed steps.
+
+## Best-effort topology research
+
+Treat each topology as a bounded adapter investigation, not a requirement to make the topology solve its task. Make one baseline `opencode run` attempt, then allow at most **three targeted correction attempts**; stop after two if another attempt would only polish topology behavior or produce no new adapter evidence. Every live attempt needs its own billable opt-in. Never automatically retry, resend an uncertain task, reconnect to escape a budget, change timeouts/budgets, or weaken an adapter contract.
+
+Preserve the baseline prompt/setup and change one prompt-level or documented configuration factor per correction. Do not write TypeScript or extend `examples/agent-network` to make a topology pass. If OpenCode/MCP blocks tool exposure, report that layer; if A2A calls/tasks/artifacts pass but the topology answer or schedule does not, report the adapter as working and the topology outcome separately. A correctly classified, bounded experiment is useful even when the topology does not work; after the cap, stop and record `BLOCKED`, `BROKEN`, or `INCOMPLETE` with the evidence rather than continuing indefinitely.
 
 `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` exercises the real bridge and controlled ACP adapter boundary without a provider. It is useful for isolating adapter behavior when OpenCode/MCP blocks a model-issued call, but it is not live-model or topology acceptance evidence.
