@@ -58,6 +58,7 @@ Production `make e2e` and the single-gateway `make demo` remain opt-in and billa
 
 ## Lessons Learned
 
+- 2026-10-28: Pitfall: Pinned CLI help advertised parameters that raw API requests ignored. Prevention: Verify pinned request resolution, not just help; use operation IDs when query interpolation requires them and check pagination separately.
 - 2026-10-27: Pitfall: Port-release probes mistook TCP TIME_WAIT for a leaked listener. Prevention: Match server socket-reuse semantics and verify listener/process absence before classifying a failed raw bind as cleanup failure.
 - 2026-10-27: Pitfall: Renaming a test and dropping receipt hooks broke external acceptance. Prevention: Treat consumed test-name filters and receipt environment variables as APIs; search their callers and run external acceptance before accepting a test reduction.
 - 2026-10-27: Pitfall: Timed lifecycle tests conflated fixture startup with their intended boundary. Prevention: Use lightweight, request-level peer handshakes; distinguish fixture cold-start cost from the failure under test, and never treat sleeps or process existence as readiness.

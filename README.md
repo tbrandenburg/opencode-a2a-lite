@@ -426,9 +426,13 @@ failures and Git provenance; retirement does not make E2E06 or topology failures
 The pre-retirement source remains at
 [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
 
-For operator-owned OpenCode → guarded MCP/a2abridge → A2A usage, see the
-[manual recipe](/examples/agent-network/README.md) and
-[typed handles/deadlines](/examples/agent-network/client-guide.md).
+For operator-owned OpenCode → guarded MCP/a2abridge → A2A usage, start with the
+[one-worker `opencode run` smoke and private session review](/examples/agent-network/README.md#manual-one-worker-cli-smoke).
+The recipe adds no runner; its paid live gate is **BLOCKED** pending separate
+authorization and remains unverified end-to-end. Optional
+[typed host/CI handles and deadlines](/examples/agent-network/client-guide.md)
+are not proof of model-callable readiness. The [support inventory](/examples/agent-network/README.md#retained-support-inventory)
+explains why the six guard/interop helpers remain unchanged.
 `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` retains
 provider-free real-bridge coverage of the adapter boundary: catalog/discovery,
 actual fresh-context SSE, continuation, busy, cancellation, uncertainty, guard

@@ -4,6 +4,10 @@
 an orchestrator. It uses the existing official MCP client → endpoint guard →
 a2abridge 4.0.2 → gateway path. It creates no registry, queue, retry loop or server.
 The provider-free interop gate uses it; model-driven callers remain operator-owned.
+For user-facing usage, start with the [one-worker CLI smoke](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
+not this optional host API. That recipe uses real `opencode run` and existing session
+inspection, with no TypeScript coordinator. Its paid live gate is BLOCKED pending
+separate authorization and unverified end-to-end; this helper/CI is not a substitute.
 
 ## Supported flow
 
@@ -85,7 +89,9 @@ coordinator instructions must tell the model to retain returned peer/context/tas
 IDs, continue via nonblocking `a2a_send_message` with `context_id` but no `task_id`,
 inspect task state rather than MCP success, reserve intervention calls, and treat
 local timeouts as pending/uncertain rather than canceled. Neither those instructions
-nor the helper change gateway concurrency/security semantics.
+nor the helper change gateway concurrency/security semantics. The guard enforces
+the 40-attempt cap, not the eight-call reserve; direct model calls need independently
+observed bounds/reserve and cannot inherit this helper's clock or polling sleeps.
 
 Research references:
 
