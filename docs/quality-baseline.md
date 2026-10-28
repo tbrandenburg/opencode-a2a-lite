@@ -40,7 +40,7 @@ Only the normal server fixture now has 3,000ms bounded startup headroom; non-nor
 
 Bun 1.3.9 supplies native function/line coverage, LCOV and JUnit without another dependency or runner. The summary reports per-production-file **LCOV hit/found counters** and percentages, not Bun's displayed per-file-average aggregate. There are no coverage percentage gates. Coverage only includes loaded files, so the report separately compares discovered production files with the four expected modules and verifies discovered source membership in LCOV. Differences produce warnings, not hidden omissions or a new blocking ratchet.
 
-**Branch coverage is unmeasured. Mutation score is unmeasured.** Missing reports are unmeasured, not zero. LCOV conversion cannot invent missing branch counters. Line coverage cannot establish branch behavior, cancellation correctness, or executable signal handling. No test is added merely to increase a coverage percentage. Keep real-model acceptance opt-in.
+**Branch coverage is unmeasured. Mutation score is unmeasured.** Missing reports are unmeasured, not zero. LCOV conversion cannot invent missing branch counters. Line coverage cannot establish branch behavior, cancellation correctness, or executable signal handling. No test is added merely to increase a coverage percentage. Keep real-model acceptance outside the default test suite.
 
 Select any runtime warning budget only after comparable hosted measurements. Consider a bounded manual mutation spike or branch-tool feasibility study separately if a demonstrated need justifies the cost; neither is a scheduled job or new service in this baseline.
 

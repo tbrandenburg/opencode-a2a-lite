@@ -3,7 +3,7 @@
 > Historical once-only live results; failure tables and Git provenance below are
 > unchanged. The managed topology lab is retired, not fixed. Its source remains at
 > [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
-> Production `make e2e` remains opt-in; retirement does not resolve E2E06.
+> Production `make e2e` is a manual live gate, not part of ordinary CI; retirement does not resolve E2E06.
 
 ## Verdict
 
@@ -133,6 +133,6 @@ passes. PRs #21, #25 and #26 were subsequently merged into `main` on explicit
 maintainer instruction, retaining the deterministic/real-bridge successes alongside
 these live outcomes without a complete live-gate or reliability claim.
 Follow-ups #27/#28 remain open. The unrelated pre-existing oversized-fact CPU concern
-remains tracked separately in #24. A later paid reproduction requires a separate
-explicit decision after the bounded diagnostic follow-ups; a later success would
-not erase or explain these failed observations.
+remains tracked separately in #24. Any later reproduction should follow the current
+best-effort topology correction cap; the user monitors provider spend. A later success
+would not erase or explain these failed observations.

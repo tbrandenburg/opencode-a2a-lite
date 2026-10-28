@@ -41,7 +41,7 @@ For model-issued MCP delegation, use the
 Its owned, warmed OpenCode server plus `opencode run --server` has one authorized
 two-turn observation on 2026-10-28. Cold standalone startup exposed a readiness
 race; the warmed observation does not resolve historical E2E/topology failures.
-Every new live run still requires explicit billable opt-in.
+Live model calls may incur provider charges; the user monitors spend. When a live run is part of the current user request, do not ask for separate per-attempt billing approval.
 
 ## Highlights
 
@@ -414,7 +414,7 @@ The pre-retirement source remains at
 Follow the [one-worker setup](/examples/agent-network/README.md#manual-one-worker-cli-smoke)
 to start the worker/directory, configure the guarded project-local MCP entry, warm
 the owned private OpenCode server, and set `SERVER` and `PROMPT` from the recipe.
-After separate billable opt-in, run from the reviewed coordinator project:
+When this live smoke is part of the current user request, run from the reviewed coordinator project; the user monitors provider spend:
 
 ```sh
 opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
@@ -436,7 +436,7 @@ provider-free real-bridge coverage of the adapter boundary: catalog/discovery,
 actual fresh-context SSE, continuation, busy, cancellation, uncertainty, guard
 denials, receipt privacy and attempt budgets. It does not claim model reasoning
 quality or model-callable readiness. The single-gateway `make demo` and 14-scenario
-production `make e2e` remain opt-in; no managed multiworker runner remains.
+production `make e2e` are manual, provider-billed commands and do not run in CI; no managed multiworker runner remains.
 
 ```sh
 make install
@@ -457,7 +457,7 @@ without provider secrets. The package smoke uses a disposable npm cache and cons
 directory outside the checkout, installs runtime dependencies from the registry,
 and runs the installed `bin` via `npm exec`. It uses the controlled ACP fixture
 for startup/lifecycle, not a live model or evidence of registry publication.
-Live probes are opt-in; they never run as part of ordinary CI.
+Live probes use the configured provider and never run as part of ordinary CI. Do not ask for separate billing approval when a probe is part of the current user request.
 See [quality baseline](/docs/quality-baseline.md) for warning-first size/complexity
 reporting, whole-test runtime, native function/line coverage, and measurement limits.
 See [deterministic test selection](/docs/test-reduction.md) for the compact-suite

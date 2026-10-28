@@ -7,9 +7,10 @@ The provider-free interop gate uses it; model-driven callers remain operator-own
 For user-facing usage, start with the [one-worker CLI smoke](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
 not this optional host API. That recipe uses real `opencode run --server` against
 an owned warmed private server and existing session inspection, with no TypeScript
-coordinator. It has one dated authorized two-turn pass; every new live attempt
-still needs billable opt-in. Cold standalone readiness and larger topologies remain
-unverified; this helper/CI is not a substitute for live evidence.
+coordinator. It has one dated authorized two-turn pass. When a live attempt is part
+of the current user request, do not seek separate billing approval; the user monitors
+spend. Cold standalone readiness and larger topologies remain unverified; this
+helper/CI is not a substitute for live evidence.
 
 ## Supported flow
 
