@@ -20,7 +20,7 @@ export async function interrupted<T>(operation: Promise<T>, signal?: AbortSignal
   if (!signal) return operation;
   let interrupt: () => void = () => undefined;
   const aborted = new Promise<never>((_done, fail) => {
-    interrupt = () => fail(new Error("Network experiment interrupted"));
+    interrupt = () => fail(new Error("Interop operation interrupted"));
     signal.addEventListener("abort", interrupt, { once: true });
     if (signal.aborted) interrupt();
   });

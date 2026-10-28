@@ -1,5 +1,12 @@
 # Topology handoff integrity contract
 
+> Historical research contract. Its envelope normalization, role/workload oracles
+> and report engine have been retired with the managed lab, not generalized into
+> the adapter. Source/test references and commands below refer to
+> [a70b639 examples](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network)
+> and [a70b639 tests](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/tests/agent-network).
+> Recorded failures and their original Git provenance remain unchanged.
+
 ## Scope and evidence boundary
 
 Issue #22 corrects the example harness after the #23 test-only reduction at

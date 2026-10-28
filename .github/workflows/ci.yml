@@ -34,6 +34,31 @@ jobs:
           TEST_FLAGS='--coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage --reporter=junit --reporter-outfile=.test-results/junit.xml'
       - name: Verify installed npm tarball without provider credentials
         run: make package-smoke
+      - name: Verify pinned real MCP bridge without provider credentials
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/a2a-interop-tools"
+          mkdir -p "$tools" .test-results
+          curl --fail --location --connect-timeout 10 --max-time 60 \
+            --output "$tools/bridge.tar.gz" \
+            https://github.com/vbcherepanov/a2abridge/releases/download/v4.0.2/a2abridge_4.0.2_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            b74f01378c880486a41acd5780364e238d59a1a1aec418c322d1c5bd7f40772a \
+            "$tools/bridge.tar.gz" | sha256sum --check
+          tar -xzf "$tools/bridge.tar.gz" -C "$tools" a2abridge
+          printf '%s  %s\n' \
+            bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2 \
+            "$tools/a2abridge" | sha256sum --check
+          mkdir -p "$tools/home" "$tools/tmp"
+          env -i PATH="$(dirname "$(command -v bun)"):/usr/bin:/bin" \
+            HOME="$tools/home" TMPDIR="$tools/tmp" \
+            A2ABRIDGE_BIN="$tools/a2abridge" \
+            A2A_INTEROP_REPORT="$PWD/.test-results/interop.json" \
+            make interop-test
+          test -s .test-results/interop.json
+          jq -e '.evidenceClass == "provider-free-controlled-ACP" and .failed == false and .cleanup == true' \
+            .test-results/interop.json
       - name: Summarize quality measurements
         if: always()
         run: bun scripts/quality-report.ts

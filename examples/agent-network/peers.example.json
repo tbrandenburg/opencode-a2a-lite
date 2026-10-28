@@ -1,6 +1,0 @@
-{
-  "peers": [
-    { "name": "planner", "url": "http://127.0.0.1:41241/" },
-    { "name": "reviewer", "url": "http://127.0.0.1:41242/" }
-  ]
-}

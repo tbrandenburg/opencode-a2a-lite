@@ -22,15 +22,10 @@ import {
   mcp,
   payloadText,
   until,
+  verifyReleased,
 } from "../../examples/agent-network/transport.js";
 import { createTaskClient, type Submission } from "../../examples/agent-network/task-client.js";
-import {
-  pairedResult,
-  sha256,
-  verifyContributions,
-} from "../../examples/agent-network/topology-evidence.js";
-import { detailEvidence } from "../../examples/agent-network/topology-report-evidence.js";
-import { verifyReleased } from "../../examples/agent-network/topology-resources.js";
+import { pairedResult, sha256 } from "../../examples/agent-network/guard-task.js";
 
 const lifecycle = createLifecycle();
 const binary = process.env.A2ABRIDGE_BIN ?? "";
@@ -45,7 +40,7 @@ const env = {
   HOME: join(root, "home"),
 };
 mkdirSync(env.HOME);
-const profile: Profile = { root, cwd: root, env, executable: process.execPath };
+const profile: Profile = { root, cwd: root, env };
 const limits = (ms = 10_000) => ({ deadline: performance.now() + ms, signal: lifecycle.signal });
 const received = (value: Submission) => {
   assert(value.outcome !== "uncertain", "Submission uncertain; no automatic retry");
@@ -62,6 +57,8 @@ const lines = (file: string) =>
 let stage = "startup";
 const subcases: { id: string; passed: boolean; attemptedCalls: number; criteria: string[] }[] = [];
 const connectionAttempts: number[] = [];
+const connectionForwardedCalls: number[] = [];
+const connectionRejectedCalls: number[] = [];
 let attemptedCalls = 0;
 let reflectionVerified = false;
 try {
@@ -286,8 +283,10 @@ try {
   stage = "receipts-and-budget";
   const audit = lines(join(root, "mcp-receipts.jsonl"));
   const calls = audit.filter((entry) => entry.event === "call");
-  assert(calls.length <= 40);
-  assert.equal(calls.length, 40 - connection.remainingCalls);
+  const rejections = audit.filter((entry) => entry.event === "rejected");
+  const attempts = calls.length + rejections.length;
+  assert(attempts <= 32, "Preserve eight intervention calls within the 40-attempt cap");
+  assert.equal(attempts, 40 - connection.remainingCalls);
   const continuation = calls.find(
     (entry) =>
       entry.tool === "a2a_send_message" &&
@@ -333,8 +332,10 @@ try {
       ),
     );
   }
-  attemptedCalls += calls.length;
-  connectionAttempts.push(calls.length);
+  attemptedCalls += attempts;
+  connectionAttempts.push(attempts);
+  connectionForwardedCalls.push(calls.length);
+  connectionRejectedCalls.push(rejections.length);
   subcases.push({
     id: "N3-uncertain-submission",
     passed: true,
@@ -358,7 +359,102 @@ try {
   lifecycle.releases.push(negatives.close);
   const owner = createTaskClient(negatives, peers[2]!);
   const fallback = createTaskClient(negatives, peers[3]!);
+  stage = "fresh-context-streaming";
+  const streamOptions = limits();
+  const events = await negatives.call(
+    "a2a_send_streaming",
+    { peer_url: peers[3]!, text: "stream-exact", timeout_s: 10 },
+    false,
+    streamOptions,
+  );
+  assert(Array.isArray(events));
+  const updates = events.map(record);
+  const snapshot = record(updates[0]!.task);
+  assert(typeof snapshot.id === "string" && typeof snapshot.contextId === "string");
+  const completed = updates.filter(
+    (event) =>
+      event.statusUpdate &&
+      record(record(event.statusUpdate).status).state === "TASK_STATE_COMPLETED",
+  );
+  assert.equal(completed.length, 1);
+  assert.equal(updates.at(-1), completed[0]);
+  const chunks = updates
+    .filter((event) => event.artifactUpdate)
+    .map((event) => record(event.artifactUpdate));
+  assert(chunks.length >= 2);
+  for (const [index, chunk] of chunks.entries()) {
+    assert.equal(chunk.taskId, snapshot.id);
+    assert.equal(chunk.contextId, snapshot.contextId);
+    assert.equal(record(chunk.artifact).artifactId, record(chunks[0]!.artifact).artifactId);
+    assert.equal(chunk.append ?? false, index > 0);
+    assert.equal(chunk.lastChunk === true, index === chunks.length - 1);
+  }
+  assert.equal(payloadText({ artifacts: [chunks.at(-1)!.artifact] }), "");
+  const streamed = chunks.map((chunk) => payloadText({ artifacts: [chunk.artifact] })).join("");
+  const streamReceipts = lines(join(root, "acp-3.jsonl")).filter(
+    (entry) => entry.event === "prompt",
+  );
+  assert.equal(streamReceipts.length, 1);
+  assert.equal(streamReceipts[0]!.turn, 1);
+  assert.equal(streamReceipts[0]!.command, "stream-exact");
+  assert.equal(streamed, `${streamReceipts[0]!.sessionId}:1:stream-exact`);
+  const streamResult = record(
+    await negatives.call(
+      "a2a_get_task",
+      { peer_url: peers[3]!, task_id: snapshot.id },
+      false,
+      streamOptions,
+    ),
+  );
+  const streamStored = record(streamResult.task ?? streamResult);
+  assert.equal(record(streamStored.status).state, "TASK_STATE_COMPLETED");
+  assert.equal(streamStored.id, snapshot.id);
+  assert.equal(streamStored.contextId, snapshot.contextId);
+  assert.equal(payloadText(streamStored), streamed);
+  subcases.push({
+    id: "streaming",
+    passed: true,
+    attemptedCalls: 2,
+    criteria: [
+      "fresh-context real SSE completes once",
+      "exact text and stored output agree without duplicate appends",
+    ],
+  });
+  stage = "endpoint-guard-denials";
+  for (const denied of [
+    { tool: "a2a_get_task", args: { peer_url: peers[0]!, task_id: "missing" }, reason: "peer" },
+    {
+      tool: "a2a_complete_task",
+      args: { task_id: "missing", text: "not allowed" },
+      reason: "tool",
+    },
+  ]) {
+    const before = lines(join(root, "mcp-receipts.jsonl"));
+    assert.equal(
+      await negatives.call(denied.tool, denied.args, true, limits()),
+      "Bridge request denied by endpoint guard.",
+    );
+    const delta = lines(join(root, "mcp-receipts.jsonl")).slice(before.length);
+    assert.equal(
+      delta.length,
+      1,
+      "Denied request must not be forwarded or produce an upstream result",
+    );
+    assert.equal(delta[0]!.event, "rejected");
+    assert.equal(delta[0]!.tool, denied.tool);
+    assert.equal(delta[0]!.reason, denied.reason);
+  }
+  subcases.push({
+    id: "guard-denials",
+    passed: true,
+    attemptedCalls: 2,
+    criteria: [
+      "unapproved peer and forbidden tool return exact local denial",
+      "matching peer/tool rejections without forwarded calls",
+    ],
+  });
   stage = "busy-and-explicit-fallback";
+  const busyBefore = negatives.remainingCalls;
   const occupied = received(await owner.submit("hold", limits()));
   await owner.wait(occupied, {
     ...limits(),
@@ -379,31 +475,10 @@ try {
   subcases.push({
     id: "N1-busy-fallback",
     passed: true,
-    attemptedCalls: 40 - negatives.remainingCalls,
+    attemptedCalls: busyBefore - negatives.remainingCalls,
     criteria: [
       "busy gateway fails instead of queuing; no ACP prompt",
       "explicit other-peer fallback completes while original stays pending",
-    ],
-  });
-  stage = "missing-and-conflicting-contributions";
-  const contributionsBefore = negatives.remainingCalls;
-  for (const corrupt of [false, true]) {
-    const result = await complete(fallback, `contribution:${JSON.stringify({ corrupt })}`);
-    assert.throws(
-      () =>
-        verifyContributions(payloadText(result.task), [
-          [{ id: "bounds", kind: "bounds", minCost: 0, capacity: 9 }],
-        ]),
-      /Missing or conflicting contribution/,
-    );
-  }
-  subcases.push({
-    id: "N5-contributions",
-    passed: true,
-    attemptedCalls: contributionsBefore - negatives.remainingCalls,
-    criteria: [
-      "real ACP omitted fact rejected by contribution validator",
-      "real ACP altered authoritative fact rejected; expected BROKEN topology",
     ],
   });
   stage = "unknown-context-reflection-privacy";
@@ -474,32 +549,24 @@ try {
       stored.contextUntrusted === true &&
       !("contextId" in stored),
   );
-  const evidenceFile = join(root, "reflection-evidence.json");
-  writeFileSync(
-    evidenceFile,
-    JSON.stringify({
-      evidenceClass: "provider-free-controlled-ACP",
-      ...detailEvidence({
-        id: "V1/T1-pipeline",
-        audit: privacyAudit,
-        expectations: [],
-        receipts: [],
-        coordinatorTurns: [],
-        extractionFailures: 0,
-        heartbeatFailures: 0,
-      }),
-    }),
-    { mode: 0o600 },
-  );
-  assert(!readFileSync(evidenceFile, "utf8").includes(sentinel));
   reflectionVerified = true;
-  attemptedCalls += 40 - negatives.remainingCalls;
-  connectionAttempts.push(40 - negatives.remainingCalls);
-  assert(connectionAttempts.every((count) => count <= 40));
+  const negativeAudit = lines(receiptFile).slice(audit.length);
+  const negativeCalls = negativeAudit.filter((entry) => entry.event === "call");
+  const negativeRejections = negativeAudit.filter((entry) => entry.event === "rejected");
+  const negativeAttempts = negativeCalls.length + negativeRejections.length;
+  assert.equal(negativeRejections.length, 2);
+  assert.equal(negativeAttempts, 40 - negatives.remainingCalls);
+  for (const call of negativeCalls) assert(pairedResult(call, negativeAudit));
+  attemptedCalls += negativeAttempts;
+  connectionAttempts.push(negativeAttempts);
+  connectionForwardedCalls.push(negativeCalls.length);
+  connectionRejectedCalls.push(negativeRejections.length);
+  assert(connectionAttempts.every((count) => count <= 32));
   console.log(
     JSON.stringify({
       providerFreeContextInterop: true,
-      attemptedCalls: calls.length,
+      attemptedCalls,
+      connectionAttempts,
       budget: 40,
       reserved: 8,
       untrustedContextReflectionSanitized: reflectionVerified,
@@ -525,6 +592,8 @@ try {
         subcases,
         attemptedCalls,
         connectionAttempts,
+        connectionForwardedCalls,
+        connectionRejectedCalls,
         cleanup: failures.length === 0,
         failed: process.exitCode === 1,
         failedStage: process.exitCode === 1 ? stage : null,

@@ -1,5 +1,27 @@
 # Real acceptance evidence
 
+## Current finite live diagnostics (issues #19 and #27)
+
+E2E02 now identifies `cli`, `decode`, `completed`, `exact-text`, or `handles`;
+E2E06 identifies `async-cli`, `decode`, `handles`, `first-text`, `busy-rejection`,
+or `original-working` (each prefixed by its scenario ID). Failures retain only
+that allowlisted criterion, a finite error category, normalized last task state,
+task/context presence and text-presence booleans, monotonic elapsed milliseconds,
+and nullable first-observed-text milliseconds. A separate nullable cleanup category
+preserves cleanup failure without replacing the primary criterion. No raw IDs,
+assertion values, exception names/messages, CLI output or model/provider text is retained.
+
+First text is observed by polling, not timestamped at backend emission. An
+`observation-deadline` means observation incomplete and cause unknown, not proven
+latency or a protocol violation. An `exact-text` assertion is an oracle failure,
+not an SDK/provider attribution. CLI timeout, numeric exit, decode, assertion,
+cleanup and unknown errors remain distinct; expected failed-task responses remain valid.
+The 14-scenario ordering, original assertions, 120s CLI/130000ms exec limits,
+90000ms observation deadline and no-retry behavior remain. Provider-free regression
+tests exercise these diagnostics; **a new paid `make e2e` run is pending a separate
+explicit decision**. These changes do not explain or replace the historical failures
+in [authorized live evidence](/docs/authorized-live-acceptance.md) or issues #19/#27.
+
 ## Safeguard follow-up verification
 
 Coordinator verification at **2026-10-26T08:54:36Z** for issues #1 and #2:

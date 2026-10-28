@@ -33,19 +33,7 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   if (part?.type !== "text") throw new Error("Expected text");
   audit({ event: "prompt", sessionId, turn, command: part.text });
   if (part.text === "fail") throw acp.RequestError.authRequired();
-  const contribution = part.text.startsWith("contribution:")
-    ? (JSON.parse(part.text.slice("contribution:".length)) as { corrupt: boolean })
-    : undefined;
-  const output = contribution
-    ? JSON.stringify({
-        facts: contribution.corrupt
-          ? [{ id: "bounds", kind: "bounds", minCost: 0, capacity: 999 }]
-          : [],
-        proof: {},
-        inputHashes: {},
-        answer: null,
-      })
-    : `${sessionId}:${turn}:${part.text}`;
+  const output = `${sessionId}:${turn}:${part.text}`;
   await request.client.notify(acp.methods.client.session.update, {
     sessionId,
     update: {

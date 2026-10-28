@@ -1,5 +1,10 @@
 # Post-change integrity diagnostics
 
+> Historical verification record, not current runnable lab guidance. The managed
+> lab and fault runner have been retired; their source remains at
+> [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
+> Recorded outcomes below are unchanged and do not resolve live failures.
+
 ## Verdict and revision
 
 **Provider-free implementation acceptance passes; the subsequently authorized

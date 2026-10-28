@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,17 +17,18 @@ function killFixture(pid: number) {
 }
 
 test.each(["SIGINT", "SIGTERM"] as const)(
-  "N10 %s drains owned TCP and child resources despite evidence failure and saves a partial report",
+  "N10 %s drains owned TCP and child resources despite evidence failure and retains a partial receipt",
   async (signal) => {
-    const reports = mkdtempSync(join(tmpdir(), "network-interruption-report-"));
+    const receipts = mkdtempSync(join(tmpdir(), "interop-interruption-receipt-"));
     const script = `
     import { createServer } from 'node:net';
     import { spawn } from 'node:child_process';
     import { writeFileSync } from 'node:fs';
     import { createLifecycle, interrupted, owned } from ${JSON.stringify(resolve("examples/agent-network/lifecycle.ts"))};
     import { stop } from ${JSON.stringify(resolve("examples/agent-network/transport.ts"))};
-    import { createInvestigationReport } from ${JSON.stringify(resolve("examples/agent-network/topology-report.ts"))};
-    const report = createInvestigationReport(${JSON.stringify(reports)});
+    const receipt = ${JSON.stringify(join(receipts, "partial.json"))};
+    const partial = { status: 'INCOMPLETE', finished: false };
+    writeFileSync(receipt, JSON.stringify(partial), { mode: 0o600 });
     const lifecycle = createLifecycle();
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
       detached: true, stdio: 'ignore', env: { PATH: process.env.PATH }
@@ -41,12 +42,11 @@ test.each(["SIGINT", "SIGTERM"] as const)(
       order.push('tcp');
     }, lifecycle.signal));
     lifecycle.releases.push(async () => { order.push('evidence'); writeFileSync('/dev/null/receipts', 'x'); });
-    console.log(JSON.stringify({ pid: child.pid, port: server.address().port, report: report.root }));
+    console.log(JSON.stringify({ pid: child.pid, port: server.address().port, receipt }));
     try { await interrupted(new Promise(() => {}), lifecycle.signal); }
     catch { process.exitCode = 1; }
     finally {
       const failures = await lifecycle.drain();
-      report.persist();
       console.log(JSON.stringify({ failures, aborted: lifecycle.signal.aborted, order }));
     }
   `;
@@ -70,12 +70,12 @@ test.each(["SIGINT", "SIGTERM"] as const)(
       const ready = JSON.parse(output.split("\n")[0]!) as {
         pid: number;
         port: number;
-        report: string;
+        receipt: string;
       };
       ownedPid = ready.pid;
-      const progressive = JSON.parse(readFileSync(join(ready.report, "summary.json"), "utf8"));
+      const progressive = JSON.parse(readFileSync(ready.receipt, "utf8"));
       expect(progressive.status).toBe("INCOMPLETE");
-      expect(progressive.metadata.finishedAt).toBeNull();
+      expect(progressive.finished).toBe(false);
       child.kill(signal);
       expect(await interrupted(ended, AbortSignal.timeout(4_000))).toBe(1);
       const result = JSON.parse(output.trim().split("\n").at(-1)!) as {
@@ -100,26 +100,13 @@ test.each(["SIGINT", "SIGTERM"] as const)(
             rebound.close((error) => (error ? fail(error) : done())),
           );
       }
-      const summary = JSON.parse(readFileSync(join(ready.report, "summary.json"), "utf8"));
+      const summary = JSON.parse(readFileSync(ready.receipt, "utf8"));
       expect(summary.status).toBe("INCOMPLETE");
-      expect(summary.missing).toHaveLength(27);
-      expect(summary.metadata.finishedAt).toBeNull();
-      if (process.env.A2A_LIFECYCLE_REPORT)
-        appendFileSync(
-          process.env.A2A_LIFECYCLE_REPORT,
-          JSON.stringify({
-            signal,
-            ownedPidExited: true,
-            ownedPortReleased: true,
-            evidenceFailureRetained: true,
-            partialReportRetained: true,
-          }) + "\n",
-          { mode: 0o600 },
-        );
+      expect(summary.finished).toBe(false);
     } finally {
       await stop(child);
       if (ownedPid) killFixture(ownedPid);
-      rmSync(reports, { recursive: true, force: true });
+      rmSync(receipts, { recursive: true, force: true });
     }
   },
   10_000,

@@ -1,5 +1,11 @@
 # OpenCode / a2abridge network findings
 
+> Historical research record. The managed lab and its runner commands are retired,
+> not fixed. Commands, test filters and results below describe their recorded revisions.
+> Retired source: [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
+> Current [manual guard/interop guidance](/examples/agent-network/README.md) replaces
+> the managed setup, not its historical evidence.
+
 ## Worker identity, manual peers and bounded waits acceptance
 
 The issue #11–#13 integration was verified on **2026-10-27**, with the same
@@ -75,7 +81,7 @@ from **09:07:34.817Z to 09:09:13.015Z**. This report preserves unsuccessful atte
 as well as the final result; a passing run is not a reliability benchmark.
 
 The durable definition and run instructions are in
-[examples/agent-network](/examples/agent-network/README.md). Nothing was installed
+[historical examples/agent-network](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network). Nothing was installed
 as a user service or written to global OpenCode configuration. The experiment
 stops its network at the end; it is not a persistent agent directory deployment.
 
