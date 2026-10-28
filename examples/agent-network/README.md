@@ -50,9 +50,12 @@ Owned child and port cleanup is verified. See the [caller guide](/examples/agent
 ## Manual one-worker CLI smoke
 
 This operator-owned setup is separate from provider-free CI and makes billable
-requests. **Live gate BLOCKED: separate billable opt-in has not been provided;
-this recipe is unverified end-to-end.** Version/help and documentation review are
-not model-callable readiness or real-model acceptance. It does not generate
+requests. **The warmed private-server variant has one authorized, observed
+two-turn pass on 2026-10-28; every new live attempt still requires separate billable
+opt-in.** Cold standalone startup remains blocked by the observed readiness race.
+See [observed CLI results](#observed-cli-results); this is not a reliability or
+topology acceptance claim. Version/help and catalog review alone are not
+model-callable readiness or real-model acceptance. This recipe does not generate
 profiles, add a runner or install a readiness plugin. The route is:
 
 **OpenCode coordinator → local stdio endpoint guard → a2abridge → loopback A2A gateway → ACP worker**.
@@ -74,12 +77,13 @@ export WORKER=/absolute/path/to/trusted-worker-project
 export COORDINATOR=/absolute/path/to/trusted-coordinator-project
 export STATE=/absolute/path/to/private-disposable-network-state
 export A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge
+export SERVER=http://127.0.0.1:41244
 umask 077
-mkdir -p "$STATE" "$STATE/directory-home" "$STATE/worker-home"
-chmod 700 "$STATE" "$STATE/directory-home" "$STATE/worker-home"
+mkdir -p "$STATE" "$STATE/directory-home" "$STATE/worker-home" "$STATE/coordinator-home"
+chmod 700 "$STATE" "$STATE/directory-home" "$STATE/worker-home" "$STATE/coordinator-home"
 bun -e '
   import { createServer } from "node:net";
-  for (const port of [41241, 7777]) {
+  for (const port of [41241, 7777, 41244]) {
     const server = createServer();
     await new Promise((resolve, reject) => {
       server.once("error", reject);
@@ -123,7 +127,7 @@ worker agent (preserve unrelated settings; no global edits):
 Use the existing reviewed provider/model configuration; do not add a model/profile.
 It must be available from the reviewed worker project/launch environment after
 switching HOME; do not copy credentials or assume normal global settings carry over.
-The coordinator uses `run --standalone` below. **`acp` has no `--standalone` flag.**
+The coordinator uses an explicitly owned, warmed server below. **`acp` has no `--standalone` flag.**
 For the worker, use a dedicated shell with the following private HOME/XDG paths
 before configuring its service discovery. Review inherited `OPENCODE_*` overrides
 and managed/ancestor config; stop if they redirect storage or server discovery.
@@ -247,8 +251,68 @@ Inspect the actual catalog: `network_a2a_whoami`, `network_a2a_list_agents`,
 `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`,
 `network_a2a_cancel_task`. If unavailable, report a blocker; never substitute native
 subagents, the A2A CLI or direct ACP. Catalog receipts or `opencode mcp list` alone
-are not model-callable readiness. Run from a dedicated coordinator terminal with
-its reviewed launch environment, not the worker's private HOME/XDG:
+are not model-callable readiness.
+
+#### Warm the same owned server before submitting
+
+OpenCode 2.0.28 can construct a cold standalone request before MCP tools enter its
+registry. A provider-free local request capture reproduced zero primary-request
+tools on cold startup and six on a warmed server, without changing permissions or
+the model. The pinned implementation starts MCP connections asynchronously,
+reads the currently connected tools and debounces subsequent registry refreshes:
+[startup](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L550-L560),
+[tool reads](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L663-L667),
+[registry refresh](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/tool/mcp.ts#L124-L144).
+There is no advertised MCP-wait option in the pinned `run --help`.
+
+Use a dedicated coordinator-server terminal. Repeat the path exports from step 1,
+then the following HOME/XDG exports in **both** that terminal and the later
+coordinator client/inspection terminals. Securely supply the same fresh
+`OPENCODE_PASSWORD` to them; do not write it into files, commands or logs. Review
+other inherited `OPENCODE_*` overrides and stop if they redirect storage/discovery.
+Provider/model configuration must remain available from the reviewed project and
+launch environment after changing HOME; do not copy credentials from normal storage.
+
+```sh
+export HOME="$STATE/coordinator-home"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state" XDG_CACHE_HOME="$HOME/.cache"
+umask 077
+: "${OPENCODE_PASSWORD:?Supply a fresh server password securely}"
+cd "$COORDINATOR"
+opencode debug paths
+opencode debug config
+# Privately confirm storage paths/configuration before starting the owned server.
+echo "owned coordinator server PID: $$"
+exec opencode serve --hostname 127.0.0.1 --port 41244 \
+  > "$STATE/coordinator-server.stdout" 2> "$STATE/coordinator-server.stderr"
+```
+
+From the coordinator client terminal, after repeating those exports, inspect the
+same server and exact project. Use bounded read-only probes, not another prompt:
+
+```sh
+opencode api --server "$SERVER" agent.get --param agentID=coordinator \
+  --param "location[directory]=$COORDINATOR" > "$STATE/coordinator-agent.json"
+opencode api --server "$SERVER" mcp.list \
+  --param "location[directory]=$COORDINATOR" > "$STATE/coordinator-mcp.json"
+```
+
+An initial missing-agent response or pending MCP status can precede activation.
+The operator may repeat these read-only probes within one absolute 30-second
+startup deadline; stop on expiry, wrong identity, failed connection or config
+mismatch. Require the exact coordinator agent, the `network` server connected and
+the guard's actual six-tool catalog receipt. These are warmup signals, not proof
+of the model's tool snapshot: acceptance still requires its actual tool calls.
+Do not substitute a fixed sleep or increase budgets to obtain a pass.
+
+Run the prompt below against this **same** server. Do not add `--standalone`:
+that creates a new cold server instead of reusing the warmed one. The historical
+`opencode run --standalone --agent coordinator --format json "$PROMPT"` invocation
+remains an observed blocked attempt, not a successful alternative. Do not use the
+shared service or add a readiness plugin, runner, Dagu workflow or new dependency.
+
+In the dedicated coordinator client terminal:
 
 ```sh
 cd "$COORDINATOR"
@@ -275,7 +339,7 @@ If waiting expires retain pending handles; if submission has no returned handle
 report uncertain without resend. Missing evidence is INCOMPLETE, not success.
 Report actual handles/states and artifact checks, not a claim that you succeeded."
 echo "owned coordinator PID: $$"
-exec opencode run --standalone --agent coordinator --format json \
+exec opencode run --server "$SERVER" --agent coordinator --format json \
   --title "adapter-smoke-$MARKER" "$PROMPT" \
   > "$STATE/coordinator.jsonl" 2> "$STATE/coordinator.stderr"
 ```
@@ -288,11 +352,16 @@ Record the actual session reference from the CLI events or targeted session list
 below; do not assume an A2A context ID is an OpenCode session ID.
 
 The 30-second local operation example matches the [host guide](/examples/agent-network/client-guide.md).
-Unlike that helper, direct model calls have no demonstrated monotonic deadline or
-poll-spacing enforcement here. `run` has no timeout flag, and six-tool permissions
-do not provide a sleep/clock tool. The operator must supervise absolute monotonic
-cutoffs, remaining call time and spacing; if this cannot be enforced/observed,
-record the bounded-wait gate as BLOCKED rather than claim the prompt enforces it.
+Unlike that helper, direct model calls do not enforce monotonic deadlines or poll
+spacing themselves. `run` has no timeout flag, and six-tool permissions do not
+provide a sleep/clock tool. The operator must supervise absolute monotonic cutoffs,
+remaining call time and spacing; if this cannot be enforced/observed, record the
+bounded-wait gate as BLOCKED rather than claim the prompt enforces it. The observed
+pass used external supervision of each 30-second submit-plus-wait deadline, eight
+polls per turn and the call reserve. Record actual poll timestamps and reject
+overlapping/unbounded polling; this recipe does not define a three-second minimum.
+Do not invent an extra numeric acceptance threshold and misclassify its interruption
+as an adapter failure.
 The guard enforces 40 attempts, **not the eight-call reserve**. Do not extend budgets
 or add tools/runners to obtain a pass. Local timeout/abort is not remote cancellation.
 Explicit cancellation requires separate authorization and an inspected actual
@@ -302,18 +371,19 @@ Its unary budget is 60 seconds versus the gateway's default 120-second prompt bu
 
 ### 6. Review existing session and task evidence privately
 
-`--standalone` uses a private server, not a disposable database. Do not delete normal
-OpenCode data. In the **same coordinator environment/project**, identify the actual
+An owned server does not make storage disposable: private HOME/XDG paths do that
+explicitly. Do not delete normal OpenCode data. In the **same coordinator
+environment/project**, identify the actual
 session by its fresh title, location and time; never select the newest unrelated
 session. Then substitute that observed ID:
 
 ```sh
 cd "$COORDINATOR"
 set -o pipefail
-opencode session list --standalone --max-count 20 --format json \
+opencode session list --server "$SERVER" --max-count 20 --format json \
   > "$STATE/coordinator-sessions.json"
 export SESSION=ses_REPLACE_WITH_OBSERVED_COORDINATOR_ID
-opencode api --standalone session.message.list \
+opencode api --server "$SERVER" session.message.list \
   --param "sessionID=$SESSION" --param limit=100 --param order=asc |
   jq '{cursor, data: [.data[] |
     if .type == "user" then {id, type, text}
@@ -367,22 +437,26 @@ Acceptance review (CLI exit 0 and assistant self-report are insufficient):
   unverified bounds remain BLOCKED/INCOMPLETE, never inferred completion/cancellation.
 
 The API paths/filters follow [V2 API documentation](https://opencode.ai/v2/docs/api)
-and its [OpenAPI](https://opencode.ai/v2/openapi.json); pinned version/help was
-inspected without starting a service. API responses and this live flow have **not**
-been exercised against the pinned model setup. Session review is client-side
-evidence, not a production OpenCode HTTP adapter.
+and its [OpenAPI](https://opencode.ai/v2/openapi.json). The observed pass inspected
+two message pages for each correlated coordinator/worker session using the pinned
+operation-ID API. After owned server shutdown, inspection may instead use
+`--standalone` with the exact same private HOME/XDG/project and observed session ID;
+this reads persisted evidence, not a continuation or a new model prompt. Session
+review is client-side evidence, not a production OpenCode HTTP adapter.
 
 ### 7. Owned cleanup, including failure or interruption
 
 Keep a private PID/port ledger: gateway, its ACP/private-server descendants,
-directory, heartbeat shell, coordinator and its guard/bridge/private-server
+directory, heartbeat shell and children, coordinator client, owned coordinator
+server and its guard/bridge
 descendants. Record actual listener ports (including ephemeral private servers),
 not only requested ports. Use `ps -o pid,ppid,pgid,comm -p <owned-pids>` and
 `ss -ltnp` locally without publishing their raw output. Identity/PID existence
 alone is not readiness. Do not signal a PID whose ownership cannot be confirmed.
 
-On success, failure, local deadline or SIGINT/SIGTERM, close the owned
-coordinator/MCP connection, stop the foreground heartbeat in its own terminal,
+On success, failure, local deadline or SIGINT/SIGTERM, close the owned coordinator
+client **and server/MCP connection**; client exit alone leaves the server's MCP
+connection open. Stop the foreground heartbeat and its exact owned children,
 then unregister while the directory remains running. Review private evidence when
 possible, but never delay resource cleanup for reporting:
 
@@ -411,6 +485,37 @@ Publish only revision/pins, command shape, boolean task/context/artifact/content
 checks, outcome and cleanup checks. Retain actual session/task handles privately,
 not raw prompts/answers, provider diagnostics, databases, keys or reasoning.
 Receipt hashes still contain local URLs and opaque identifiers: private metadata.
+
+### Observed CLI results
+
+Source baseline `ae91940`; Linux, Bun 1.3.9, OpenCode 2.0.28, checksummed
+a2abridge 4.0.2, A2A 1.0 and the existing `openai/gpt-6-luna` smoke model.
+The original paid request was not wire-captured; the cold-start mechanism was
+reproduced separately against a local provider-free capture endpoint.
+
+| Authorized attempt                  | Observed outcome                                                                                                                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cold standalone                     | CLI exit zero, catalog received, zero model tool calls and zero worker sessions; BLOCKED.                                                                                                                             |
+| Warmed server, initial supervisor   | Six paired calls; first task completed with matching prompt/artifact/answer. An invented three-second minimum interrupted the CLI at a 2.69-second poll gap before the follow-up; INCOMPLETE, not an adapter failure. |
+| Warmed server, corrected supervisor | Two completed tasks in one context with distinct task IDs, exact worker inputs and matching stored artifacts/root answers; observed pass on 2026-10-28 at 09:22 UTC.                                                  |
+
+The final attempt was separately authorized with fresh private state and a fresh
+synthetic marker after correcting the supervisor; no earlier evidence was replaced
+and no pending/uncertain submission was resent. It used one CLI invocation and
+one guard connection, eight paired calls of forty with the eight-call reserve
+untouched, two nonblocking sends and three/one polls per turn. Submit-to-completed
+observations were 9.036s and 2.252s, within the unchanged 30-second deadlines;
+observed repeated-poll gaps were 2.190s and 3.788s. Provider-selected arguments,
+guard input hashes and worker-received text matched. The follow-up used the actual
+returned context and omitted task ID. Two pages per session were inspected.
+
+Unregister succeeded. The first process-exit check still saw an owned child; final
+verification, before accepting cleanup, found zero owned processes and five
+recorded ports released and reusable. The disposable MCP entry was disabled.
+Raw prompts/answers, handles, receipts, credentials and provider diagnostics remain
+private. Cost and token usage were not measured. This dated pass does not resolve
+historical production E2E/topology failures, repair cold standalone readiness or
+establish repeatability. New live attempts remain opt-in and billable.
 
 ## Retained support inventory
 
