@@ -36,6 +36,13 @@ Active example TypeScript must not exceed production TypeScript by physical line
 count. The managed network/topology lab is retired; only small guard/interop helpers
 and manual usage guidance remain. Retirement does not resolve historical defects.
 
+For model-issued MCP delegation, use the
+[manual one-worker CLI smoke](/examples/agent-network/README.md#manual-one-worker-cli-smoke).
+Its owned, warmed OpenCode server plus `opencode run --server` has one authorized
+two-turn observation on 2026-10-28. Cold standalone startup exposed a readiness
+race; the warmed observation does not resolve historical E2E/topology failures.
+Every new live run still requires explicit billable opt-in.
+
 ## Highlights
 
 - **Official SDKs:** A2A JSON-RPC/SSE and stable ACP v1, without OpenCode HTTP adapters.

@@ -16,11 +16,12 @@ Use this path when asked to delegate through MCP/A2A:
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
 Use the [one-worker CLI recipe](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
-including its reviewed setup, prompt, evidence checks and teardown. From the configured
-coordinator project, with `PROMPT` set to that recipe's instructions:
+including its reviewed setup, prompt, evidence checks and teardown. Prefer its
+owned, warmed private-server variant. From the configured coordinator project,
+with `SERVER` and `PROMPT` set to that recipe's reviewed endpoint and instructions:
 
 ```sh
-opencode run --standalone --agent coordinator --format json "$PROMPT"
+opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 ```
 
 - No TypeScript coordinator is needed; [typed helpers](/examples/agent-network/client-guide.md)
@@ -36,7 +37,9 @@ opencode run --standalone --agent coordinator --format json "$PROMPT"
 - Reserve **eight of 40 attempts**, including denials; supervise absolute submit+wait
   deadlines and spaced polls. Prompts do not enforce bounds. No guessed handles,
   automatic resend/reconnect or implicit cancellation; retain pending/uncertain outcomes.
-- Require separate billable opt-in; the manual live gate remains **BLOCKED / unverified**.
+- Require separate billable opt-in for each live attempt. The warmed one-worker
+  variant has one dated observed pass; cold standalone startup and larger topologies
+  remain unverified. Neither catalog readiness nor CLI exit zero proves acceptance.
   On success/failure/interruption close owned MCP, stop heartbeats, unregister workers,
   then stop owned gateways and finally the directory. Verify PID/port release and publish
   only sanitized checks. Follow the recipe's membership and cleanup order exactly.
@@ -48,6 +51,8 @@ Production `make e2e` and the single-gateway `make demo` remain opt-in and billa
 
 ## Lessons Learned
 
+- 2026-10-28: Pitfall: An operator-invented three-second polling minimum interrupted a completed first worker task before its follow-up; the recipe specified spaced polls but no numeric minimum. Prevention: Derive acceptance gates from the reviewed contract, retain observed timing separately, and distinguish supervisor interruption from adapter failure. Preserve earlier evidence when authorizing a fresh corrected smoke; never resend an uncertain task.
+- 2026-10-28: Pitfall: A cold OpenCode 2.0.28 standalone run constructed its primary request with zero MCP tools, while a warmed private server exposed the six expected tools. Prevention: Review a same-server warmup approach explicitly, verify actual model tool calls rather than transport/catalog readiness alone, and do not silently substitute the shared service or assume a fixed sleep fixes readiness.
 - 2026-10-28: Pitfall: Pinned CLI help advertised parameters that raw API requests ignored. Prevention: Verify pinned request resolution, not just help; use operation IDs when query interpolation requires them and check pagination separately.
 - 2026-10-27: Pitfall: Port-release probes mistook TCP TIME_WAIT for a leaked listener. Prevention: Match server socket-reuse semantics and verify listener/process absence before classifying a failed raw bind as cleanup failure.
 - 2026-10-27: Pitfall: Renaming a test and dropping receipt hooks broke external acceptance. Prevention: Treat consumed test-name filters and receipt environment variables as APIs; search their callers and run external acceptance before accepting a test reduction.

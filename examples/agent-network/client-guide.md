@@ -5,9 +5,11 @@ an orchestrator. It uses the existing official MCP client → endpoint guard →
 a2abridge 4.0.2 → gateway path. It creates no registry, queue, retry loop or server.
 The provider-free interop gate uses it; model-driven callers remain operator-owned.
 For user-facing usage, start with the [one-worker CLI smoke](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
-not this optional host API. That recipe uses real `opencode run` and existing session
-inspection, with no TypeScript coordinator. Its paid live gate is BLOCKED pending
-separate authorization and unverified end-to-end; this helper/CI is not a substitute.
+not this optional host API. That recipe uses real `opencode run --server` against
+an owned warmed private server and existing session inspection, with no TypeScript
+coordinator. It has one dated authorized two-turn pass; every new live attempt
+still needs billable opt-in. Cold standalone readiness and larger topologies remain
+unverified; this helper/CI is not a substitute for live evidence.
 
 ## Supported flow
 
