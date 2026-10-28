@@ -412,19 +412,22 @@ The pre-retirement source remains at
 ### OpenCode coordinator: use `opencode run`
 
 Follow the [one-worker setup](/examples/agent-network/README.md#manual-one-worker-cli-smoke)
-to start the worker/directory, configure the guarded project-local MCP entry and
-set `PROMPT` to the recipe's two-turn smoke instructions. After separate billable opt-in,
-run from the reviewed coordinator project:
+to start the worker/directory, configure the guarded project-local MCP entry, warm
+the owned private OpenCode server, and set `SERVER` and `PROMPT` from the recipe.
+After separate billable opt-in, run from the reviewed coordinator project:
 
 ```sh
-opencode run --standalone --agent coordinator --format json "$PROMPT"
+opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 ```
 
 No TypeScript coordinator is needed. The prompt discovers the worker, sends one
 request, then follows up using the returned context and no old task ID. Verify
 actual session tool calls, completed tasks/artifacts and owned cleanup—not just
-the final answer. The live gate remains **BLOCKED / unverified**; `--standalone`
-does not isolate configuration or make the database disposable. Optional
+the final answer. Reuse the same warmed server; cold `--standalone` is not a
+substitute. The warmed one-worker smoke has one observed pass, not repeatability
+evidence. The project [multi-a2a-agent skill](/.opencode/skills/multi-a2a-agent/SKILL.md)
+contains this runbook and progressive topology references; multiworker pages remain
+research-only, not runnable procedures. Optional
 [TypeScript helpers](/examples/agent-network/client-guide.md) are for host/CI use;
 see their [consumer inventory](/examples/agent-network/README.md#retained-support-inventory).
 
