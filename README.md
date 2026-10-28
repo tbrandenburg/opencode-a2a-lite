@@ -127,12 +127,8 @@ deduplicated in input order, and appended after the retained `text` tag.
 Omitted fields keep their existing defaults. Identity is descriptive metadata,
 not authentication, permissions, model selection, or additional skills.
 
-The API accepts `createGateway({ workspace, identity: { name, description, tags } })`,
-where each identity field is optional and `tags` is an array (an empty array adds
-no tags). Identity is validated and copied before resources are created; the core
-API does not read identity environment variables. Do not mutate a running card to
-set worker identity. Invalid metadata fails startup without echoing its values;
-help/version remain independent of metadata validation.
+For embedding, see [`createGateway`](/src/server.ts). CLI identity settings above
+do not require a TypeScript caller.
 
 For the isolated demo, securely provide `OPENAI_API_KEY` in the environment.
 The demo uses `openai/gpt-6-luna` and a disposable, tool-restricted workspace;
@@ -258,33 +254,13 @@ transport closure, or process death yields failed rather than invented cancellat
 
 ### ACP bridge
 
-[`createAcpBridge`](/src/acp-client.ts) takes a trusted absolute `cwd`, optional
-`executable`, `args` (default `["acp"]`), and `env` (default a snapshot of the parent
-environment). Configuration and tool isolation remain the caller's responsibility;
-permission requests select an offered rejection normally, or return `cancelled`
-when no rejection is offered, during cancellation/shutdown, or outside an active
-matching session. They never select allow. This is not a sandbox for the agent process.
+The internal [`createAcpBridge`](/src/acp-client.ts) owns one pinned ACP subprocess,
+forwards only active root-session assistant text and denies permission requests.
+It is not a sandbox. Embedders must await terminal `close()` in `finally` and own
+configuration isolation. See [architecture](/docs/architecture.md) for boundaries.
 
-- `start()` starts one owned child and persistent SDK connection, initializes once,
-  and requires protocol version 1 plus the executable pin. This instance cannot
-  restart after failure/close. `versionArgs` can adapt a wrapper's version invocation;
-  it cannot disable or change the required version value.
-- `newSession()` returns the SDK session response using the fixed workspace and no MCP servers.
-- `prompt(sessionId, text, onText)` returns the actual SDK `PromptResponse`, preserving
-  its stop reason. One prompt may be active per bridge. Only active root-session
-  assistant text is forwarded; child metadata, thoughts, tools, and non-text are excluded.
-- `cancel(sessionId)` sends one cancellation notification and waits for prompt completion,
-  retaining text until that result. Concurrent cancels share the same operation.
-  Unknown sessions reject; cancelling an idle known session is a no-op.
-- `close()` is terminal and idempotent. It first attempts active cancellation, then
-  rejects remaining requests and sends stdin EOF, escalating to SIGTERM/SIGKILL
-  on its owned POSIX process group if needed.
-  Call and await it in `finally`, including after failures, to observe cleanup errors.
-
-Deadlines default to 30s for startup/session creation, 120s for prompts, 5s for
-cancellation, and 5s for process shutdown after cancellation. Set `startupTimeoutMs`, `promptTimeoutMs`,
-`cancelTimeoutMs`, or `closeTimeoutMs` to override. Timeout/transport/process failures
-fail closed without retries. Raw subprocess stderr and peer errors are not published.
+Default deadlines: 30s startup/session creation, 120s prompts, 5s cancellation,
+then 5s process shutdown. Failures do not trigger retries or publish peer diagnostics.
 
 Stable ACP has no turn ID: updates after prompt settlement are dropped, but an old update
 sent by a faulty peer during a later prompt on the same session is indistinguishable
@@ -426,13 +402,25 @@ failures and Git provenance; retirement does not make E2E06 or topology failures
 The pre-retirement source remains at
 [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
 
-For operator-owned OpenCode → guarded MCP/a2abridge → A2A usage, start with the
-[one-worker `opencode run` smoke and private session review](/examples/agent-network/README.md#manual-one-worker-cli-smoke).
-The recipe adds no runner; its paid live gate is **BLOCKED** pending separate
-authorization and remains unverified end-to-end. Optional
-[typed host/CI handles and deadlines](/examples/agent-network/client-guide.md)
-are not proof of model-callable readiness. The [support inventory](/examples/agent-network/README.md#retained-support-inventory)
-explains why the six guard/interop helpers remain unchanged.
+### OpenCode coordinator: use `opencode run`
+
+Follow the [one-worker setup](/examples/agent-network/README.md#manual-one-worker-cli-smoke)
+to start the worker/directory, configure the guarded project-local MCP entry and
+set `PROMPT` to the recipe's two-turn smoke instructions. After separate billable opt-in,
+run from the reviewed coordinator project:
+
+```sh
+opencode run --standalone --agent coordinator --format json "$PROMPT"
+```
+
+No TypeScript coordinator is needed. The prompt discovers the worker, sends one
+request, then follows up using the returned context and no old task ID. Verify
+actual session tool calls, completed tasks/artifacts and owned cleanup—not just
+the final answer. The live gate remains **BLOCKED / unverified**; `--standalone`
+does not isolate configuration or make the database disposable. Optional
+[TypeScript helpers](/examples/agent-network/client-guide.md) are for host/CI use;
+see their [consumer inventory](/examples/agent-network/README.md#retained-support-inventory).
+
 `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` retains
 provider-free real-bridge coverage of the adapter boundary: catalog/discovery,
 actual fresh-context SSE, continuation, busy, cancellation, uncertainty, guard

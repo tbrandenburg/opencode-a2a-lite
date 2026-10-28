@@ -15,41 +15,31 @@ Use this path when asked to delegate through MCP/A2A:
 **OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
-1. Follow the [manual recipe](/examples/agent-network/README.md#manual-two-worker-recipe).
-   Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed a2abridge **4.0.2**, A2A **1.0**.
-   Check ports before startup; never stop another owner's processes. Trust workspaces,
-   directory and cards explicitly; keep gateways loopback-only, without public proxies.
-2. Use `examples/agent-network/bridge-proxy.ts`, never a direct bridge launch. The
-   gateway is **A2A HTTP, not MCP**. Manually merge the documented project-local
-   `mcp.servers.network` fragment: local stdio, `codemode:false`, six explicit tool
-   permissions, absolute Bun/guard/binary paths, directory URL, private writable
-   receipt path and JSON array of exact root peer URLs including `/`. No manifests
-   or shell-variable expansion. Review inherited configuration; never edit global
-   configuration or install services. The guard strips child secrets; `environment:{}` does not.
-3. Set identity before startup, use actual readiness URLs, verify intended cards,
-   register roots and refresh heartbeats every **20s** (TTL **90s**, GC **30s**).
-   Identity is metadata, not authorization. Keep the directory running for discovery.
-4. Inspect the actual catalog: `network_a2a_whoami`, `network_a2a_list_agents`,
-   `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`,
-   `network_a2a_cancel_task`. Unavailable tools are a blocker, not permission to
-   substitute another route. Catalog receipt/`opencode mcp list` is not model-callable readiness.
-5. Discover exact URLs, then send bounded text with `blocking:false`. Retain returned
-   peer/context/task IDs; poll actual task state/artifacts. Continue with `context_id`
-   and **omit `task_id`**; retain the new task ID. Never cross peers, guess handles,
-   silently restart stale contexts, or mistake MCP success for completed work.
-6. Use one absolute local deadline for submit+wait, bound calls/sleeps by remaining
-   time and reserve **eight calls** within **40 attempts**, including denials.
-   No rapid polling, budget increases or reconnect evasion. Busy fails, not queues.
-   Local timeout/abort is not remote cancellation: retain pending handles or report
-   uncertain submission without resend. Cancel only when requested; inspect actual
-   outcome/error, including a race lost to completion. Surface unknown-task errors.
-7. Bridge 4.0.2 cannot stream continuation; use nonblocking send+polling (not SSE).
-   Unary budget is **60s**, gateway prompt default **120s**. Reuse the
-   [typed helper](/examples/agent-network/client-guide.md) for host code; its monotonic
-   deadlines do not govern direct model MCP calls, which need equivalent instructions.
-8. On success/failure close owned MCP connections, stop heartbeats, unregister workers
-   and stop owned gateways/directory. Verify PID exit and exact-port release. Never
-   reuse stopped URLs/profiles. Publish only sanitized outcome/artifact/cleanup checks.
+Use the [one-worker CLI recipe](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
+including its reviewed setup, prompt, evidence checks and teardown. From the configured
+coordinator project, with `PROMPT` set to that recipe's instructions:
+
+```sh
+opencode run --standalone --agent coordinator --format json "$PROMPT"
+```
+
+- No TypeScript coordinator is needed; [typed helpers](/examples/agent-network/client-guide.md)
+  are optional host/CI support. Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed
+  a2abridge **4.0.2** and A2A **1.0**. Keep the documented endpoint guard, exact peer/tool
+  allowlists, secret stripping and private receipts; the gateway is A2A HTTP, not MCP.
+- Check free ports, trust workspaces/cards explicitly, review inherited configuration,
+  and keep listeners loopback-only. No global edits, installed services or interruption
+  of another owner's processes. `--standalone` is not configuration/storage isolation.
+- Discover the worker, send with `blocking:false`, then follow up on the same peer with
+  the returned `context_id` and **no `task_id`**. Inspect actual terminal tasks/artifacts
+  and coordinator/worker sessions. Missing tools/evidence block acceptance.
+- Reserve **eight of 40 attempts**, including denials; supervise absolute submit+wait
+  deadlines and spaced polls. Prompts do not enforce bounds. No guessed handles,
+  automatic resend/reconnect or implicit cancellation; retain pending/uncertain outcomes.
+- Require separate billable opt-in; the manual live gate remains **BLOCKED / unverified**.
+  On success/failure/interruption close owned MCP, stop heartbeats, unregister workers,
+  then stop owned gateways and finally the directory. Verify PID/port release and publish
+  only sanitized checks. Follow the recipe's membership and cleanup order exactly.
 
 Provider-free gate: `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
 This verifies the adapter boundary, not real-model E2E or model reasoning. The managed
