@@ -5,8 +5,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { interrupted } from "../../examples/agent-network/lifecycle.js";
-import { stop } from "../../examples/agent-network/transport.js";
+import { interrupted } from "../../interop/lifecycle.js";
+import { stop } from "../../interop/transport.js";
 
 function killFixture(pid: number) {
   try {
@@ -24,8 +24,8 @@ test.each(["SIGINT", "SIGTERM"] as const)(
     import { createServer } from 'node:net';
     import { spawn } from 'node:child_process';
     import { writeFileSync } from 'node:fs';
-    import { createLifecycle, interrupted, owned } from ${JSON.stringify(resolve("examples/agent-network/lifecycle.ts"))};
-    import { stop } from ${JSON.stringify(resolve("examples/agent-network/transport.ts"))};
+    import { createLifecycle, interrupted, owned } from ${JSON.stringify(resolve("interop/lifecycle.ts"))};
+    import { stop } from ${JSON.stringify(resolve("interop/transport.ts"))};
     const receipt = ${JSON.stringify(join(receipts, "partial.json"))};
     const partial = { status: 'INCOMPLETE', finished: false };
     writeFileSync(receipt, JSON.stringify(partial), { mode: 0o600 });

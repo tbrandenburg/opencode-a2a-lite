@@ -1,18 +1,13 @@
 import { expect, test } from "bun:test";
 import { Readable } from "node:stream";
-import {
-  filterCatalog,
-  loopback,
-  readPackets,
-  toolDecision,
-} from "../../examples/agent-network/bridge-proxy.js";
+import { filterCatalog, loopback, readPackets, toolDecision } from "../../interop/bridge-proxy.js";
 import {
   createResultMetadata,
   pairedResult,
   sha256,
   submittedIdentifiers,
   taskMetadata,
-} from "../../examples/agent-network/guard-task.js";
+} from "../../interop/guard-task.js";
 
 const peers = ["http://127.0.0.1:4123/", "http://[::1]:4124/"];
 
