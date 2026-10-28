@@ -11,7 +11,7 @@ Historical source is retained at [pre-retirement revision a70b639](https://githu
 [authorized live failures](/docs/authorized-live-acceptance.md) remain historical
 evidence, not proof of resolved defects. Neither `network-demo` nor
 `topology-investigation` is a current command. The single-gateway `make demo` and
-production `make e2e` remain opt-in and billable.
+production `make e2e` are manual, provider-billed operations and do not run in ordinary CI.
 
 ## Prerequisites
 
@@ -49,10 +49,11 @@ Owned child and port cleanup is verified. See the [caller guide](/examples/agent
 
 ## Manual one-worker CLI smoke
 
-This operator-owned setup is separate from provider-free CI and makes billable
+This operator-owned setup is separate from provider-free CI and makes provider-billed
 requests. **The warmed private-server variant has one authorized, observed
-two-turn pass on 2026-10-28; every new live attempt still requires separate billable
-opt-in.** Cold standalone startup remains blocked by the observed readiness race.
+two-turn pass on 2026-10-28.** The user monitors spend; when this smoke is part of the current user
+request, do not ask for separate per-attempt billing approval. Cold standalone startup
+remains blocked by the observed readiness race.
 See [observed CLI results](#observed-cli-results); this is not a reliability or
 topology acceptance claim. Version/help and catalog review alone are not
 model-callable readiness or real-model acceptance. This recipe does not generate
@@ -245,7 +246,7 @@ and private HOME to the child. MCP `environment:{}` does not strip inherited key
 The guard constrains arguments, not hostile cards/redirects or other local users;
 it is not an OS/network sandbox. Review inherited configuration again.
 
-### 5. Run the CLI only after separate billable authorization
+### 5. Run the requested live CLI attempt
 
 Inspect the actual catalog: `network_a2a_whoami`, `network_a2a_list_agents`,
 `network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`,
@@ -515,7 +516,8 @@ recorded ports released and reusable. The disposable MCP entry was disabled.
 Raw prompts/answers, handles, receipts, credentials and provider diagnostics remain
 private. Cost and token usage were not measured. This dated pass does not resolve
 historical production E2E/topology failures, repair cold standalone readiness or
-establish repeatability. New live attempts remain opt-in and billable.
+establish repeatability. Future user-requested attempts may incur provider charges;
+the user monitors spend.
 
 ## Retained support inventory
 

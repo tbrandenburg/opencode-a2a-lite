@@ -214,8 +214,9 @@ E2E06 after five passed scenarios. See the
 Fanout establishes a completed model-issued MCP workflow with exact artifact/proof
 integrity; remaining failures and missing evidence are retained. No favorable-result
 retry, autonomous/full matrix, pooling with original observations or 80% pass-rate
-claim follows. Cleanup passed, and future paid reproduction requires another
-explicit decision after the bounded diagnostic follow-ups.
+claim follows. Cleanup passed. Any future reproduction is best effort under the
+current topology skill's correction cap; the user monitors provider spend, so no
+per-attempt billing approval prompt is needed.
 
 Research: [RFC 8785 §§3.1, 3.2.3 and Appendix E](https://www.rfc-editor.org/rfc/rfc8785.html)
 explain duplicate-key rejection, ordered arrays and immutable string subtypes;

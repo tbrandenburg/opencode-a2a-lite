@@ -4,9 +4,9 @@
 
 **Canonical exact recipe:** [examples/agent-network/README.md — Manual one-worker CLI smoke](../../../../examples/agent-network/README.md#manual-one-worker-cli-smoke). Use that source for the reviewed configuration fragments, prompt text, API filters, and cleanup commands; do not reconstruct them from memory.
 
-## 1. Authorize and prepare
+## 1. Prepare and verify
 
-- Obtain separate billable opt-in for this attempt.
+- Run the live attempt only when it is part of the current user-requested task. The user monitors provider spend; do not ask for separate per-attempt billing approval.
 - Review one trusted worker project and a distinct trusted coordinator project, their inherited OpenCode configuration, provider/model setup, and any environment overrides. Do not copy or print credentials.
 - Use Bun 1.3.9, OpenCode 2.0.28, checksummed a2abridge 4.0.2, and A2A 1.0 as pinned in the canonical recipe. Build the repository.
 - Create fresh mode-0700 disposable state and private HOME/XDG directories. Export `HOME` first; derive XDG paths in a later command; confirm `opencode debug paths` stays inside the disposable state before changing any service setting. Never alter MADE's shared OpenCode service or `service.json` registration.

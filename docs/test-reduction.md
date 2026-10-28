@@ -253,15 +253,15 @@ failed production live gate into a pass. The separately authorized topology resu
 [PR #26](https://github.com/tbrandenburg/opencode-a2a-lite/pull/26), not this
 test-only benchmark or the original matrix.
 
-## Required and opt-in acceptance
+## Deterministic and manual acceptance
 
 | Command                                                                | Purpose                                                                     | Provider                                                      |
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `make check`                                                           | Formatting, lint, strict types, deterministic unit/integration suite, build | None                                                          |
 | `make package-smoke`                                                   | Install and execute the real packed npm artifact outside this checkout      | None                                                          |
 | `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Real pinned bridge, gateway and controlled ACP process boundaries           | None                                                          |
-| `make e2e`                                                             | Retained 14-scenario production CLI/real-model acceptance                   | Billable, explicit opt-in                                     |
-| `make demo`                                                            | Streamed real CLI conversation and marker recall                            | Billable, explicit opt-in                                     |
+| `make e2e`                                                             | Retained 14-scenario production CLI/real-model acceptance                   | Provider-billed; manual, not CI; user monitors spend          |
+| `make demo`                                                            | Streamed real CLI conversation and marker recall                            | Provider-billed; manual, not CI; user monitors spend          |
 | `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Separately installed official protocol checks                               | External prerequisites; see [acceptance](/docs/acceptance.md) |
 
 Check free loopback ports before service-based validation. Tests/harnesses use

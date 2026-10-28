@@ -41,7 +41,9 @@ opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 - Reserve **eight of 40 attempts**, including denials; supervise absolute submit+wait
   deadlines and spaced polls. Prompts do not enforce bounds. No guessed handles,
   automatic resend/reconnect or implicit cancellation; retain pending/uncertain outcomes.
-- Require separate billable opt-in for each live attempt. The warmed one-worker
+- Live model attempts may incur provider charges; the user monitors spend. Run them
+  when they are part of the current user-requested task, without asking for separate
+  per-attempt billing authorization. The warmed one-worker
   variant has one dated observed pass; cold standalone startup and larger topologies
   remain unverified. Neither catalog readiness nor CLI exit zero proves acceptance.
   On success/failure/interruption close owned MCP, stop heartbeats, unregister workers,
@@ -52,7 +54,7 @@ opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 
 For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker recipe](/examples/agent-network/README.md#manual-one-worker-cli-smoke); do not stop merely because its project-local `network` MCP config, worker gateway, or directory is not present yet. Those are created and started as recipe setup. Missing provider access, trusted project/config review, actual tools, bounded supervision, or acceptance evidence are genuine blockers.
 
-1. Obtain separate billable opt-in for this attempt. Review the trusted coordinator/worker projects, inherited OpenCode config and provider/model settings. Use fresh mode-0700 private state/HOMEs, verified pinned tools, and checked free loopback ports; do not copy or print credentials or change global/shared configuration. Set `HOME` first, then derive its `XDG_*` paths in a later shell command; verify `opencode debug paths` before any service setting.
+1. Run only when the live attempt is part of the current user-requested task; the user monitors provider spend, so do not seek separate per-attempt billing authorization. Review the trusted coordinator/worker projects, inherited OpenCode config and provider/model settings. Use fresh mode-0700 private state/HOMEs, verified pinned tools, and checked free loopback ports; do not copy or print credentials or change global/shared configuration. Set `HOME` first, then derive its `XDG_*` paths in a later shell command; verify `opencode debug paths` before any service setting.
 2. Build the repo. Start the tool-denied worker gateway and loopback A2A directory from dedicated owned processes, verify readiness/cards, register the exact worker URL, and maintain its heartbeat.
 3. Manually merge the documented project-local coordinator config with the endpoint guard, exact worker allowlist and six permitted network tools. Do not bypass the guard or expose listeners beyond loopback.
 4. Start an owned coordinator `opencode serve` on loopback with the private HOME. Warm that **same** server using the recipe's bounded read-only probes; require the correct coordinator, connected `network` MCP and actual six-tool catalog before submitting. Run `opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"` against that server—never cold `--standalone` for this smoke.
@@ -61,12 +63,12 @@ For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker rec
 
 Report model behavior/task completion separately from transport, topology and operations gates. A successful task does not erase another failed gate; missing required evidence makes overall acceptance INCOMPLETE without relabeling observed successful task behavior as a model failure.
 
-This runbook authorizes only the documented one-worker smoke after its per-attempt opt-in. It does not authorize restoring the retired multiworker topology lab or treating historical topology observations as new live results.
+This runbook documents only the one-worker smoke. It does not permit restoring the retired multiworker topology lab or treating historical topology observations as new live results.
 
 Provider-free gate: `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
 This verifies the adapter boundary, not real-model E2E or model reasoning. The managed
 network/topology lab is retired; history at `a70b639` and factual findings remain.
-Production `make e2e` and the single-gateway `make demo` remain opt-in and billable.
+Production `make e2e` and the single-gateway `make demo` are manual, provider-billed operations and do not run in ordinary CI. Do not ask for separate billing approval when they are part of the current user request.
 
 ## MADE OpenCode HTTP history registration
 
