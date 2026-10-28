@@ -15,7 +15,7 @@ Use this path when asked to delegate through MCP/A2A:
 **OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
-Use the [one-worker CLI recipe](/examples/agent-network/README.md#manual-one-worker-cli-smoke),
+Use the [one-worker CLI recipe](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md),
 including its reviewed setup, prompt, evidence checks and teardown. Prefer its
 owned, warmed private-server variant. From the configured coordinator project,
 with `SERVER` and `PROMPT` set to that recipe's reviewed endpoint and instructions:
@@ -24,7 +24,7 @@ with `SERVER` and `PROMPT` set to that recipe's reviewed endpoint and instructio
 opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 ```
 
-- No TypeScript coordinator is needed; [typed helpers](/examples/agent-network/client-guide.md)
+- No TypeScript coordinator is needed; [typed helpers](/interop/client-guide.md)
   are optional host/CI support. Use Bun **1.3.9**, OpenCode **2.0.28**, checksummed
   a2abridge **4.0.2** and A2A **1.0**. Keep the documented endpoint guard, exact peer/tool
   allowlists, secret stripping and private receipts; the gateway is A2A HTTP, not MCP.
@@ -52,7 +52,7 @@ opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
 
 ### Manual one-worker live runbook
 
-For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker recipe](/examples/agent-network/README.md#manual-one-worker-cli-smoke); do not stop merely because its project-local `network` MCP config, worker gateway, or directory is not present yet. Those are created and started as recipe setup. Missing provider access, trusted project/config review, actual tools, bounded supervision, or acceptance evidence are genuine blockers.
+For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker recipe](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md); do not stop merely because its project-local `network` MCP config, worker gateway, or directory is not present yet. Those are created and started as recipe setup. Missing provider access, trusted project/config review, actual tools, bounded supervision, or acceptance evidence are genuine blockers.
 
 1. Run only when the live attempt is part of the current user-requested task; the user monitors provider spend, so do not seek separate per-attempt billing authorization. Review the trusted coordinator/worker projects, inherited OpenCode config and provider/model settings. Use fresh mode-0700 private state/HOMEs, verified pinned tools, and checked free loopback ports; do not copy or print credentials or change global/shared configuration. Set `HOME` first, then derive its `XDG_*` paths in a later shell command; verify `opencode debug paths` before any service setting.
 2. Build the repo. Start the tool-denied worker gateway and loopback A2A directory from dedicated owned processes, verify readiness/cards, register the exact worker URL, and maintain its heartbeat.

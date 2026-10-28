@@ -1,48 +1,505 @@
-# Manual one-worker MCP→A2A runbook
+## Prerequisites
 
-**Status:** Current supported manual baseline. One two-turn real-model pass was observed; it does not establish repeatability. This tests the adapter path and marker continuity, not a multi-worker topology.
+- Linux x86_64, Bun **1.3.9**, locked dependencies; manual model use also requires
+  reviewed OpenCode **2.0.28**, provider access and explicitly trusted workspaces.
+- Reviewed **a2abridge 4.0.2 Linux amd64** binary. Download the release artifact,
+  not an installer; do not install services or modify global configuration:
 
-**Canonical exact recipe:** [examples/agent-network/README.md — Manual one-worker CLI smoke](../../../../examples/agent-network/README.md#manual-one-worker-cli-smoke). Use that source for the reviewed configuration fragments, prompt text, API filters, and cleanup commands; do not reconstruct them from memory.
+```sh
+mkdir -p .test-results/agent-network-tools
+curl --fail --location --connect-timeout 10 --max-time 60 \
+  --output .test-results/agent-network-tools/bridge.tar.gz \
+  https://github.com/vbcherepanov/a2abridge/releases/download/v4.0.2/a2abridge_4.0.2_linux_amd64.tar.gz
+printf '%s  %s\n' \
+  b74f01378c880486a41acd5780364e238d59a1a1aec418c322d1c5bd7f40772a \
+  .test-results/agent-network-tools/bridge.tar.gz | sha256sum --check
+tar -xzf .test-results/agent-network-tools/bridge.tar.gz -C .test-results/agent-network-tools a2abridge
+printf '%s  %s\n' \
+  bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2 \
+  .test-results/agent-network-tools/a2abridge | sha256sum --check
+make install
+A2ABRIDGE_BIN="$PWD/.test-results/agent-network-tools/a2abridge" make interop-test
+```
 
-## 1. Prepare and verify
+Checksums verify the retained artifact, not an independent security audit. Missing
+or mismatched binaries fail, never skip. The gate uses real MCP, the pinned bridge,
+real gateways and controlled ACP subprocesses—not OpenCode model calls. It checks
+the six-tool catalog, discovery, actual fresh-context SSE, stored text, continuation,
+isolation, busy, cancellation races, uncertainty, endpoint/tool denials, receipt
+privacy/pairing and the 40-attempt cap with eight reserved calls. Two independently
+planned connections each stay within 32 attempts; this is not budget evasion.
+Owned child and port cleanup is verified. See the [caller guide](/interop/client-guide.md).
 
-- Run the live attempt only when it is part of the current user-requested task. The user monitors provider spend; do not ask for separate per-attempt billing approval.
-- Review one trusted worker project and a distinct trusted coordinator project, their inherited OpenCode configuration, provider/model setup, and any environment overrides. Do not copy or print credentials.
-- Use Bun 1.3.9, OpenCode 2.0.28, checksummed a2abridge 4.0.2, and A2A 1.0 as pinned in the canonical recipe. Build the repository.
-- Create fresh mode-0700 disposable state and private HOME/XDG directories. Export `HOME` first; derive XDG paths in a later command; confirm `opencode debug paths` stays inside the disposable state before changing any service setting. Never alter MADE's shared OpenCode service or `service.json` registration.
-- Check the chosen loopback ports are free. Do not stop another owner's listeners.
+<a id="manual-two-worker-recipe"></a>
 
-## 2. Start the worker and directory
+## Manual one-worker CLI smoke
 
-- Configure a named worker with tools denied and the reviewed existing provider/model configuration.
-- Start the compiled gateway on loopback and verify its actual ready URL, agent card, A2A 1.0 interface, identity, description, and tags.
-- Start the loopback A2A directory in its own private HOME. Register only the exact worker URL and keep its heartbeat active.
-- Worker gateway, directory, heartbeat, and project-local config are expected setup steps. Their absence before setup is not a reason to stop; missing trust, provider access, actual tools, or review evidence are real blockers.
+This operator-owned setup is separate from provider-free CI and makes provider-billed
+requests. **The warmed private-server variant has one authorized, observed
+two-turn pass on 2026-10-28.** The user monitors spend; when this smoke is part of the current user
+request, do not ask for separate per-attempt billing approval. Cold standalone startup
+remains blocked by the observed readiness race.
+See [observed CLI results](#observed-cli-results); this is not a reliability or
+topology acceptance claim. Version/help and catalog review alone are not
+model-callable readiness or real-model acceptance. This recipe does not generate
+profiles, add a runner or install a readiness plugin. The route is:
 
-## 3. Configure guarded MCP and warm OpenCode
+**OpenCode coordinator → local stdio endpoint guard → a2abridge → loopback A2A gateway → ACP worker**.
 
-- Merge the canonical project-local coordinator config. Keep the endpoint guard, exact peer allowlist, secret stripping, attempt budget, and exactly six network tools. The gateway is A2A HTTP, not a remote MCP server.
-- Start an owned coordinator `opencode serve` on loopback with its private HOME. Never apply this isolation or its service settings to MADE's existing service.
-- Warm that same server using the recipe's bounded read-only agent/MCP probes. Require the exact coordinator identity, `network` connected, and the guard's six-tool catalog receipt before any model prompt. Pending status is not ready; repeat probes only within the recipe's 30-second startup deadline. Do not substitute a fixed sleep.
-- Run the recipe's exact two-turn prompt against that same server with `opencode run --server ...`; do not use cold `--standalone` for this smoke.
+### 1. Review projects and check ports
 
-## 4. Supervise one attempt
+Build with `make build`. Choose one trusted worker and a separate trusted coordinator project.
+Review `opencode debug config` sources from each: global and ancestor configuration
+is inherited, so project-local does not mean isolated. Review tools, plugins, MCP
+and provider settings. Supply keys securely in launch environments, never files/logs.
+Set these Bash variables to your own absolute paths. Use a fresh, operator-owned
+`STATE` directory; do not overwrite a prior attempt's evidence. Repeat the path
+exports and `umask 077` in each dedicated terminal below; shell variables are not
+shared between terminals. Confirm Bun `1.3.9` and `opencode v2.0.28` with `--version`.
 
-- Externally enforce each absolute 30-second submit-plus-wait deadline and observe poll spacing. A prompt instruction or whole-invocation timeout alone is not equivalent. If these bounds cannot be supervised, do not submit and mark bounded-wait status `BLOCKED`.
-- First send: `blocking:false`, approved peer, no context/task handles. Preserve the actual returned context and task handles. Poll that task to terminal and inspect its stored artifact before continuing.
-- Follow-up: same peer, actual returned context, omit the prior task ID, use a new nonblocking send, then poll its new task to terminal and inspect the artifact.
-- Count every attempt, including denials; stop ordinary calls at 32/40 to preserve the eight-call reserve. At most eight spaced polls per turn. No retries, resend, reconnect, guessed handles, or implicit cancellation.
+```sh
+export REPO=/absolute/path/to/opencode-a2a-lite
+export WORKER=/absolute/path/to/trusted-worker-project
+export COORDINATOR=/absolute/path/to/trusted-coordinator-project
+export STATE=/absolute/path/to/private-disposable-network-state
+export A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge
+export SERVER=http://127.0.0.1:41244
+umask 077
+mkdir -p "$STATE" "$STATE/directory-home" "$STATE/worker-home" "$STATE/coordinator-home"
+chmod 700 "$STATE" "$STATE/directory-home" "$STATE/worker-home" "$STATE/coordinator-home"
+bun -e '
+  import { createServer } from "node:net";
+  for (const port of [41241, 7777, 41244]) {
+    const server = createServer();
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(port, "127.0.0.1", resolve);
+    });
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    console.log(`free loopback port: ${port}`);
+  }
+'
+```
 
-## 5. Review independent evidence
+If occupied, stop; never kill another owner's process. Choose unused ports and
+update launch commands, registrations and the exact allowlist consistently. A
+released bind is not a reservation; startup must succeed too.
 
-Verify actual paired MCP tool calls, exact dispatched and worker-received inputs, same-peer/context provenance, distinct task IDs, terminal states, stored artifacts, worker root-session messages, coordinator tool records, and marker continuity. Follow all message-list cursors. Use session analysis to correlate the actual coordinator and worker sessions; do not infer from A2A IDs or the newest session alone.
+### 2. Start one named worker and the directory
 
-Report OpenCode/MCP readiness, adapter protocol results, model answer behavior, and operations separately. A correct task does not erase another failed gate; a wrong model answer does not by itself prove adapter failure. Missing evidence remains `INCOMPLETE`.
+In the worker project's reviewed `opencode.json`, manually merge a tool-denied
+worker agent (preserve unrelated settings; no global edits):
 
-## 6. Clean up and retain privacy
+```json
+{
+  "default_agent": "worker",
+  "permissions": [{ "action": "*", "resource": "*", "effect": "deny" }],
+  "agents": {
+    "worker": {
+      "mode": "primary",
+      "description": "Short-answer worker",
+      "system": "Answer concisely. Do not delegate or use tools.",
+      "permissions": [{ "action": "*", "resource": "*", "effect": "deny" }]
+    }
+  },
+  "plugins": [],
+  "skills": [],
+  "instructions": [],
+  "snapshots": false,
+  "warming": false
+}
+```
 
-Close the coordinator client, owned server, and MCP connection. Stop heartbeat, unregister while the directory remains up, record and require HTTP 204, then stop the owned gateway and directory. Verify owned process exit and every recorded port is released before removing state. Publish only sanitized checks; keep raw prompts, answers, handles, receipts, and diagnostics private.
+Use the existing reviewed provider/model configuration; do not add a model/profile.
+It must be available from the reviewed worker project/launch environment after
+switching HOME; do not copy credentials or assume normal global settings carry over.
+The coordinator uses an explicitly owned, warmed server below. **`acp` has no `--standalone` flag.**
+For the worker, use a dedicated shell with the following private HOME/XDG paths
+before configuring its service discovery. Review inherited `OPENCODE_*` overrides
+and managed/ancestor config; stop if they redirect storage or server discovery.
+Do not run `service set` with your normal HOME/XDG: it stops the shared service.
+This follows the private-discovery technique in the existing
+[ACP smoke configuration](/scripts/acp-smoke-config.ts), not an isolation sandbox.
 
-## Adapter boundary fallback
+```sh
+export HOME="$STATE/worker-home"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state" XDG_CACHE_HOME="$HOME/.cache"
+opencode debug paths
+# Confirm these resolve inside the disposable worker home before proceeding.
+opencode service set disabled true
+cd "$WORKER"
+opencode debug config
+# Privately review sources; supply the approved provider key in this launch environment.
+echo "owned gateway PID: $$"
+exec env A2A_NAME=smoke-worker A2A_DESCRIPTION='Short text continuity smoke' A2A_TAGS='text' \
+  bun "$REPO/dist/src/cli.js" --workspace "$WORKER" --port 41241
+```
 
-If OpenCode/MCP tool exposure blocks the real model-issued call, classify that blocker rather than calling it an adapter failure. The provider-free `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` uses the real bridge/gateway with a controlled ACP peer to exercise the adapter boundary; label it provider-free and do not claim model or topology acceptance.
+`exec` replaces only this dedicated shell: record its PID privately before launch.
+Record the gateway's actual readiness URL and its owned ACP/private-server PIDs
+from the process tree, without dumping argv/environments. In a second dedicated terminal:
+
+```sh
+echo "owned directory PID: $$"
+exec env -i PATH="$PATH" HOME="$STATE/directory-home" \
+  "$A2ABRIDGE_BIN" directory --addr 127.0.0.1:7777
+```
+
+Wait for the gateway's actual `ready:true` URL. Fetch its `/.well-known/agent-card.json` with
+`curl --fail --max-time 5`; verify intended names, descriptions, tags and exact A2A
+1.0 interface URLs. Identity is metadata, not permission or authentication. Never
+expose gateways through public proxies or use untrusted directories/cards.
+
+### 3. Register and refresh membership
+
+In a control terminal, require `/agents` readiness, register exact root URLs, then
+keep the foreground heartbeat running (HTTP 204 for registration/heartbeat):
+
+```sh
+curl --fail --silent --show-error --max-time 3 http://127.0.0.1:7777/agents || exit 1
+peer=http://127.0.0.1:41241/
+curl --fail --silent --show-error --max-time 3 -o /dev/null -w '%{http_code}\n' \
+  -H 'Content-Type: application/json' --data "{\"url\":\"$peer\"}" \
+  http://127.0.0.1:7777/register || exit 1
+echo "owned heartbeat shell PID: $$"
+while :; do
+  curl --fail --silent --show-error --max-time 3 -o /dev/null \
+    -H 'Content-Type: application/json' --data "{\"url\":\"$peer\"}" \
+    http://127.0.0.1:7777/heartbeat || exit 1
+  sleep 20
+done
+```
+
+Membership TTL is 90 seconds; garbage collection runs every 30 seconds. Heartbeat
+does not prove worker health. The directory is required for discovery; no static
+inventory replaces it.
+
+### 4. Manually merge the project-local MCP fragment
+
+In the coordinator's `opencode.json` or `.opencode/opencode.json`, manually merge
+this fragment. Replace path placeholders with literal absolute paths; JSON does
+not expand shell variables. Preserve reviewed settings and choose the configured
+coordinator agent. The private receipt parent must exist and be writable.
+
+```json
+{
+  "default_agent": "coordinator",
+  "permissions": [{ "action": "*", "resource": "*", "effect": "deny" }],
+  "agents": {
+    "coordinator": {
+      "mode": "primary",
+      "description": "Manual one-worker CLI smoke coordinator",
+      "system": "Use only the six network tools. Discover exact worker URLs. Retain returned handles. Never use native subagents. Reserve eight calls within forty attempts; no automatic retries or cancellation.",
+      "permissions": [
+        { "action": "*", "resource": "*", "effect": "deny" },
+        { "action": "network_a2a_whoami", "resource": "*", "effect": "allow" },
+        { "action": "network_a2a_list_agents", "resource": "*", "effect": "allow" },
+        { "action": "network_a2a_send_message", "resource": "*", "effect": "allow" },
+        { "action": "network_a2a_send_streaming", "resource": "*", "effect": "allow" },
+        { "action": "network_a2a_get_task", "resource": "*", "effect": "allow" },
+        { "action": "network_a2a_cancel_task", "resource": "*", "effect": "allow" }
+      ]
+    }
+  },
+  "mcp": {
+    "servers": {
+      "network": {
+        "type": "local",
+        "command": [
+          "/absolute/path/to/bun",
+          "/absolute/path/to/opencode-a2a-lite/interop/bridge-proxy.ts",
+          "/absolute/path/to/verified/a2abridge",
+          "http://127.0.0.1:7777",
+          "/absolute/path/to/private-disposable-network-state/mcp-receipts.jsonl",
+          "[\"http://127.0.0.1:41241/\"]"
+        ],
+        "cwd": "/absolute/path/to/trusted-coordinator-project",
+        "codemode": false,
+        "timeout": { "startup": 30000, "catalog": 30000, "execution": 150000 }
+      }
+    }
+  }
+}
+```
+
+`network` is a label, not a second MCP product. The gateway is an A2A HTTP server,
+**not a remote MCP endpoint**. The final argument is a JSON URL array including
+trailing `/`, not a manifest filename. Do not bypass the guard: it pins the binary,
+filters six tools, enforces exact peers and 40 attempts, and passes only fixed PATH
+and private HOME to the child. MCP `environment:{}` does not strip inherited keys.
+The guard constrains arguments, not hostile cards/redirects or other local users;
+it is not an OS/network sandbox. Review inherited configuration again.
+
+### 5. Run the requested live CLI attempt
+
+Inspect the actual catalog: `network_a2a_whoami`, `network_a2a_list_agents`,
+`network_a2a_send_message`, `network_a2a_send_streaming`, `network_a2a_get_task`,
+`network_a2a_cancel_task`. If unavailable, report a blocker; never substitute native
+subagents, the A2A CLI or direct ACP. Catalog receipts or `opencode mcp list` alone
+are not model-callable readiness.
+
+#### Warm the same owned server before submitting
+
+OpenCode 2.0.28 can construct a cold standalone request before MCP tools enter its
+registry. A provider-free local request capture reproduced zero primary-request
+tools on cold startup and six on a warmed server, without changing permissions or
+the model. The pinned implementation starts MCP connections asynchronously,
+reads the currently connected tools and debounces subsequent registry refreshes:
+[startup](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L550-L560),
+[tool reads](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L663-L667),
+[registry refresh](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/tool/mcp.ts#L124-L144).
+There is no advertised MCP-wait option in the pinned `run --help`.
+
+Use a dedicated coordinator-server terminal. Repeat the path exports from step 1,
+then the following HOME/XDG exports in **both** that terminal and the later
+coordinator client/inspection terminals. Securely supply the same fresh
+`OPENCODE_PASSWORD` to them; do not write it into files, commands or logs. Review
+other inherited `OPENCODE_*` overrides and stop if they redirect storage/discovery.
+Provider/model configuration must remain available from the reviewed project and
+launch environment after changing HOME; do not copy credentials from normal storage.
+
+```sh
+export HOME="$STATE/coordinator-home"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state" XDG_CACHE_HOME="$HOME/.cache"
+umask 077
+: "${OPENCODE_PASSWORD:?Supply a fresh server password securely}"
+cd "$COORDINATOR"
+opencode debug paths
+opencode debug config
+# Privately confirm storage paths/configuration before starting the owned server.
+echo "owned coordinator server PID: $$"
+exec opencode serve --hostname 127.0.0.1 --port 41244 \
+  > "$STATE/coordinator-server.stdout" 2> "$STATE/coordinator-server.stderr"
+```
+
+From the coordinator client terminal, after repeating those exports, inspect the
+same server and exact project. Use bounded read-only probes, not another prompt:
+
+```sh
+opencode api --server "$SERVER" agent.get --param agentID=coordinator \
+  --param "location[directory]=$COORDINATOR" > "$STATE/coordinator-agent.json"
+opencode api --server "$SERVER" mcp.list \
+  --param "location[directory]=$COORDINATOR" > "$STATE/coordinator-mcp.json"
+```
+
+An initial missing-agent response or pending MCP status can precede activation.
+The operator may repeat these read-only probes within one absolute 30-second
+startup deadline; stop on expiry, wrong identity, failed connection or config
+mismatch. Require the exact coordinator agent, the `network` server connected and
+the guard's actual six-tool catalog receipt. These are warmup signals, not proof
+of the model's tool snapshot: acceptance still requires its actual tool calls.
+Do not substitute a fixed sleep or increase budgets to obtain a pass.
+
+Run the prompt below against this **same** server. Do not add `--standalone`:
+that creates a new cold server instead of reusing the warmed one. The historical
+`opencode run --standalone --agent coordinator --format json "$PROMPT"` invocation
+remains an observed blocked attempt, not a successful alternative. Do not use the
+shared service or add a readiness plugin, runner, Dagu workflow or new dependency.
+
+In the dedicated coordinator client terminal:
+
+```sh
+cd "$COORDINATOR"
+opencode --version   # must print opencode v2.0.28
+opencode run --help
+export MARKER="$(bun -e 'console.log(crypto.randomUUID())')"
+PROMPT="Use only the six configured network_a2a_* tools through the guarded MCP route.
+If they are unavailable, stop and report BLOCKED. Call whoami and list_agents;
+select only the verified smoke-worker at http://127.0.0.1:41241/.
+Send exactly this first text via send_message with blocking:false and no context_id
+or task_id: Remember this synthetic marker: $MARKER. Reply with exactly $MARKER.
+Retain the actual peer URL, returned contextId and task id. Inspect get_task using
+that peer and task_id until terminal, within one 30-second submit-plus-wait deadline.
+Only after completed with an observed artifact, send exactly this follow-up text:
+What synthetic marker did I ask you to remember? Reply with only that marker.
+Use the same peer and actual returned context_id, blocking:false, and OMIT task_id.
+Retain the new task id and inspect its terminal state/artifact under a new
+30-second submit-plus-wait deadline. Never guess handles or cross peers.
+Allow at most eight spaced polls per turn; no rapid polling. Count every attempted
+call including errors/denials; stop ordinary work at 32 of 40 to reserve eight calls.
+No retries, resend, reconnect, cancellation or alternative delegation route.
+Unknown/stale task/context errors remain errors, never start a replacement context.
+If waiting expires retain pending handles; if submission has no returned handle
+report uncertain without resend. Missing evidence is INCOMPLETE, not success.
+Report actual handles/states and artifact checks, not a claim that you succeeded."
+echo "owned coordinator PID: $$"
+exec opencode run --server "$SERVER" --agent coordinator --format json \
+  --title "adapter-smoke-$MARKER" "$PROMPT" \
+  > "$STATE/coordinator.jsonl" 2> "$STATE/coordinator.stderr"
+```
+
+Record this dedicated shell's PID before `exec`; interrupt only that owned client
+if necessary. Both worker turns are inside **one CLI invocation/MCP connection**;
+do not use `run --continue` or a second invocation to reset the guard budget.
+The OpenCode coordinator session ID is separate from the A2A context/task IDs.
+Record the actual session reference from the CLI events or targeted session list
+below; do not assume an A2A context ID is an OpenCode session ID.
+
+The 30-second local operation example matches the [host guide](/interop/client-guide.md).
+Unlike that helper, direct model calls do not enforce monotonic deadlines or poll
+spacing themselves. `run` has no timeout flag, and six-tool permissions do not
+provide a sleep/clock tool. The operator must supervise absolute monotonic cutoffs,
+remaining call time and spacing; if this cannot be enforced/observed, record the
+bounded-wait gate as BLOCKED rather than claim the prompt enforces it. The observed
+pass used external supervision of each 30-second submit-plus-wait deadline, eight
+polls per turn and the call reserve. Record actual poll timestamps and reject
+overlapping/unbounded polling; this recipe does not define a three-second minimum.
+Do not invent an extra numeric acceptance threshold and misclassify its interruption
+as an adapter failure.
+The guard enforces 40 attempts, **not the eight-call reserve**. Do not extend budgets
+or add tools/runners to obtain a pass. Local timeout/abort is not remote cancellation.
+Explicit cancellation requires separate authorization and an inspected actual
+outcome/error (including a race lost to completion); retain unknown-task errors.
+Bridge 4.0.2 cannot stream a context continuation; use nonblocking send plus polling.
+Its unary budget is 60 seconds versus the gateway's default 120-second prompt budget.
+
+### 6. Review existing session and task evidence privately
+
+An owned server does not make storage disposable: private HOME/XDG paths do that
+explicitly. Do not delete normal OpenCode data. In the **same coordinator
+environment/project**, identify the actual
+session by its fresh title, location and time; never select the newest unrelated
+session. Then substitute that observed ID:
+
+```sh
+cd "$COORDINATOR"
+set -o pipefail
+opencode session list --server "$SERVER" --max-count 20 --format json \
+  > "$STATE/coordinator-sessions.json"
+export SESSION=ses_REPLACE_WITH_OBSERVED_COORDINATOR_ID
+opencode api --server "$SERVER" session.message.list \
+  --param "sessionID=$SESSION" --param limit=100 --param order=asc |
+  jq '{cursor, data: [.data[] |
+    if .type == "user" then {id, type, text}
+    elif .type == "assistant" then {id, type, content: [.content[] |
+      select(.type == "text" or .type == "tool") |
+      if .type == "tool" then {type, id, name, state: (.state |
+        {status, input, content, error})} else {type, text} end]}
+    else empty end]}' > "$STATE/coordinator-review.json"
+```
+
+Use these existing V2 interfaces, not SQL or a new exporter. Follow returned
+`cursor.next` pages when present: repeat `session.message.list` with the same
+`--param "sessionID=$SESSION" --param limit=100`, add `--param "cursor=$CURSOR"`
+using the actual returned next cursor, and omit `order`. Keep the same filter and
+retain each page privately; a truncated page is not complete evidence.
+OpenCode 2.0.28's [API handler](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/cli/src/commands/handlers/api.ts)
+applies `--param` only to operation IDs, not raw method/path requests; use the
+operation-ID form for both coordinator and worker inspection.
+This allowlist omits reasoning/native/metadata fields; do
+not use `--thinking`, publish raw JSONL/stderr, or export other projects. Even the
+filtered file contains private synthetic prompts, tool inputs/results and answers.
+Inspect it locally only. If the pinned API response differs from the documented
+shape, stop and report the mismatch; do not infer missing evidence.
+
+In a separate inspection terminal, restore the worker's exact HOME/XDG from step 2,
+`cd "$WORKER"`, and use the same `session list --standalone` and message API/filter
+with the **observed worker session ID** and distinct private output filenames.
+Check location, launch time and the unique first marker prompt, then verify both
+received prompts are in that one root session. Do not guess its ID from the A2A
+handle. Missing/ambiguous worker correlation leaves continuity unverified.
+
+Acceptance review (CLI exit 0 and assistant self-report are insufficient):
+
+- Coordinator tool records show actual discovery, two nonblocking sends and task
+  lookups through `network_a2a_*`, with tool inputs/results, not just proposed calls.
+  Within guard receipts, pair call/result by connection and MCP ID; correlate with
+  session records by tool, peer, input/handle hashes and order. Provider tool IDs
+  are not MCP IDs. Missing/unpaired/ambiguous evidence remains unverified.
+- First send has no context/task argument; follow-up sends the returned context,
+  omits task ID, stays on the same approved peer and returns a distinct task ID.
+  Both observed terminal tasks are `completed` with actual stored text artifacts.
+- Compare exact intended text, model-declared arguments, guard-dispatched input
+  hashes and worker-received user text separately. Compare the worker's root
+  assistant text to stored A2A artifact text in order; do not include reasoning,
+  child-session text or tool output as ACP/root answer text.
+- Record marker-content checks separately from protocol/state checks. A wrong
+  answer, slow first text or extra model-selected call alone is not an adapter bug.
+  Retain observed byte/state mismatches and original failures for a small boundary
+  reproduction; do not retry for a favorable result or restore a role scorer.
+- Missing tools/evidence, unknown tasks, pending work, uncertain submission or
+  unverified bounds remain BLOCKED/INCOMPLETE, never inferred completion/cancellation.
+
+The API paths/filters follow [V2 API documentation](https://opencode.ai/v2/docs/api)
+and its [OpenAPI](https://opencode.ai/v2/openapi.json). The observed pass inspected
+two message pages for each correlated coordinator/worker session using the pinned
+operation-ID API. After owned server shutdown, inspection may instead use
+`--standalone` with the exact same private HOME/XDG/project and observed session ID;
+this reads persisted evidence, not a continuation or a new model prompt. Session
+review is client-side evidence, not a production OpenCode HTTP adapter.
+
+### 7. Owned cleanup, including failure or interruption
+
+Keep a private PID/port ledger: gateway, its ACP/private-server descendants,
+directory, heartbeat shell and children, coordinator client, owned coordinator
+server and its guard/bridge
+descendants. Record actual listener ports (including ephemeral private servers),
+not only requested ports. Use `ps -o pid,ppid,pgid,comm -p <owned-pids>` and
+`ss -ltnp` locally without publishing their raw output. Identity/PID existence
+alone is not readiness. Do not signal a PID whose ownership cannot be confirmed.
+
+On success, failure, local deadline or SIGINT/SIGTERM, close the owned coordinator
+client **and server/MCP connection**; client exit alone leaves the server's MCP
+connection open. Stop the foreground heartbeat and its exact owned children,
+then unregister while the directory remains running. Review private evidence when
+possible, but never delay resource cleanup for reporting:
+
+```sh
+curl --fail --silent --show-error --max-time 3 -o /dev/null \
+  -H 'Content-Type: application/json' --data '{"url":"http://127.0.0.1:41241/"}' \
+  http://127.0.0.1:7777/unregister
+```
+
+Record unregister/reporting failures, but continue cleanup independently. Stop the
+owned foreground gateway, then directory, with Ctrl-C in their dedicated terminals
+or `kill -TERM <verified-owned-pid>` from the ledger. Verify PID exit, descendant
+exit and absence of listeners on every recorded exact port, then repeat the bind
+probe for those ports. TIME_WAIT without a listener/process is not a leaked server.
+Do not delete state while owned processes remain. Inspection commands also create
+short-lived private servers: verify their exit. Never use name/pattern-wide kills,
+stop/restart/configure an existing shared service or delete its database.
+
+If interrupted before review, preserve state/handles and record evidence as missing;
+resource cleanup must not wait for reporting. Gateway shutdown may attempt its
+existing bounded active cancellation, but client closure alone proves no remote
+cancellation. Record actual observed outcome or unknown. Do not reuse stopped
+URLs/contexts. Remove/disable only the manually added MCP entry; remove disposable
+private state only after review and verified owned exit, never normal databases.
+Publish only revision/pins, command shape, boolean task/context/artifact/content
+checks, outcome and cleanup checks. Retain actual session/task handles privately,
+not raw prompts/answers, provider diagnostics, databases, keys or reasoning.
+Receipt hashes still contain local URLs and opaque identifiers: private metadata.
+
+### Observed CLI results
+
+Source baseline `ae91940`; Linux, Bun 1.3.9, OpenCode 2.0.28, checksummed
+a2abridge 4.0.2, A2A 1.0 and the existing `openai/gpt-6-luna` smoke model.
+The original paid request was not wire-captured; the cold-start mechanism was
+reproduced separately against a local provider-free capture endpoint.
+
+| Authorized attempt                  | Observed outcome                                                                                                                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cold standalone                     | CLI exit zero, catalog received, zero model tool calls and zero worker sessions; BLOCKED.                                                                                                                             |
+| Warmed server, initial supervisor   | Six paired calls; first task completed with matching prompt/artifact/answer. An invented three-second minimum interrupted the CLI at a 2.69-second poll gap before the follow-up; INCOMPLETE, not an adapter failure. |
+| Warmed server, corrected supervisor | Two completed tasks in one context with distinct task IDs, exact worker inputs and matching stored artifacts/root answers; observed pass on 2026-10-28 at 09:22 UTC.                                                  |
+
+The final attempt was separately authorized with fresh private state and a fresh
+synthetic marker after correcting the supervisor; no earlier evidence was replaced
+and no pending/uncertain submission was resent. It used one CLI invocation and
+one guard connection, eight paired calls of forty with the eight-call reserve
+untouched, two nonblocking sends and three/one polls per turn. Submit-to-completed
+observations were 9.036s and 2.252s, within the unchanged 30-second deadlines;
+observed repeated-poll gaps were 2.190s and 3.788s. Provider-selected arguments,
+guard input hashes and worker-received text matched. The follow-up used the actual
+returned context and omitted task ID. Two pages per session were inspected.
+
+Unregister succeeded. The first process-exit check still saw an owned child; final
+verification, before accepting cleanup, found zero owned processes and five
+recorded ports released and reusable. The disposable MCP entry was disabled.
+Raw prompts/answers, handles, receipts, credentials and provider diagnostics remain
+private. Cost and token usage were not measured. This dated pass does not resolve
+historical production E2E/topology failures, repair cold standalone readiness or
+establish repeatability. Future user-requested attempts may incur provider charges;
+the user monitors spend.

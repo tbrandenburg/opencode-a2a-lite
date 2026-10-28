@@ -4,8 +4,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { callTool } from "../../examples/agent-network/transport.js";
-import { createTaskClient, type Observation } from "../../examples/agent-network/task-client.js";
+import { callTool } from "../../interop/transport.js";
+import { createTaskClient, type Observation } from "../../interop/task-client.js";
 
 const releases: (() => Promise<void>)[] = [];
 afterEach(async () => {

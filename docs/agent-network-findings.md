@@ -3,7 +3,7 @@
 > Historical research record. The managed lab and its runner commands are retired,
 > not fixed. Commands, test filters and results below describe their recorded revisions.
 > Retired source: [a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
-> Current [manual guard/interop guidance](/examples/agent-network/README.md) replaces
+> Current [manual guard/interop guidance](/interop/README.md) replaces
 > the managed setup, not its historical evidence.
 
 ## Worker identity, manual peers and bounded waits acceptance

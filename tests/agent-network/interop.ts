@@ -14,8 +14,8 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { createGateway } from "../../src/server.js";
-import { createLifecycle, interrupted, owned } from "../../examples/agent-network/lifecycle.js";
-import { record, tools, type Profile } from "../../examples/agent-network/profiles.js";
+import { createLifecycle, interrupted, owned } from "../../interop/lifecycle.js";
+import { record, tools, type Profile } from "../../interop/profiles.js";
 import {
   directory,
   freePort,
@@ -23,9 +23,9 @@ import {
   payloadText,
   until,
   verifyReleased,
-} from "../../examples/agent-network/transport.js";
-import { createTaskClient, type Submission } from "../../examples/agent-network/task-client.js";
-import { pairedResult, sha256 } from "../../examples/agent-network/guard-task.js";
+} from "../../interop/transport.js";
+import { createTaskClient, type Submission } from "../../interop/task-client.js";
+import { pairedResult, sha256 } from "../../interop/guard-task.js";
 
 const lifecycle = createLifecycle();
 const binary = process.env.A2ABRIDGE_BIN ?? "";
