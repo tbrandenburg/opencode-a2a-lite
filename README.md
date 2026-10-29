@@ -426,8 +426,9 @@ actual session tool calls, completed tasks/artifacts and owned cleanup—not jus
 the final answer. Reuse the same warmed server; cold `--standalone` is not a
 substitute. The warmed one-worker smoke has one observed pass, not repeatability
 evidence. The project [multi-a2a-agent skill](/.opencode/skills/multi-a2a-agent/SKILL.md)
-contains this runbook and progressive topology references; multiworker pages remain
-research-only, not runnable procedures. Optional
+contains this runbook and progressive topology references; the approved issues
+#36–#42 add bounded, evidence-led investigations without making the pages general
+runtime procedures. Optional
 [TypeScript helpers](/interop/client-guide.md) are for host/CI use;
 see their [consumer inventory](/interop/README.md#retained-support-inventory).
 

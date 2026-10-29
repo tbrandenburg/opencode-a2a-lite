@@ -12,4 +12,4 @@ Exercise existing A2A boundaries for the actual branch/convergence calls: peer a
 
 ## Disclosed steps
 
-None yet. Add validated adapter-focused steps incrementally through issue #40. No orchestrator or topology scorer is authorized by this placeholder.
+None yet. Issue #40 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; OpenCode remains the coordinator, with no host-side orchestrator or topology scorer.

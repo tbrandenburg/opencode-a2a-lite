@@ -12,4 +12,4 @@ Check peer/task/context provenance and exact artifact delivery through the adapt
 
 ## Disclosed steps
 
-None yet. Add validated adapter-focused steps incrementally through issue #38. Do not restore the retired judge schedule or add a scorer.
+None yet. Issue #38 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; do not restore the retired judge runner/schedule or add a scorer.

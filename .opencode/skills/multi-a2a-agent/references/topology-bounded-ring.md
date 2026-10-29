@@ -12,4 +12,4 @@ Observe only actual guarded A2A calls: exact peer routing, task/context handle c
 
 ## Disclosed steps
 
-None yet. Add validated adapter-focused steps incrementally through issue #36. Any ring schedule remains unavailable until separately reviewed and authorized.
+None yet. Issue #36 is approved for a bounded, prompt-driven adapter investigation. Add only validated steps and sanitized evidence incrementally; do not add a host-side ring runner or a reusable schedule feature.

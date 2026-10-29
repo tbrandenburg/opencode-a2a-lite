@@ -12,4 +12,4 @@ Prioritize whether each actual guarded MCP call is bound to its approved peer, e
 
 ## Disclosed steps
 
-None yet. Add validated adapter-focused steps incrementally through issue #39. Multi-worker execution remains out of the current supported manual recipe; do not expand peer lists or recreate a runner without reviewed setup and separate scope authorization.
+None yet. Issue #39 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; use only the issue-reviewed peers and setup, and do not recreate a host-side runner or expand the production adapter contract.
