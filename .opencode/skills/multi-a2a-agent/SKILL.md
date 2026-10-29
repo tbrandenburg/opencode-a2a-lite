@@ -9,11 +9,11 @@ Use OpenCode as the coordinator through the existing guarded route:
 
 **OpenCode coordinator → local MCP endpoint guard → a2abridge → A2A gateway → ACP worker**
 
-This skill guides use and evaluation of the adapter. It is not an orchestration runtime and does not add topology schedules, roles, scorers, runners, or platform features. User approval authorizes bounded investigations for issues #36–#42 through prompt-driven OpenCode MCP calls; this does not restore the retired lab or authorize runtime features.
+This skill guides use and evaluation of the adapter. It is not an orchestration runtime and does not add topology schedules, roles, scorers, runners, or platform features. User approval authorizes bounded investigations for issues #35–#42 through prompt-driven OpenCode MCP calls; this does not restore the retired lab or authorize runtime features.
 
 ## Workflow
 
-1. Identify the requested traffic pattern and read its linked issue and topology page. Treat pages as incomplete until their issue-validated steps are added; do not invent missing steps. Issues #36–#42 are authorized for bounded investigations under their own limits.
+1. Identify the requested traffic pattern and read its linked issue and topology page. Treat pages as incomplete until their issue-validated steps are added; do not invent missing steps. Issues #35–#42 are authorized for bounded investigations under their own limits.
 2. For the currently supported manual baseline, follow [manual-one-worker.md](references/manual-one-worker.md).
 3. Run live inference only when it is part of the current user-requested task. The user monitors provider spend; do not ask for separate per-attempt billing approval. Use the pinned tools, trusted projects, private disposable state, loopback listeners, endpoint guard, exact peer/tool allowlists, and a warmed owned OpenCode server. Never use a cold `--standalone` invocation for the smoke.
 4. Supervise each absolute submit-plus-wait deadline and poll spacing externally. A prompt or a whole-invocation timeout is not a substitute. If bounds cannot be enforced, do not submit; report the bounded-wait gate as `BLOCKED`.
@@ -29,7 +29,7 @@ Load the relevant page only. Each page records historical evidence and adapter-f
 | Traffic pattern                                  | Page                                                                      | Status                                                                         |
 | ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | One coordinator, one worker, two-turn continuity | [Manual one-worker](references/manual-one-worker.md)                      | Current manual baseline; one observed real-model pass, not a reliability claim |
-| Pipeline                                         | [Pipeline](references/topology-pipeline.md)                               | Research stub                                                                  |
+| Pipeline                                         | [Pipeline](references/topology-pipeline.md)                               | Approved bounded investigation; historical handoff issue retained              |
 | Fan-out / fan-in                                 | [Fan-out/fan-in](references/topology-fan-out-fan-in.md)                   | Approved bounded investigation; historical feasibility only                    |
 | Diamond                                          | [Diamond](references/topology-diamond.md)                                 | Approved bounded investigation; current-path evidence pending                  |
 | Propose–critique–revise                          | [Propose–critique–revise](references/topology-propose-critique-revise.md) | Approved bounded investigation; historical role evidence retained              |
@@ -40,7 +40,7 @@ Load the relevant page only. Each page records historical evidence and adapter-f
 
 ## Progressive disclosure and orchestration
 
-The linked GitHub issues are the work queue for adding topology steps one at a time. Issues #36–#42 are approved for bounded investigation. Add only reviewed, evidenced adapter-focused instructions to the matching page; leave unsupported procedures visibly incomplete. Do not copy the retired managed lab into this skill.
+The linked GitHub issues are the work queue for adding topology steps one at a time. Issues #35–#42 are approved for bounded investigation. Add only reviewed, evidenced adapter-focused instructions to the matching page; leave unsupported procedures visibly incomplete. Do not copy the retired managed lab into this skill.
 
 OpenCode is the topology coordinator: instruct it with prompts and require it to use guarded MCP calls to actual A2A agents. Do not implement a TypeScript/host-side coordinator, direct A2A CLI calls, Dagu/workflow infrastructure, or the retired managed runner. The manual baseline covers one worker; multi-worker investigations proceed only through their approved issue-specific procedures, whose steps remain incomplete until validated.
 
