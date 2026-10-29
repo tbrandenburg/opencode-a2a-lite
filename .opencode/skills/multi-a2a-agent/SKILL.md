@@ -1,59 +1,63 @@
 ---
 name: multi-a2a-agent
-description: Use this skill to operate or evaluate the repository's A2A adapter from OpenCode through guarded MCP, including the supported one-worker smoke, topology-specific research, session evidence review, and OpenCode/MCP readiness diagnosis.
+description: Plan, operate, and evaluate multi-agent workflows coordinated by OpenCode through MCP and A2A adapters.
 ---
 
-# Multi A2A Agent
+# Multi-Agent A2A Workflows
 
-Use OpenCode as the coordinator through the existing guarded route:
+Use this skill when OpenCode coordinates agents through MCP tools and an A2A-to-agent runtime adapter. Adapt every command, component name, and operational step to the host project; this skill defines no project-specific endpoint, tool name, version, topology, or runbook.
 
-**OpenCode coordinator → local MCP endpoint guard → a2abridge → A2A gateway → ACP worker**
+## Identify the architecture before execution
 
-This skill guides use and evaluation of the adapter. It is not an orchestration runtime and does not add topology schedules, roles, scorers, runners, or platform features. User approval authorizes bounded investigations for issues #35–#42 through prompt-driven OpenCode MCP calls; this does not restore the retired lab or authorize runtime features.
+Establish the actual control and data paths. A common arrangement is:
 
-## Workflow
+```text
+OpenCode coordinator
+  → OpenCode MCP client
+  → local MCP server or endpoint guard
+  → MCP-to-A2A client/bridge
+  → A2A HTTP agent endpoint
+  → protocol adapter
+  → worker runtime/session
+```
 
-1. Identify the requested traffic pattern and read its linked issue and topology page. Treat pages as incomplete until their issue-validated steps are added; do not invent missing steps. Issues #35–#42 are authorized for bounded investigations under their own limits.
-2. For the currently supported manual baseline, follow [manual-one-worker.md](references/manual-one-worker.md).
-3. Run live inference only when it is part of the current user-requested task. The user monitors provider spend; do not ask for separate per-attempt billing approval. Use the pinned tools, trusted projects, private disposable state, loopback listeners, endpoint guard, exact peer/tool allowlists, and a warmed owned OpenCode server. Never use a cold `--standalone` invocation for the smoke.
-4. Supervise each absolute submit-plus-wait deadline and poll spacing externally. A prompt or a whole-invocation timeout is not a substitute. If bounds cannot be enforced, do not submit; report the bounded-wait gate as `BLOCKED`.
-5. Verify actual paired MCP tool calls, peer/context/task provenance, terminal A2A tasks and artifacts, worker inputs, and correlated coordinator/worker sessions. Never treat CLI exit zero or model self-report as evidence by itself.
-6. Report four dimensions separately: OpenCode/MCP readiness, A2A adapter contract, topology/model behavior, and owned-resource operations. If OpenCode or MCP prevents a call, classify that blocker without calling it an adapter failure. If the adapter works but the topology answer or schedule fails, preserve both findings independently.
-7. Load the `session-analysis` skill and manually inspect/correlate the actual coordinator and worker sessions, private MCP receipts, and task evidence. Use the agent's reasoning to classify what happened; do not use a hard-coded script to score topology behavior or interpret sessions. Keep raw prompts, answers, reasoning, credentials, handles, and provider diagnostics private; publish only sanitized results.
-8. On every outcome, close the owned coordinator client/server and MCP connection; stop heartbeat, unregister the worker and record HTTP 204 while the directory is running; then stop the owned gateway and directory. Verify owned processes and every recorded port are released before removing private state.
+The host project may use different names or combine components. Identify which component enforces tool/peer policy, which translates MCP operations to A2A, and which adapts A2A requests to the worker protocol. Treat a discovery directory as control-plane infrastructure unless evidence shows task traffic passes through it.
 
-## Topology pages
+Before a run, require a topology specification that names:
 
-Load the relevant page only. Each page records historical evidence and adapter-focused questions; topology correctness is not an adapter acceptance criterion.
+- Every coordinator, worker, judge, relay, and adapter instance, including its process/session boundary.
+- Each directed logical message edge and the exact physical route used to carry it.
+- Which model/session issues each MCP call; whether workers can call other workers; and how results return.
+- The A2A endpoint and ACP or other worker endpoint associated with each agent instance.
+- The guard's permitted tool set and exact peer allowlist for each caller.
+- How context IDs, task IDs, artifacts, deadlines, and terminal states are correlated.
 
-| Traffic pattern                                  | Page                                                                      | Status                                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| One coordinator, one worker, two-turn continuity | [Manual one-worker](references/manual-one-worker.md)                      | Current manual baseline; one observed real-model pass, not a reliability claim |
-| Pipeline                                         | [Pipeline](references/topology-pipeline.md)                               | Approved bounded investigation; historical handoff issue retained              |
-| Fan-out / fan-in                                 | [Fan-out/fan-in](references/topology-fan-out-fan-in.md)                   | Approved bounded investigation; historical feasibility only                    |
-| Diamond                                          | [Diamond](references/topology-diamond.md)                                 | Approved bounded investigation; current-path evidence pending                  |
-| Propose–critique–revise                          | [Propose–critique–revise](references/topology-propose-critique-revise.md) | Approved bounded investigation; historical role evidence retained              |
-| Competing proposals / judge                      | [Judge](references/topology-competing-proposals-judge.md)                 | Approved bounded investigation; artifact-integrity result retained             |
-| Bounded ring                                     | [Bounded ring](references/topology-bounded-ring.md)                       | Approved bounded investigation; current-path evidence pending                  |
-| Decentralized tree                               | [Tree](references/topology-decentralized-tree.md)                         | Approved issue-scoped assessment; no production delegation feature authorized  |
-| Decentralized mesh                               | [Mesh](references/topology-decentralized-mesh.md)                         | Approved issue-scoped assessment; no production delegation feature authorized  |
+Keep topology layouts, endpoint values, and allowlists specific to the host project and run; record them in the project's issue or operational documentation, not in this reusable skill.
 
-## Progressive disclosure and orchestration
+Do not infer missing nodes, edges, roles, permissions, or termination rules from a topology name alone. Ask for a missing specification or report the run blocked.
 
-The linked GitHub issues are the work queue for adding topology steps one at a time. Issues #35–#42 are approved for bounded investigation. Add only reviewed, evidenced adapter-focused instructions to the matching page; leave unsupported procedures visibly incomplete. Do not copy the retired managed lab into this skill.
+## Prepare and run
 
-OpenCode is the topology coordinator: instruct it with prompts and require it to use guarded MCP calls to actual A2A agents. Do not implement a TypeScript/host-side coordinator, direct A2A CLI calls, Dagu/workflow infrastructure, or the retired managed runner. The manual baseline covers one worker; multi-worker investigations proceed only through their approved issue-specific procedures, whose steps remain incomplete until validated.
+1. Read the request, the topology specification, and the host project's operational guidance. Separate model/task goals from adapter acceptance criteria.
+2. Review trusted projects, inherited configuration, provider access, worker identities, endpoint cards, peer allowlists, and the actual connected MCP tool catalog. Do not expose credentials or modify shared service state.
+3. Check free loopback ports before starting anything. Start only owned resources, keep listeners private, and record their PIDs, ports, endpoint URLs, and returned task/context handles privately.
+4. Use OpenCode as coordinator when the topology requires model-directed calls. Calls must traverse the configured MCP guard and adapter path; do not silently substitute a host script, direct protocol client, or a different delegation mechanism.
+5. Enforce per-operation deadlines, poll spacing, and attempt limits with an independent supervisor. A prompt instruction or whole-process timeout is not equivalent. If limits cannot be supervised, do not submit work.
+6. Never automatically retry or resend an uncertain submission, guess a handle, reconnect to evade a budget, or infer remote cancellation from local client shutdown.
 
-## Manual topology execution and analysis
+## Verify and report
 
-Step through each topology manually: prepare the worker projects/configuration and directory using the linked playbook, start the owned gateway/guard resources, warm the owned OpenCode server, then run one coordinator prompt with `opencode run --server`. OpenCode—not a helper script—must choose and issue each topology action through MCP to the actual A2A agents. Inspect the resulting coordinator/worker sessions and task evidence yourself with `session-analysis`, then classify the adapter and topology layers separately.
+Inspect actual coordinator and worker sessions, paired MCP call/result records, peer/context/task provenance, worker inputs, terminal task states, stored artifacts, and owned-resource cleanup. A catalog entry, successful CLI exit, or model self-report alone is not acceptance evidence.
 
-Scripts are permitted only as helpers for transport/endpoint guarding, readiness/port probes, secret-safe receipt handling, or owned-process cleanup. Do not add or run scripts that create topology schedules, issue model prompts/tool calls, score model answers, or analyze session histories. Do not extend optional interop support for topology orchestration.
+Report these layers separately:
 
-## Best-effort topology research
+- OpenCode readiness and MCP tool exposure.
+- Guard and adapter behavior, based on observed calls and results.
+- Topology execution and model/task outcome.
+- Resource operations and cleanup.
 
-Treat each topology as a bounded adapter investigation, not a requirement to make the topology solve its task. Make one baseline `opencode run` attempt, then allow at most **three targeted correction attempts**; stop after two if another attempt would only polish topology behavior or produce no new adapter evidence. Do not ask for separate billing approval for each correction; the user monitors provider spend. Never automatically retry, resend an uncertain task, reconnect to escape a budget, change timeouts/budgets, or weaken an adapter contract.
+Classify missing or ambiguous evidence as `BLOCKED` or `INCOMPLETE`; do not turn a topology/model failure into an adapter failure or vice versa. Keep prompts, answers, credentials, raw receipts, and provider diagnostics private. Publish only sanitized evidence.
 
-Preserve the baseline prompt/setup and change one prompt-level or documented configuration factor per correction. Do not write TypeScript or extend optional interop support to make a topology pass. If OpenCode/MCP blocks tool exposure, report that layer; if A2A calls/tasks/artifacts pass but the topology answer or schedule does not, report the adapter as working and the topology outcome separately. A correctly classified, bounded experiment is useful even when the topology does not work; after the cap, stop and record `BLOCKED`, `BROKEN`, or `INCOMPLETE` with the evidence rather than continuing indefinitely.
+## Clean up
 
-`A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` exercises the real bridge and controlled ACP adapter boundary without a provider. It is useful for isolating adapter behavior when OpenCode/MCP blocks a model-issued call, but it is not live-model or topology acceptance evidence.
+On success, failure, timeout, or interruption, close owned clients and MCP connections; stop owned heartbeats; unregister workers while their directory is still available; then stop owned gateways and directory processes in dependency order. Verify exact owned PIDs and every recorded listener are gone before removing private state. Never stop or reconfigure another owner's process or shared service.

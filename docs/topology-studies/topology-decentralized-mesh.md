@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Workers would route or delegate across a mesh rather than only through the coordinator's guarded peer list.
 
-**Historical evidence:** The topology findings explicitly state that decentralized meshes have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](../../../../docs/topology-investigation-findings.md) and [scope issue #41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41).
+**Historical evidence:** The topology findings explicitly state that decentralized meshes have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](../topology-investigation-findings.md) and [scope issue #41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41).
 
 ## Adapter lens
 

@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Multiple workers submit proposals/assessments and a judge receives and selects among them (historical T5; five agents including coordinator).
 
-**Historical evidence:** Original T5 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized case stopped on exact inbound artifact-string integrity after proposer evaluations; judge reasoning/final correctness were unobserved. This is not evidence of intrinsic judge reasoning or a general adapter failure. See [topology findings](../../../../docs/topology-investigation-findings.md), [authorized results](../../../../docs/authorized-live-acceptance.md), and [issue #38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38).
+**Historical evidence:** Original T5 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized case stopped on exact inbound artifact-string integrity after proposer evaluations; judge reasoning/final correctness were unobserved. This is not evidence of intrinsic judge reasoning or a general adapter failure. See [topology findings](../topology-investigation-findings.md), [authorized results](../authorized-live-acceptance.md), and [issue #38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38).
 
 ## Adapter lens
 

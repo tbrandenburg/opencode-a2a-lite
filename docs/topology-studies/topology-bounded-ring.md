@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Bounded worker-to-worker/coordinator relay rounds with an explicit stop condition (historical T6; seven agents including coordinator).
 
-**Historical evidence:** Original T6 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized ring case is recorded. See [topology findings](../../../../docs/topology-investigation-findings.md) and [issue #36](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36).
+**Historical evidence:** Original T6 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized ring case is recorded. See [topology findings](../topology-investigation-findings.md) and [issue #36](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36).
 
 ## Adapter lens
 
