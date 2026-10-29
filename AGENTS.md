@@ -132,6 +132,11 @@ Production `make e2e` and the single-gateway `make demo` are manual, provider-bi
   history reads. Prevention: inspect the existing service registration read-only in
   MADE's backend context; never alter its HOME, XDG state, listener, or registration as
   a diagnostic step. Keep A2A smoke servers in separate private state.
+- 2026-10-29: Pitfall: Bare `opencode models` in a fresh HOME hit the managed-service path. Prevention: verify HOME/XDG, disable only the private service, and use an owned server with `--server` probes.
+- 2026-10-29: Pitfall: Worker ACP configs missed intended tool grants. Prevention: validate each worker's agent permissions and exact child allowlist before gateways; restart only owned gateways after pre-run edits.
+- 2026-10-29: Pitfall: Worker ACP models used `blocking:true` despite prose. Prevention: specify literal `blocking:false` and compare session arguments to guard receipts; classify caller deviations separately from transport.
+- 2026-10-29: Pitfall: A coordinator stopped polling while its parent task was still `WORKING`; exit zero was not terminal evidence. Prevention: require terminal state or report `INCOMPLETE`; never resend uncertain tasks.
+- 2026-10-29: Pitfall: A gateway PID remained unreaped after its owned tmux pane closed. Prevention: signal exact PIDs, stop the directory after gateways, close only the dedicated tmux server, and verify port rebinds.
 
 - 2026-10-28: Pitfall: An operator-invented three-second polling minimum interrupted a completed first worker task before its follow-up; the recipe specified spaced polls but no numeric minimum. Prevention: Derive acceptance gates from the reviewed contract, retain observed timing separately, and distinguish supervisor interruption from adapter failure. Preserve earlier evidence when authorizing a fresh corrected smoke; never resend an uncertain task.
 - 2026-10-28: Pitfall: A cold OpenCode 2.0.28 standalone run constructed its primary request with zero MCP tools, while a warmed private server exposed the six expected tools. Prevention: Review a same-server warmup approach explicitly, verify actual model tool calls rather than transport/catalog readiness alone, and do not silently substitute the shared service or assume a fixed sleep fixes readiness.

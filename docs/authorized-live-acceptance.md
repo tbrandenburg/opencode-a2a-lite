@@ -136,3 +136,53 @@ Follow-ups #27/#28 remain open. The unrelated pre-existing oversized-fact CPU co
 remains tracked separately in #24. Any later reproduction should follow the current
 best-effort topology correction cap; the user monitors provider spend. A later success
 would not erase or explain these failed observations.
+
+## Additional bounded adapter assessments (2026-10-29)
+
+These issue-scoped live assessments supplement the historical matrix above; they do
+not rewrite it or establish reliability, topology superiority, or general model
+quality. Each used Bun 1.3.9, OpenCode 2.0.28, checksummed a2abridge 4.0.2, A2A 1.0,
+the existing guarded route, disposable playground projects, private HOME/XDG state,
+and `openai/gpt-6-luna`. `make build` passed before each assessment. Calls and
+results below are per active guard connection unless noted; ordinary work stopped
+below 32 of 40 attempts, preserving eight calls. No guard denial was observed.
+
+| Issue                                                              | Guarded calls (connection counts) | Observed traffic / result                                                                                                                                             | Not established                                                                                                     |
+| ------------------------------------------------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [#35](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35) | 10/10; 1 connection.              | Two nonblocking pipeline tasks completed (6.043s, 6.635s); exact worker inputs/artifacts correlated.                                                                  | Full six-worker pipeline, continuation, streaming, cancellation, denied-peer behavior.                              |
+| [#36](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36) | 18/18; 1 connection.              | W1→W6→W1 tasks completed (10.182s, 11.708s, 3.464s). W1 reused its original context and got a distinct task ID.                                                       | Full six-worker ring, semantic/model quality.                                                                       |
+| [#37](https://github.com/tbrandenburg/opencode-a2a-lite/issues/37) | 17/17; 1 connection.              | P→K→P tasks completed (10.631s, 12.613s, 4.219s); exact artifacts relayed, P continued in its original context.                                                       | Critique quality, semantic improvement, historical `semantics.refine` result.                                       |
+| [#38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38) | 17/17; 1 connection.              | Two nonblocking proposals were working at first poll; both exact artifacts reached J. Three tasks completed (17.350s, 19.553s, 11.023s).                              | Third proposer, judge quality, historical inbound-artifact failure.                                                 |
+| [#39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39) | 14/14; 1 connection.              | Three nonblocking tasks were working at first poll and completed (13.640s, 13.638s, 13.775s).                                                                         | Remaining three specialists, reliability, answer quality.                                                           |
+| [#40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40) | 22/22; 1 connection.              | Planner→R1/R2→I completed (5.853s, 12.548s, 10.327s, 6.641s); exact branch artifacts reached I. Coordinator final text omitted markers that appeared in I's artifact. | General proposal/review quality, streaming, cancellation, denied-peer behavior.                                     |
+| [#41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41) | C: 9/9; W1: 6/6.                  | W1's actual ACP session delegated to W2; child completed in 6.361s and W1 root in 18.357s with the child artifact.                                                    | Other mesh edges, recursion, full mesh behavior.                                                                    |
+| [#42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42) | C: 9/9; W1: 1/1; W2: 1/1.         | W1→W2 and W2→W4 child artifacts completed (13.607s, 5.146s). Both worker sends used `blocking:true`; C's root was last observed `WORKING`.                            | Required nonblocking worker contract (observed `blocking:true`); terminal root result, sibling branches, full tree. |
+
+## Cross-scenario findings
+
+- A connected six-tool catalog was necessary but insufficient: acceptance used actual
+  coordinator or worker-session tool calls paired with the guard receipts.
+- The observed same-peer continuation paths in #36 and #37 used the actual returned
+  context ID and omitted the prior task ID; both returned distinct task IDs in the
+  continuing worker session.
+- Hash-correlated worker inputs and stored artifacts confirmed exact handoffs in
+  #35–#40. Fan-out and branch identity were reported only for the peers/tasks actually
+  observed; the unstarted parts of the six-worker and three-proposer layouts remain
+  unverified.
+- Worker-side MCP was a separate surface from coordinator-to-worker traffic. In #41,
+  W1 made a real guarded worker call. In #42, W1 and W2 made real calls, but both
+  supplied `blocking:true`; the bridge completed those requests, yet the required
+  nonblocking worker-call contract was not met. The C root task remained without an
+  observed terminal state. These caller/orchestration and missing-evidence findings
+  are not evidence of an A2A transport defect.
+- Every run used owned loopback processes and verified unregister responses and port
+  rebinds. Existing listeners on 3000/5173 and the shared OpenCode service were left
+  untouched. Costs were not measured; private prompts, outputs, handles and raw
+  receipts were not published.
+- During #36 cleanup, gateway processes became zombies under the owned tmux server
+  after their panes closed; stopping the remaining owned resources and that tmux
+  server reaped them. Verify exact process states and port rebinds; never use broad kills.
+- A separate final `make check` passed formatting, lint (with warnings), strict types,
+  66 tests / 497 assertions, and build. A separate real `make e2e` passed 14/14
+  scenarios with cleanup verified. These later runs do not replace or explain the
+  historical failures recorded above.
