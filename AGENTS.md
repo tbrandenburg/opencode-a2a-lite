@@ -3,7 +3,7 @@
 ## Adapter scope and approved topology investigations
 
 - Follow the [adapter contract](/README.md#scope-freeze), separate from opaque model quality.
-- Issues [#36–#42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36) are explicitly approved for bounded, issue-scoped topology investigations through prompt-driven OpenCode MCP calls. This approval removes the former blanket prohibition/scope gate for those investigations only.
+- Issues [#35–#42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35) are explicitly approved for bounded, issue-scoped topology investigations through prompt-driven OpenCode MCP calls. This approval removes the former blanket prohibition/scope gate for those investigations only.
 - No new production schedules, roles, scorers, platform features, frameworks, dependencies, models, or expanded budgets/timeouts. Do not add a topology runner or host-side coordinator; preserve the retired managed lab as retired.
 - Preserve manual endpoint-guard guidance and historical failures; the managed lab
   is retired, not fixed. Do not restore its model profiles, scorers or runners.
@@ -17,7 +17,7 @@ Use this path when asked to delegate through MCP/A2A:
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
 Use the [one-worker CLI recipe](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md)
-for its baseline. For approved issues #36–#42, also read the linked topology page
+for its baseline. For approved issues #35–#42, also read the linked topology page
 and follow that issue's manual procedure and bounded-attempt limits; do not treat
 the baseline recipe as a blanket restriction to one worker. Prefer its owned,
 warmed private-server variant. From the configured coordinator project, with
@@ -71,7 +71,7 @@ For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker rec
 Report model behavior/task completion separately from transport, topology and operations gates. A successful task does not erase another failed gate; missing required evidence makes overall acceptance INCOMPLETE without relabeling observed successful task behavior as a model failure.
 
 This runbook documents the one-worker baseline, not the topology procedures. The
-user-approved issues #36–#42 authorize bounded investigations only through their
+user-approved issues #35–#42 authorize bounded investigations only through their
 linked issue procedures. They do not restore the retired multiworker lab or turn
 historical topology observations into new live results.
 

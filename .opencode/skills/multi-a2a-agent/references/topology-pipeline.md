@@ -12,4 +12,4 @@ Check only the existing guarded MCP/A2A path for each observed handoff: approved
 
 ## Disclosed steps
 
-None yet. Add validated steps incrementally through issue #35. Do not infer a host schedule, add a runner, or claim the retired topology harness is available.
+None yet. Issue #35 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; do not infer or implement a host schedule, add a runner, or claim the retired topology harness is available.
