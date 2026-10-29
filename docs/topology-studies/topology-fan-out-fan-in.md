@@ -1,6 +1,6 @@
 # Fan-out / fan-in traffic
 
-**Disclosure status:** `STUB`. Historical feasibility exists; no current multi-worker procedure is defined here.
+**Disclosure status:** `RECOVERED-THREE-WORKER-PREFIX`. Three-worker fan-out/fan-in was observed; this is not a new six-worker result.
 
 **Traffic pattern:** Coordinator dispatches separable work to concurrent workers, then collects/synthesizes their results (historical T2; seven agents including coordinator).
 
@@ -10,6 +10,15 @@
 
 Prioritize whether each actual guarded MCP call is bound to its approved peer, each returned task/context is tracked correctly, task artifacts are decoded without cross-worker leakage, and cleanup is owned. Do not grade parallelism or synthesis quality as adapter correctness.
 
-## Disclosed steps
+## Recovered procedure and evidence
 
-None yet. Issue #39 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; use only the issue-reviewed peers and setup, and do not recreate a host-side runner or expand the production adapter contract.
+Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
+[fan-out/fan-in instructions](/.opencode/skills/multi-a2a-agent/references/topology-fan-out-fan-in.md).
+Have OpenCode submit independent nonblocking tasks before polling, track each
+actual binding, and synthesize only after the required terminal artifacts are observed.
+
+In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+three workers were observed working in the first poll round and completed in
+13.640s, 13.638s and 13.775s with 14 paired calls. Exact inputs and artifacts were
+correlated into coordinator synthesis. The remaining three workers and synthesis
+quality were not tested. No host batch runner was added.
