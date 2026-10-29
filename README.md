@@ -426,9 +426,12 @@ actual session tool calls, completed tasks/artifacts and owned cleanup—not jus
 the final answer. Reuse the same warmed server; cold `--standalone` is not a
 substitute. The warmed one-worker smoke has one observed pass, not repeatability
 evidence. The portable [multi-a2a-agent skill](/.opencode/skills/multi-a2a-agent/SKILL.md)
-contains reusable workflow guidance. Project-specific runbooks and topology layouts
-remain in `docs/` and their issue descriptions. The approved issues #35–#42 add
-bounded, evidence-led investigations without making the skill project-specific. Optional
+contains common workflow guidance and a selector for eight topology-specific reference
+pages, loaded only when needed. The references reconstruct reusable procedures, not
+deleted verbatim prompts or evidence of arbitrary scale. Project-specific setup and
+observed scope remain in [the topology study pages](/docs/topology-studies/topology-pipeline.md),
+the issue descriptions and [live results](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29).
+The recovered instructions do not authorize new live attempts or restore the retired lab. Optional
 [TypeScript helpers](/interop/client-guide.md) are for host/CI use;
 see their [consumer inventory](/interop/README.md#retained-support-inventory).
 

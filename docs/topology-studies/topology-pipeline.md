@@ -1,6 +1,6 @@
 # Pipeline traffic
 
-**Disclosure status:** `STUB`. No current executable manual procedure is defined here.
+**Disclosure status:** `RECOVERED-BOUNDED-PREFIX`. A two-worker handoff was observed; the full six-worker pipeline remains unverified.
 
 **Traffic pattern:** Ordered stage-to-stage worker handoffs (historical T1; seven agents including coordinator).
 
@@ -10,6 +10,14 @@
 
 Check only the existing guarded MCP/A2A path for each observed handoff: approved peer dispatch, nonblocking task submission, returned handle/context provenance, task-state/artifact decoding, and cleanup. If OpenCode never issues a tool call, classify its readiness/MCP boundary; do not report pipeline quality or adapter failure from absent evidence.
 
-## Disclosed steps
+## Recovered procedure and evidence
 
-None yet. Issue #35 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; do not infer or implement a host schedule, add a runner, or claim the retired topology harness is available.
+Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
+[pipeline instructions](/.opencode/skills/multi-a2a-agent/references/topology-pipeline.md).
+Map only the issue-reviewed worker peers; OpenCode relays every stage through guarded MCP.
+
+In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+two tasks completed in 6.043s and 6.635s with 10 paired calls. The actual first
+artifact reached the second worker; dispatched inputs and terminal artifacts matched
+worker sessions. This recovered procedure describes that mechanism, not the deleted
+verbatim experiment prompt. More stages, answer quality and reliability were not tested.

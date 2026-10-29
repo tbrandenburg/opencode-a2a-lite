@@ -1,6 +1,6 @@
 # Propose–critique–revise traffic
 
-**Disclosure status:** `STUB`. Historical role-contract evidence exists; no current executable multi-worker procedure is defined here.
+**Disclosure status:** `RECOVERED-BOUNDED-SEQUENCE`. P→K→P adapter traffic was observed; semantic refinement quality was not scored.
 
 **Traffic pattern:** Proposal is assessed by a critic, then revised (historical T4 refinement; three agents including coordinator).
 
@@ -10,6 +10,14 @@
 
 Verify the adapter transfers the proposal/critique/revision messages to the intended peers, preserves task and context bindings, returns the correct task artifacts, and isolates turns. Keep role-following and final-answer quality as separate observations.
 
-## Disclosed steps
+## Recovered procedure and evidence
 
-None yet. Issue #37 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; preserve the historical role finding separately and do not add a host-side schedule or weaken adapter checks.
+Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
+[refinement instructions](/.opencode/skills/multi-a2a-agent/references/topology-propose-critique-revise.md).
+Have OpenCode relay P's actual proposal to K and K's actual critique back to a new
+P task in P's original context, explicitly nonblocking and without P's old task ID.
+
+In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+three tasks completed in 10.631s, 12.613s and 4.219s with 17 paired calls. Both
+handoffs and the proposer continuation correlated with worker sessions. These
+reconstructed instructions neither reproduce nor resolve the historical semantic failure.
