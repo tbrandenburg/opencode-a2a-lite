@@ -1,6 +1,6 @@
 # Decentralized mesh traffic
 
-**Disclosure status:** `SCOPE-GATED`. No verdict or supported procedure exists.
+**Disclosure status:** `INVESTIGATION-APPROVED`. No verdict or validated procedure exists yet.
 
 **Traffic pattern:** Workers would route or delegate across a mesh rather than only through the coordinator's guarded peer list.
 
@@ -8,8 +8,8 @@
 
 ## Adapter lens
 
-Do not infer worker-to-worker support from the current guarded coordinator route. Before any topology test, obtain a scope decision defining a supported adapter boundary without adding worker-side delegation or new platform features.
+Do not infer worker-to-worker support from the current guarded coordinator route. User approval has opened issue #41 for a bounded assessment, including manually reviewed, issue-local worker delegation configuration for that experiment. This does not authorize a production delegation feature, adapter/guard changes, or new platform infrastructure. If the existing guarded path cannot support the attempt safely, record `BLOCKED`.
 
 ## Disclosed steps
 
-None. Do not add execution steps until issue #41 resolves scope and the adapter boundary is specified.
+None. Issue #41 now has scope approval; add only validated, sanitized steps that identify the adapter boundary exercised. Keep this page incomplete until evidence is reviewed.

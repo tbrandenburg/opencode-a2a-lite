@@ -1,9 +1,10 @@
 # Repository guidance
 
-## Adapter scope freeze
+## Adapter scope and approved topology investigations
 
 - Follow the [adapter contract](/README.md#scope-freeze), separate from opaque model quality.
-- No new schedules, roles, scorers, platform features, frameworks, dependencies, models, or expanded budgets/timeouts.
+- Issues [#36–#42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36) are explicitly approved for bounded, issue-scoped topology investigations through prompt-driven OpenCode MCP calls. This approval removes the former blanket prohibition/scope gate for those investigations only.
+- No new production schedules, roles, scorers, platform features, frameworks, dependencies, models, or expanded budgets/timeouts. Do not add a topology runner or host-side coordinator; preserve the retired managed lab as retired.
 - Preserve manual endpoint-guard guidance and historical failures; the managed lab
   is retired, not fixed. Do not restore its model profiles, scorers or runners.
 - Meet the post-retirement example-size target by removing the managed lab, not
@@ -15,10 +16,12 @@ Use this path when asked to delegate through MCP/A2A:
 **OpenCode coordinator → MCP endpoint guard → a2abridge → A2A gateway → ACP worker**.
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
-Use the [one-worker CLI recipe](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md),
-including its reviewed setup, prompt, evidence checks and teardown. Prefer its
-owned, warmed private-server variant. From the configured coordinator project,
-with `SERVER` and `PROMPT` set to that recipe's reviewed endpoint and instructions:
+Use the [one-worker CLI recipe](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md)
+for its baseline. For approved issues #36–#42, also read the linked topology page
+and follow that issue's manual procedure and bounded-attempt limits; do not treat
+the baseline recipe as a blanket restriction to one worker. Prefer its owned,
+warmed private-server variant. From the configured coordinator project, with
+`SERVER` and `PROMPT` set to the reviewed endpoint and issue-specific instructions:
 
 ```sh
 opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
@@ -35,17 +38,21 @@ opencode run --server "$SERVER" --agent coordinator --format json "$PROMPT"
   process. Never apply that isolation or its server settings to MADE's existing
   OpenCode service; doing so can move or replace the `service.json` registration that
   MADE's HTTP history adapter reads.
-- Discover the worker, send with `blocking:false`, then follow up on the same peer with
+- Discover workers, send with `blocking:false`, then follow up on the same peer with
   the returned `context_id` and **no `task_id`**. Inspect actual terminal tasks/artifacts
   and coordinator/worker sessions. Missing tools/evidence block acceptance.
 - Reserve **eight of 40 attempts**, including denials; supervise absolute submit+wait
   deadlines and spaced polls. Prompts do not enforce bounds. No guessed handles,
   automatic resend/reconnect or implicit cancellation; retain pending/uncertain outcomes.
+- For issues #41–#42, the approval explicitly opens bounded assessment of worker-side
+  delegation using manually reviewed, issue-local configuration and existing guarded
+  routes. It does not authorize production delegation features or guard changes.
 - Live model attempts may incur provider charges; the user monitors spend. Run them
   when they are part of the current user-requested task, without asking for separate
   per-attempt billing authorization. The warmed one-worker
-  variant has one dated observed pass; cold standalone startup and larger topologies
-  remain unverified. Neither catalog readiness nor CLI exit zero proves acceptance.
+  variant has one dated observed pass; cold standalone startup and selected topology
+  outcomes remain unverified until their issue evidence is reviewed. Neither catalog
+  readiness nor CLI exit zero proves acceptance.
   On success/failure/interruption close owned MCP, stop heartbeats, unregister workers,
   then stop owned gateways and finally the directory. Verify PID/port release and publish
   only sanitized checks. Follow the recipe's membership and cleanup order exactly.
@@ -63,7 +70,10 @@ For a requested real-model MCP→A2A smoke, execute the [reviewed one-worker rec
 
 Report model behavior/task completion separately from transport, topology and operations gates. A successful task does not erase another failed gate; missing required evidence makes overall acceptance INCOMPLETE without relabeling observed successful task behavior as a model failure.
 
-This runbook documents only the one-worker smoke. It does not permit restoring the retired multiworker topology lab or treating historical topology observations as new live results.
+This runbook documents the one-worker baseline, not the topology procedures. The
+user-approved issues #36–#42 authorize bounded investigations only through their
+linked issue procedures. They do not restore the retired multiworker lab or turn
+historical topology observations into new live results.
 
 Provider-free gate: `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test`.
 This verifies the adapter boundary, not real-model E2E or model reasoning. The managed

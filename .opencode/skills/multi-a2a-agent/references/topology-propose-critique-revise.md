@@ -12,4 +12,4 @@ Verify the adapter transfers the proposal/critique/revision messages to the inte
 
 ## Disclosed steps
 
-None yet. Add validated adapter-focused steps incrementally through issue #37. Do not invent role schedules or weaken the historical role oracle.
+None yet. Issue #37 is approved for a bounded, prompt-driven adapter investigation. Add validated steps incrementally; preserve the historical role finding separately and do not add a host-side schedule or weaken adapter checks.
