@@ -17,7 +17,13 @@ Use this path when asked to delegate through MCP/A2A:
 Do not silently substitute native subagents, the A2A CLI, or a direct ACP call.
 
 Use the [one-worker CLI recipe](/docs/manual-one-worker.md)
-for its baseline. For approved issues #35–#42, read the issue's technical topology
+for its continuity baseline. For a separately user-requested fresh-session two-worker
+pipeline smoke, use the complete [pipeline bootstrap](/docs/manual-two-worker-pipeline.md),
+including its explicit existing model selection, two-peer config and passive watchdog.
+The executing agent may create/review those disposable project-local configs; it need
+not inherit an unrelated global model or ask the user to supply configured projects.
+This does not reopen exhausted investigations or authorize additional topology runs.
+For approved issues #35–#42, read the issue's technical topology
 layout and follow its manual procedure and bounded-attempt limits; do not treat
 the baseline recipe as a blanket restriction to one worker. Prefer its owned,
 warmed private-server variant. From the configured coordinator project, with
@@ -138,6 +144,7 @@ Production `make e2e` and the single-gateway `make demo` are manual, provider-bi
 - 2026-10-29: Pitfall: A coordinator stopped polling while its parent task was still `WORKING`; exit zero was not terminal evidence. Prevention: require terminal state or report `INCOMPLETE`; never resend uncertain tasks.
 - 2026-10-29: Pitfall: Six polls ended without a terminal root observation. Prevention: use documented count/time bounds; verify worker tools on the actual ACP-owned server, not a separate inspection server.
 - 2026-10-29: Pitfall: A portability rewrite removed progressive-disclosure procedures. Prevention: keep generic topology references inside the skill, concrete setup/evidence outside it, and verify completed investigations update their matching study pages.
+- 2026-10-29: Pitfall: Logical guides left blank-project bootstrap undefined. Prevention: link a complete minimal host recipe with explicit existing model/config/supervision templates, and validate empty-project setup rather than only reference links.
 - 2026-10-29: Pitfall: A gateway PID remained unreaped after its owned tmux pane closed. Prevention: signal exact PIDs, stop the directory after gateways, close only the dedicated tmux server, and verify port rebinds.
 
 - 2026-10-28: Pitfall: An operator-invented three-second polling minimum interrupted a completed first worker task before its follow-up; the recipe specified spaced polls but no numeric minimum. Prevention: Derive acceptance gates from the reviewed contract, retain observed timing separately, and distinguish supervisor interruption from adapter failure. Preserve earlier evidence when authorizing a fresh corrected smoke; never resend an uncertain task.

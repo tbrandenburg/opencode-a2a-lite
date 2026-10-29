@@ -7,6 +7,10 @@ Read the skill's common preparation, submission, verification and cleanup rules 
 Use a coordinator-mediated dependency chain. Each worker has its own gateway and
 runtime session; workers do not call their successors. Obtain the reviewed ordered
 peer list, stage tasks, initial input, and stop condition from the host specification.
+For an authorized fresh-session smoke, follow the host's linked **two-worker pipeline
+bootstrap**, not a one-worker continuity recipe. Instantiate and review its concrete
+two-stage example yourself; do not require the user to prepare projects or an ordered
+peer specification that the bootstrap already defines.
 
 ## Procedure
 

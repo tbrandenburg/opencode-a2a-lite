@@ -12,7 +12,8 @@ Check only the existing guarded MCP/A2A path for each observed handoff: approved
 
 ## Recovered procedure and evidence
 
-Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
+For a new separately authorized usability test, use the
+[complete two-worker bootstrap](/docs/manual-two-worker-pipeline.md), then load the portable
 [pipeline instructions](/.opencode/skills/multi-a2a-agent/references/topology-pipeline.md).
 Map only the issue-reviewed worker peers; OpenCode relays every stage through guarded MCP.
 

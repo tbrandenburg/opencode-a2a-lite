@@ -411,6 +411,11 @@ The pre-retirement source remains at
 
 ### OpenCode coordinator: use `opencode run`
 
+For a separately authorized fresh-session two-worker pipeline test, use the
+[complete pipeline bootstrap](/docs/manual-two-worker-pipeline.md). It supplies the
+private project/model configs, two-peer guard, exact test specification and passive
+watchdog; an empty playground project or unrelated global model is not a setup blocker.
+
 Follow the [one-worker setup](/docs/manual-one-worker.md)
 to start the worker/directory, configure the guarded project-local MCP entry, warm
 the owned private OpenCode server, and set `SERVER` and `PROMPT` from the recipe.
