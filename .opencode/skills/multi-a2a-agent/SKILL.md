@@ -11,8 +11,9 @@ Adapt commands, component names, and operational steps to the host project. Keep
 
 Read this common workflow first, then load only the matching reference. These are
 procedural templates, not recovered verbatim prompts, executable runners, or evidence
-that a particular scale works. Require the host's approved instance/edge map before
-execution; do not infer missing peers or increase a prior experiment's limits.
+that a particular scale works. Establish and review the instance/edge map before
+execution, using the user's requested scope and the host's linked bootstrap recipe;
+do not increase a prior experiment's limits.
 
 | Need                                                        | Reference                                                                       | Control                                             |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -52,7 +53,17 @@ Before a run, require a topology specification that names:
 
 Keep concrete topology layouts, endpoint values, and allowlists specific to the host project and run; record them in the project's issue or operational documentation, not in this reusable skill. The linked references describe generic patterns only.
 
-Do not infer missing nodes, edges, roles, permissions, or termination rules from a topology name alone. Ask for a missing specification or report the run blocked.
+When authorized to provision disposable infrastructure, instantiate the host's
+documented minimal example and review the resulting projects/configuration yourself.
+"Reviewed" does not mean the user must supply preconfigured projects. Use the host's
+explicitly approved non-secret model selection in each private project; creating that
+selection does not authorize a new model/provider, copying credentials, or changing
+global configuration. An unrelated global model need not be inherited into private HOME.
+
+Do not infer arbitrary nodes, edges, permissions or termination rules from a topology
+name alone. If the requested scope has no documented bootstrap/specification, report
+that documentation gap. Do not label empty disposable projects or absent local MCP
+configuration as blockers when the linked recipe specifies how to create them.
 
 ## Prepare and run
 
@@ -62,6 +73,13 @@ Do not infer missing nodes, edges, roles, permissions, or termination rules from
 4. Use OpenCode as coordinator when the topology requires model-directed calls. Calls must traverse the configured MCP guard and adapter path; do not silently substitute a host script, direct protocol client, or a different delegation mechanism.
 5. Enforce per-operation deadlines, poll spacing, and attempt limits with an independent supervisor. A prompt instruction or whole-process timeout is not equivalent. If limits cannot be supervised, do not submit work.
 6. Never automatically retry or resend an uncertain submission, guess a handle, reconnect to evade a budget, or infer remote cancellation from local client shutdown.
+
+Distinguish hard pre-dispatch limits from passive threshold detection. A receipt
+watchdog can interrupt and flag an overrun but cannot guarantee that a concurrent
+burst was prevented. Reconcile the complete final receipts after writers exit;
+do not report its processed prefix as the final attempt count. If the requested
+safety gate requires prevention that the existing transport cannot provide, stop
+before submission and report that specific unsupported gate.
 
 Before a model prompt, verify the intended agent and connected tools on the actual
 server used by that session. Inspect worker readiness separately when workers can

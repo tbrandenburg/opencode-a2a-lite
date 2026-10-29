@@ -1,5 +1,9 @@
 ## Prerequisites
 
+For an authorized fresh-session **two-worker pipeline**, use the complete
+[two-worker bootstrap](/docs/manual-two-worker-pipeline.md) instead of extrapolating
+this continuity smoke. It supplies empty-project model/config setup and supervision.
+
 - Linux x86_64, Bun **1.3.9**, locked dependencies; manual model use also requires
   reviewed OpenCode **2.0.28**, provider access and explicitly trusted workspaces.
 - Reviewed **a2abridge 4.0.2 Linux amd64** binary. Download the release artifact,
@@ -92,6 +96,7 @@ worker agent (preserve unrelated settings; no global edits):
 
 ```json
 {
+  "model": { "providerID": "openai", "model": "gpt-6-luna" },
   "default_agent": "worker",
   "permissions": [{ "action": "*", "resource": "*", "effect": "deny" }],
   "agents": {
@@ -110,9 +115,11 @@ worker agent (preserve unrelated settings; no global edits):
 }
 ```
 
-Use the existing reviewed provider/model configuration; do not add a model/profile.
-It must be available from the reviewed worker project/launch environment after
-switching HOME; do not copy credentials or assume normal global settings carry over.
+The fragment explicitly selects the repository's existing approved smoke model,
+`openai/gpt-6-luna`, as in [the isolation probe](/scripts/acp-smoke-config.ts).
+Putting this non-secret selection in a new disposable project is permitted setup,
+not adding a new model/provider profile. Use the existing `OPENAI_API_KEY` launch
+environment; never copy credential stores or assume global settings carry over.
 The coordinator uses an explicitly owned, warmed server below. **`acp` has no `--standalone` flag.**
 For the worker, use a dedicated shell with the following private HOME/XDG paths
 before configuring its service discovery. Review inherited `OPENCODE_*` overrides
@@ -184,6 +191,7 @@ coordinator agent. The private receipt parent must exist and be writable.
 
 ```json
 {
+  "model": { "providerID": "openai", "model": "gpt-6-luna" },
   "default_agent": "coordinator",
   "permissions": [{ "action": "*", "resource": "*", "effect": "deny" }],
   "agents": {
@@ -256,8 +264,9 @@ then the following HOME/XDG exports in **both** that terminal and the later
 coordinator client/inspection terminals. Securely supply the same fresh
 `OPENCODE_PASSWORD` to them; do not write it into files, commands or logs. Review
 other inherited `OPENCODE_*` overrides and stop if they redirect storage/discovery.
-Provider/model configuration must remain available from the reviewed project and
-launch environment after changing HOME; do not copy credentials from normal storage.
+The project fragment above supplies the approved model selection. Keep the existing
+`OPENAI_API_KEY` available in this owned launch environment after changing HOME;
+do not copy credentials or rely on another model selected in normal global storage.
 
 ```sh
 export HOME="$STATE/coordinator-home"
