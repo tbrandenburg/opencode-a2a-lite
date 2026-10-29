@@ -147,16 +147,57 @@ and `openai/gpt-6-luna`. `make build` passed before each assessment. Calls and
 results below are per active guard connection unless noted; ordinary work stopped
 below 32 of 40 attempts, preserving eight calls. No guard denial was observed.
 
-| Issue                                                              | Guarded calls (connection counts) | Observed traffic / result                                                                                                                                             | Not established                                                                                                     |
-| ------------------------------------------------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [#35](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35) | 10/10; 1 connection.              | Two nonblocking pipeline tasks completed (6.043s, 6.635s); exact worker inputs/artifacts correlated.                                                                  | Full six-worker pipeline, continuation, streaming, cancellation, denied-peer behavior.                              |
-| [#36](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36) | 18/18; 1 connection.              | W1→W6→W1 tasks completed (10.182s, 11.708s, 3.464s). W1 reused its original context and got a distinct task ID.                                                       | Full six-worker ring, semantic/model quality.                                                                       |
-| [#37](https://github.com/tbrandenburg/opencode-a2a-lite/issues/37) | 17/17; 1 connection.              | P→K→P tasks completed (10.631s, 12.613s, 4.219s); exact artifacts relayed, P continued in its original context.                                                       | Critique quality, semantic improvement, historical `semantics.refine` result.                                       |
-| [#38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38) | 17/17; 1 connection.              | Two nonblocking proposals were working at first poll; both exact artifacts reached J. Three tasks completed (17.350s, 19.553s, 11.023s).                              | Third proposer, judge quality, historical inbound-artifact failure.                                                 |
-| [#39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39) | 14/14; 1 connection.              | Three nonblocking tasks were working at first poll and completed (13.640s, 13.638s, 13.775s).                                                                         | Remaining three specialists, reliability, answer quality.                                                           |
-| [#40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40) | 22/22; 1 connection.              | Planner→R1/R2→I completed (5.853s, 12.548s, 10.327s, 6.641s); exact branch artifacts reached I. Coordinator final text omitted markers that appeared in I's artifact. | General proposal/review quality, streaming, cancellation, denied-peer behavior.                                     |
-| [#41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41) | C: 9/9; W1: 6/6.                  | W1's actual ACP session delegated to W2; child completed in 6.361s and W1 root in 18.357s with the child artifact.                                                    | Other mesh edges, recursion, full mesh behavior.                                                                    |
-| [#42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42) | C: 9/9; W1: 1/1; W2: 1/1.         | W1→W2 and W2→W4 child artifacts completed (13.607s, 5.146s). Both worker sends used `blocking:true`; C's root was last observed `WORKING`.                            | Required nonblocking worker contract (observed `blocking:true`); terminal root result, sibling branches, full tree. |
+| Issue                                                                       | Guarded calls (connection counts) | Observed traffic / result                                                                                                                                             | Not established                                                                                                     |
+| --------------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [#35](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35)          | 10/10; 1 connection.              | Two nonblocking pipeline tasks completed (6.043s, 6.635s); exact worker inputs/artifacts correlated.                                                                  | Full six-worker pipeline, continuation, streaming, cancellation, denied-peer behavior.                              |
+| [#36](https://github.com/tbrandenburg/opencode-a2a-lite/issues/36)          | 18/18; 1 connection.              | W1→W6→W1 tasks completed (10.182s, 11.708s, 3.464s). W1 reused its original context and got a distinct task ID.                                                       | Full six-worker ring, semantic/model quality.                                                                       |
+| [#37](https://github.com/tbrandenburg/opencode-a2a-lite/issues/37)          | 17/17; 1 connection.              | P→K→P tasks completed (10.631s, 12.613s, 4.219s); exact artifacts relayed, P continued in its original context.                                                       | Critique quality, semantic improvement, historical `semantics.refine` result.                                       |
+| [#38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38)          | 17/17; 1 connection.              | Two nonblocking proposals were working at first poll; both exact artifacts reached J. Three tasks completed (17.350s, 19.553s, 11.023s).                              | Third proposer, judge quality, historical inbound-artifact failure.                                                 |
+| [#39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39)          | 14/14; 1 connection.              | Three nonblocking tasks were working at first poll and completed (13.640s, 13.638s, 13.775s).                                                                         | Remaining three specialists, reliability, answer quality.                                                           |
+| [#40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40)          | 22/22; 1 connection.              | Planner→R1/R2→I completed (5.853s, 12.548s, 10.327s, 6.641s); exact branch artifacts reached I. Coordinator final text omitted markers that appeared in I's artifact. | General proposal/review quality, streaming, cancellation, denied-peer behavior.                                     |
+| [#41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41)          | C: 9/9; W1: 6/6.                  | W1's actual ACP session delegated to W2; child completed in 6.361s and W1 root in 18.357s with the child artifact.                                                    | Other mesh edges, recursion, full mesh behavior.                                                                    |
+| [#42 baseline](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42) | C: 9/9; W1: 1/1; W2: 1/1.         | W1→W2 and W2→W4 child artifacts completed (13.607s, 5.146s). Both worker sends used `blocking:true`; C's root was last observed `WORKING`.                            | Required nonblocking worker contract (observed `blocking:true`); terminal root result, sibling branches, full tree. |
+
+### #42: three targeted corrections (2026-10-29)
+
+The [sanitized correction evidence](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42#issuecomment-6495535029)
+adds an observed pass for the bounded C→W1→W2→W4 path. It does not replace the
+baseline or establish a full-tree/reliability result. The baseline plus these three
+corrections exhausts the issue's attempt cap; no additional attempt was made.
+
+| Correction | Changed factor                                                                                        | Observed outcome                                                                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1          | Propagate literal `blocking:false` to each worker and forwarded child task.                           | W1 sent nonblocking; W2 emitted tool-call-shaped text without an actual MCP call. C and W1 exhausted six polls; the passive watchdog enforced the root's 30-second cutoff. INCOMPLETE.       |
+| 2          | Warm the same ACP-owned private worker servers through bounded read-only agent/config/MCP probes.     | Both worker levels made real nonblocking calls and collected completed child tasks. C stopped after six polls before observing a terminal root result; watchdog cutoff retained. INCOMPLETE. |
+| 3          | Use the runbook's existing maximum of eight spaced polls instead of the earlier six-poll restriction. | C collected the completed root artifact on poll eight; both worker sends and the root send used `blocking:false`. Observed bounded-path pass.                                                |
+
+The third correction added the missing terminal-root adapter evidence, not answer-quality
+polishing. Each used fresh synthetic input and isolated state; no uncertain task was
+resent. Model, pins, peer allowlists, 30-second operation deadlines and the eight-call
+reserve remained unchanged. The worker readiness intervention coincided with actual
+tool use; it does not conclusively diagnose the earlier tool-shaped text or fix cold ACP.
+
+Final actual-session and guard evidence:
+
+- C→W1 completed in **14.502s**, W1→W2 in **9.127s**, W2→W4 in **3.605s**;
+  poll counts were eight, five and two. The passive metadata-only watchdog reported
+  `interrupted:false, pending:0`; each nested operation finished before the root deadline.
+- C, W1 and W2 recorded **11/11**, **6/6**, **3/3** paired calls/results on one
+  active connection each, zero denials, and fewer than 32 ordinary attempts per caller.
+- At each hop the actual model arguments matched the guard-dispatched input hash
+  and receiving worker text. Returned task/context bindings stayed stable through
+  terminal results; completed artifact hashes matched worker root answers. The
+  synthetic leaf marker returned unchanged through W4, W2, W1 and C.
+- Six-tool catalogs were verified, but C actually invoked four distinct tools
+  (whoami, list_agents, send_message, get_task); W1/W2 invoked send_message/get_task.
+  A six-tool catalog is not evidence that every tool was invoked.
+- W1's child allowlist stayed W2/W3, W2's W4/W5; W4 had no outgoing tools. Sibling
+  branches were not started. Three unregister responses were HTTP 204, 17 recorded
+  PIDs were absent, and 13 recorded/reviewed ports rebound. Shared listeners were untouched.
+
+Streaming, cancellation, forbidden-peer denial, unvisited branches, repeatability and
+general model quality remain unverified here. No production code, guard change,
+topology runner or session analyzer was added; operational helpers were disposable.
 
 ## Cross-scenario findings
 
@@ -170,11 +211,13 @@ below 32 of 40 attempts, preserving eight calls. No guard denial was observed.
   observed; the unstarted parts of the six-worker and three-proposer layouts remain
   unverified.
 - Worker-side MCP was a separate surface from coordinator-to-worker traffic. In #41,
-  W1 made a real guarded worker call. In #42, W1 and W2 made real calls, but both
+  W1 made a real guarded worker call. In the #42 baseline, W1 and W2 made real calls, but both
   supplied `blocking:true`; the bridge completed those requests, yet the required
   nonblocking worker-call contract was not met. The C root task remained without an
   observed terminal state. These caller/orchestration and missing-evidence findings
-  are not evidence of an A2A transport defect.
+  are not evidence of an A2A transport defect. The separately recorded third correction
+  above observed nonblocking worker calls and a completed root result without erasing
+  the preceding incomplete observations.
 - Every run used owned loopback processes and verified unregister responses and port
   rebinds. Existing listeners on 3000/5173 and the shared OpenCode service were left
   untouched. Costs were not measured; private prompts, outputs, handles and raw
