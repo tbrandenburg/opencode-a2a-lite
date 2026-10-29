@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Proposal is assessed by a critic, then revised (historical T4 refinement; three agents including coordinator).
 
-**Historical evidence:** Original T4 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized refinement case passed transport, topology, final correctness and operations but failed `semantics.refine`; its precise role sub-criterion was not retained. This does not establish adapter failure. See [topology findings](../../../../docs/topology-investigation-findings.md), [authorized results](../../../../docs/authorized-live-acceptance.md), and [issue #37](https://github.com/tbrandenburg/opencode-a2a-lite/issues/37).
+**Historical evidence:** Original T4 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized refinement case passed transport, topology, final correctness and operations but failed `semantics.refine`; its precise role sub-criterion was not retained. This does not establish adapter failure. See [topology findings](../topology-investigation-findings.md), [authorized results](../authorized-live-acceptance.md), and [issue #37](https://github.com/tbrandenburg/opencode-a2a-lite/issues/37).
 
 ## Adapter lens
 

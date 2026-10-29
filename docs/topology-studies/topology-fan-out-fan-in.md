@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Coordinator dispatches separable work to concurrent workers, then collects/synthesizes their results (historical T2; seven agents including coordinator).
 
-**Historical evidence:** Two of three original cases worked and both scored final answers were correct. A separate authorized run completed with six workers and passed recorded handoff/integrity/correctness/operations checks. These are not reliability evidence or validation through the current manual `opencode run` baseline. See [topology findings](../../../../docs/topology-investigation-findings.md), [authorized results](../../../../docs/authorized-live-acceptance.md), and [issue #39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39).
+**Historical evidence:** Two of three original cases worked and both scored final answers were correct. A separate authorized run completed with six workers and passed recorded handoff/integrity/correctness/operations checks. These are not reliability evidence or validation through the current manual `opencode run` baseline. See [topology findings](../topology-investigation-findings.md), [authorized results](../authorized-live-acceptance.md), and [issue #39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39).
 
 ## Adapter lens
 

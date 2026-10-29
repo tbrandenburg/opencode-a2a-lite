@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Ordered stage-to-stage worker handoffs (historical T1; seven agents including coordinator).
 
-**Historical evidence:** Original T1 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized pipeline case completed p1–p3, then contribution validation found one changed fact; later stages/final answer were unobserved. This is not an A2A adapter verdict. See [topology findings](../../../../docs/topology-investigation-findings.md) and [issue #35](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35).
+**Historical evidence:** Original T1 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized pipeline case completed p1–p3, then contribution validation found one changed fact; later stages/final answer were unobserved. This is not an A2A adapter verdict. See [topology findings](../topology-investigation-findings.md) and [issue #35](https://github.com/tbrandenburg/opencode-a2a-lite/issues/35).
 
 ## Adapter lens
 

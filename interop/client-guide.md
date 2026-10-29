@@ -4,7 +4,7 @@
 an orchestrator. It uses the existing official MCP client → endpoint guard →
 a2abridge 4.0.2 → gateway path. It creates no registry, queue, retry loop or server.
 The provider-free interop gate uses it; model-driven callers remain operator-owned.
-For user-facing usage, start with the [one-worker CLI smoke](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md),
+For user-facing usage, start with the [one-worker CLI smoke](/docs/manual-one-worker.md),
 not this optional host API. That recipe uses real `opencode run --server` against
 an owned warmed private server and existing session inspection, with no TypeScript
 coordinator. It has one dated authorized two-turn pass. When a live attempt is part
@@ -110,7 +110,7 @@ make check
 ```
 
 Download the documented 4.0.2 Linux amd64 release and verify both archive and
-executable hashes using the existing [download instructions](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md#prerequisites).
+executable hashes using the existing [download instructions](/docs/manual-one-worker.md#prerequisites).
 The target fails for an absent/wrong binary. It launches real gateways and
 controlled ACP subprocesses with synthetic environments, no provider/model or
 OpenCode installation, reusing the existing directory, guard, MCP and lifecycle

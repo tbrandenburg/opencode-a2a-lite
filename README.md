@@ -33,11 +33,11 @@ are outside that contract; protocol completion is not proof of answer correctnes
 Network/topology templates are research artifacts, not adapter features; no new
 schedules, roles, scorers, or orchestration-platform work is in scope.
 The managed network/topology lab is retired; optional guard/interop helpers live under
-`interop/`, and the manual live procedure is maintained in the OpenCode skill.
+`interop/`, and the project-specific manual live procedure is maintained in `docs/`.
 Retirement does not resolve historical defects.
 
 For model-issued MCP delegation, use the
-[manual one-worker CLI smoke](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md).
+[manual one-worker CLI smoke](/docs/manual-one-worker.md).
 Its owned, warmed OpenCode server plus `opencode run --server` has one authorized
 two-turn observation on 2026-10-28. Cold standalone startup exposed a readiness
 race; the warmed observation does not resolve historical E2E/topology failures.
@@ -411,7 +411,7 @@ The pre-retirement source remains at
 
 ### OpenCode coordinator: use `opencode run`
 
-Follow the [one-worker setup](/.opencode/skills/multi-a2a-agent/references/manual-one-worker.md)
+Follow the [one-worker setup](/docs/manual-one-worker.md)
 to start the worker/directory, configure the guarded project-local MCP entry, warm
 the owned private OpenCode server, and set `SERVER` and `PROMPT` from the recipe.
 When this live smoke is part of the current user request, run from the reviewed coordinator project; the user monitors provider spend:
@@ -425,10 +425,10 @@ request, then follows up using the returned context and no old task ID. Verify
 actual session tool calls, completed tasks/artifacts and owned cleanup—not just
 the final answer. Reuse the same warmed server; cold `--standalone` is not a
 substitute. The warmed one-worker smoke has one observed pass, not repeatability
-evidence. The project [multi-a2a-agent skill](/.opencode/skills/multi-a2a-agent/SKILL.md)
-contains this runbook and progressive topology references; the approved issues
-#35–#42 add bounded, evidence-led investigations without making the pages general
-runtime procedures. Optional
+evidence. The portable [multi-a2a-agent skill](/.opencode/skills/multi-a2a-agent/SKILL.md)
+contains reusable workflow guidance. Project-specific runbooks and topology layouts
+remain in `docs/` and their issue descriptions. The approved issues #35–#42 add
+bounded, evidence-led investigations without making the skill project-specific. Optional
 [TypeScript helpers](/interop/client-guide.md) are for host/CI use;
 see their [consumer inventory](/interop/README.md#retained-support-inventory).
 

@@ -4,7 +4,7 @@
 
 **Traffic pattern:** A task branches to multiple workers and later converges through a downstream worker/coordinator (historical T3; five agents including coordinator).
 
-**Historical evidence:** Original T3 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized diamond case is recorded. Missing scoring is not proof of an adapter or topology failure. See [topology findings](../../../../docs/topology-investigation-findings.md) and [issue #40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40).
+**Historical evidence:** Original T3 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized diamond case is recorded. Missing scoring is not proof of an adapter or topology failure. See [topology findings](../topology-investigation-findings.md) and [issue #40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40).
 
 ## Adapter lens
 
