@@ -68,6 +68,11 @@ test("N01 guard requires exact loopback roots, approved tools and a forty-call c
   expect(toolDecision("a2a_send_message", { peer_url: peers[0], blocking: false }, peers, 41)).toBe(
     "budget",
   );
+  expect(
+    toolDecision("a2a_send_message", { peer_url: peers[0], blocking: false }, peers, 40),
+  ).toBeUndefined();
+  for (const args of [{ peer_url: peers[0] }, { peer_url: peers[0], blocking: true }])
+    expect(toolDecision("a2a_send_message", args, peers, 41)).toBe("budget");
   expect(toolDecision("a2a_inbox", { peer_url: peers[0] }, peers, 1)).toBe("tool");
   expect(toolDecision("unknown", {}, peers, 1)).toBe("tool");
   expect(toolDecision("a2a_send_message", { peer_url: peers[0]!.slice(0, -1) }, peers, 1)).toBe(
@@ -77,6 +82,9 @@ test("N01 guard requires exact loopback roots, approved tools and a forty-call c
     "peer",
   );
   const external = "http://example.com/";
+  expect(
+    toolDecision("a2a_send_message", { peer_url: external, blocking: false }, [external], 1),
+  ).toBe("peer");
   expect(toolDecision("a2a_send_message", { peer_url: external, blocking: false }, peers, 1)).toBe(
     "peer",
   );
