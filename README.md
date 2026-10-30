@@ -103,16 +103,16 @@ and runtime-selected workspaces are not claimed.
 
 ## Verification and development
 
-| Command | Purpose |
-| --- | --- |
-| `make check` | Formatting, lint, strict types, deterministic regressions, build |
-| `make package-smoke` | Installed-tarball and subprocess lifecycle checks, without provider |
-| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance |
-| `make demo` | Isolated official A2A CLI two-turn smoke (**live, billable**) |
-| `make e2e` | Production live-model acceptance (**live, billable**) |
-| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck` | Applicable external A2A TCK checks |
-| `make release BUMP=patch` | Check, commit/tag and create **GitHub** release, not npm publication |
-| `make clean` | Remove build, coverage and test results |
+| Command                                                                | Purpose                                                              |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build     |
+| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider  |
+| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance          |
+| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)        |
+| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                |
+| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                   |
+| `make release BUMP=patch`                                              | Check, commit/tag and create **GitHub** release, not npm publication |
+| `make clean`                                                           | Remove build, coverage and test results                              |
 
 CI checks deterministic tests, installed packaging and the checksummed provider-free
 MCP bridge. Live demo/E2E are explicit manual commands requiring a provider key,

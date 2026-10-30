@@ -80,11 +80,7 @@ export function createTaskClient(connection: Connection, peerUrl: string) {
     );
   };
   return {
-    async submit(
-      text: string,
-      options: CallOptions,
-      continuation?: Handle,
-    ): Promise<Submission> {
+    async submit(text: string, options: CallOptions, continuation?: Handle): Promise<Submission> {
       if (continuation) peer(continuation);
       options.signal?.throwIfAborted();
       assert(options.deadline > performance.now(), "Submission deadline expired before dispatch");
