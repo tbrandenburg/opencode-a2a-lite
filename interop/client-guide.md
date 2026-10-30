@@ -81,6 +81,14 @@ Bridge 4.0.2's unary peer budget is 60 seconds; the gateway default prompt budge
 is 120 seconds. Prefer nonblocking send plus bounded task polling for longer work,
 not a 150-second blocking MCP call. Polling is **not SSE streaming**.
 
+This project's endpoint guard requires the literal boolean `blocking: false` on
+`a2a_send_message`; omitted, true, or mistyped values are denied before forwarding.
+This is an optional-guard policy, not a change to the bridge or A2A protocol. Poll
+`a2a_get_task` using the actual returned peer/task/context handles until a terminal
+state is observed; for continuation reuse the actual `context_id` and omit the old
+`task_id`. A local timeout or abort is not remote cancellation; a submission that
+times out without a handle remains uncertain and must not be resent.
+
 The pinned `a2a_send_streaming` schema has no `context_id`. The helper exposes nonblocking submission plus polling only; it does not
 accept a streaming mode option. Use polling for continuation. Fresh-context direct
 streaming remains available through the existing raw tool. Actual streaming
@@ -88,7 +96,8 @@ continuation needs a separately reviewed upstream schema and pin change.
 
 **This host helper does not govern the model's direct MCP tool calls.** Equivalent
 coordinator instructions must tell the model to retain returned peer/context/task
-IDs, continue via nonblocking `a2a_send_message` with `context_id` but no `task_id`,
+IDs, send `a2a_send_message` with literal `blocking:false`, continue with the actual
+`context_id` but no old `task_id`,
 inspect task state rather than MCP success, reserve intervention calls, and treat
 local timeouts as pending/uncertain rather than canceled. Neither those instructions
 nor the helper change gateway concurrency/security semantics. The guard enforces

@@ -32,6 +32,11 @@ the endpoint guard guarantees a hard 40-attempt quota. If pre-dispatch preventio
 is a required gate, record unsupported/BLOCKED before submitting. Otherwise require
 final receipt reconciliation after shutdown: >32 fails reserve, >40 also fails the
 overall-attempt gate; missing results remain uncertain, never implicitly canceled.
+The project's optional endpoint guard requires literal `blocking:false` on every
+`a2a_send_message` and denies other values before forwarding; this does not redefine
+the bridge or A2A protocol. Continue polling with actual returned handles, and never
+resend an uncertain submission without a handle. Deadlines, poll spacing and the
+32-call reserve remain caller/operator supervised.
 Make one baseline attempt; on a failure or undocumented essential step, clean up,
 record the gap, and stop without a corrective live run.
 

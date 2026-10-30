@@ -62,7 +62,17 @@ test("N19 receipt provenance hashes unknown reflected identifiers without changi
 test("N01 guard requires exact loopback roots, approved tools and a forty-call ceiling", () => {
   expect(toolDecision("a2a_get_task", { peer_url: peers[1] }, peers, 40)).toBeUndefined();
   expect(toolDecision("a2a_list_agents", {}, peers, 1)).toBeUndefined();
-  expect(toolDecision("a2a_send_message", { peer_url: peers[0] }, peers, 41)).toBe("budget");
+  expect(
+    toolDecision("a2a_send_message", { peer_url: peers[0], blocking: false }, peers, 1),
+  ).toBeUndefined();
+  expect(toolDecision("a2a_send_message", { peer_url: peers[0], blocking: false }, peers, 41)).toBe(
+    "budget",
+  );
+  expect(
+    toolDecision("a2a_send_message", { peer_url: peers[0], blocking: false }, peers, 40),
+  ).toBeUndefined();
+  for (const args of [{ peer_url: peers[0] }, { peer_url: peers[0], blocking: true }])
+    expect(toolDecision("a2a_send_message", args, peers, 41)).toBe("budget");
   expect(toolDecision("a2a_inbox", { peer_url: peers[0] }, peers, 1)).toBe("tool");
   expect(toolDecision("unknown", {}, peers, 1)).toBe("tool");
   expect(toolDecision("a2a_send_message", { peer_url: peers[0]!.slice(0, -1) }, peers, 1)).toBe(
@@ -72,7 +82,29 @@ test("N01 guard requires exact loopback roots, approved tools and a forty-call c
     "peer",
   );
   const external = "http://example.com/";
-  expect(toolDecision("a2a_send_message", { peer_url: external }, [external], 1)).toBe("peer");
+  expect(
+    toolDecision("a2a_send_message", { peer_url: external, blocking: false }, [external], 1),
+  ).toBe("peer");
+  expect(toolDecision("a2a_send_message", { peer_url: external, blocking: false }, peers, 1)).toBe(
+    "peer",
+  );
+  expect(toolDecision("a2a_send_message", { peer_url: external, blocking: true }, peers, 1)).toBe(
+    "peer",
+  );
+  expect(toolDecision("unsupported", { blocking: true }, peers, 41)).toBe("tool");
+  expect(toolDecision("a2a_send_message", { peer_url: peers[0] }, peers, 1)).toBe("mode");
+  expect(toolDecision("a2a_send_message", { peer_url: peers[0], blocking: true }, peers, 1)).toBe(
+    "mode",
+  );
+  expect(
+    toolDecision("a2a_send_message", { peer_url: peers[0], blocking: "false" }, peers, 1),
+  ).toBe("mode");
+  expect(toolDecision("a2a_send_message", { peer_url: peers[0], blocking: null }, peers, 1)).toBe(
+    "mode",
+  );
+  expect(toolDecision("a2a_send_message", null, peers, 1)).toBe("mode");
+  expect(toolDecision("a2a_send_message", [], peers, 1)).toBe("mode");
+  expect(toolDecision("a2a_send_streaming", { peer_url: peers[0] }, peers, 1)).toBeUndefined();
   expect(loopback("http://localhost:9000/path", true)).toBe(false);
   expect(loopback("http://user:password@localhost/", true)).toBe(false);
   expect(loopback("http://localhost/?secret=x", true)).toBe(false);
