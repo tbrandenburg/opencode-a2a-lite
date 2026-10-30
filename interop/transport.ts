@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { setTimeout } from "node:timers/promises";
+import manifest from "../package.json" with { type: "json" };
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -146,8 +147,6 @@ export async function directory(binary: string, profile: Profile, signal?: Abort
 
 export async function mcp(profile: Profile, connection: NetworkConnection, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  await freePort();
-  signal?.throwIfAborted();
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: proxyArgs(profile, connection),
@@ -156,7 +155,7 @@ export async function mcp(profile: Profile, connection: NetworkConnection, signa
     stderr: "pipe",
   });
   transport.stderr?.on("data", () => undefined);
-  const client = new Client({ name: "opencode-a2a-interop", version: "0.1.1" });
+  const client = new Client({ name: "opencode-a2a-interop", version: manifest.version });
   const close = owned(async () => {
     try {
       await client.close();

@@ -84,13 +84,8 @@ export function createTaskClient(connection: Connection, peerUrl: string) {
       text: string,
       options: CallOptions,
       continuation?: Handle,
-      mode: "polling" | "streaming" = "polling",
     ): Promise<Submission> {
       if (continuation) peer(continuation);
-      assert(
-        mode !== "streaming",
-        "Use direct streaming only for fresh contexts; bridge 4.0.2 cannot stream continuation. Select polling explicitly.",
-      );
       options.signal?.throwIfAborted();
       assert(options.deadline > performance.now(), "Submission deadline expired before dispatch");
       assert(connection.remainingCalls > reserve, "Submission would consume intervention reserve");

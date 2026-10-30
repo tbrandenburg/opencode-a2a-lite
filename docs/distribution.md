@@ -2,7 +2,7 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` **0.1.1** is prepared for public distribution.
+`@tbrandenburg/opencode-a2a-lite` **0.1.2** is prepared for public distribution.
 The maintainer has authorized removal of `private: true`; public npm access is
 configured, but authenticated namespace ownership and actual registry acceptance
 are not established. Do not publish to npm until ownership is verified, or mark
@@ -53,7 +53,7 @@ notes. Do not add registry credentials to the repository.
    available name is **not** proof of ownership. Inspect package/version availability
    using `npm view <verified-package> --json` without printing credential files.
 2. Through a reviewed change, confirm the verified package name, intended release
-   version and repository URL. Version 0.1.1 has public publication authorized and
+   version and repository URL. Version 0.1.2 has public publication authorized and
    `private: true` removed; this does not establish npm scope ownership.
    Keep the single bin and public access setting. Refresh `bun.lock`
    with Bun and update the README to the verified name. Commit/push through normal

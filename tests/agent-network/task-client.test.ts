@@ -88,9 +88,6 @@ test("N04 continuation uses actual peer/context and a new task; unknown tasks fa
   });
   const other = createTaskClient(f.connection, "http://127.0.0.1:1002/");
   await expect(other.submit("wrong", options(), first.handle)).rejects.toThrow("Cross-peer");
-  await expect(f.peer.submit("wrong", options(), first.handle, "streaming")).rejects.toThrow(
-    "4.0.2",
-  );
   await expect(f.peer.get(first.handle, options())).rejects.toThrow("unknown task");
   const stale = await f.peer.submit("stale", options(), first.handle);
   expect(stale.outcome).toBe("uncertain");
