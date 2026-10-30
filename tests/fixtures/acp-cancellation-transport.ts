@@ -1,10 +1,10 @@
 import { Readable, Writable } from "node:stream";
-import * as acp from "@agentclientprotocol/sdk";
 
 if (process.argv[3] === "--version") {
   console.log("opencode v2.0.28");
   process.exit(0);
 }
+const acp = await import("@agentclientprotocol/sdk");
 const mode = process.argv[2];
 const agent = acp.agent({ name: "cancellation-transport-peer" });
 const canceled = Promise.withResolvers<void>();
