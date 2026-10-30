@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Multiple workers submit proposals/assessments and a judge receives and selects among them (historical T5; five agents including coordinator).
 
-**Historical evidence:** Original T5 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized case stopped on exact inbound artifact-string integrity after proposer evaluations; judge reasoning/final correctness were unobserved. This is not evidence of intrinsic judge reasoning or a general adapter failure. See [topology findings](../topology-investigation-findings.md), [authorized results](../authorized-live-acceptance.md), and [issue #38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38).
+**Historical evidence:** Original T5 was WORKING in 0/3 cases and had 0/3 final answers scored. A later authorized case stopped on exact inbound artifact-string integrity after proposer evaluations; judge reasoning/final correctness were unobserved. This is not evidence of intrinsic judge reasoning or a general adapter failure. See [topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md), [authorized results](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md), and [issue #38](https://github.com/tbrandenburg/opencode-a2a-lite/issues/38).
 
 ## Adapter lens
 
@@ -17,7 +17,7 @@ Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
 Keep distinct proposer bindings, use independent nonblocking submissions, and give
 the judge the exact completed artifacts rather than coordinator paraphrases.
 
-In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+In [the bounded assessment](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
 two proposer submissions preceded polling and both were observed working. The judge
 received both exact artifacts. Three tasks completed in 17.350s, 19.553s and 11.023s
 with 17 paired calls. The full three-proposer layout and judge reasoning were not

@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Workers would route or delegate across a mesh rather than only through the coordinator's guarded peer list.
 
-**Historical evidence:** The topology findings explicitly state that decentralized meshes have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](../topology-investigation-findings.md) and [scope issue #41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41).
+**Historical evidence:** The topology findings explicitly state that decentralized meshes have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md) and [scope issue #41](https://github.com/tbrandenburg/opencode-a2a-lite/issues/41).
 
 ## Adapter lens
 
@@ -18,7 +18,7 @@ For this approved assessment, each worker guard's peer set contained only the ot
 three workers; C could reach only W1. Temporary network-tool permissions applied
 to the reviewed worker agents; only one W1→W2 wave was requested, with no fanback.
 
-In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+In [the bounded assessment](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
 W1's actual ACP/OpenCode session made the child call nonblocking. The child completed
 in 6.361s and its exact artifact returned through W1's root task in 18.357s. C and
 W1 recorded 9 and 6 paired calls. No other permitted edge or recursive wave was

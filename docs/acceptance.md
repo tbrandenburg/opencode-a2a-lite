@@ -20,7 +20,7 @@ The 14-scenario ordering, original assertions, 120s CLI/130000ms exec limits,
 90000ms observation deadline and no-retry behavior remain. Provider-free regression
 tests exercise these diagnostics; **a new paid `make e2e` run is pending a separate
 explicit decision**. These changes do not explain or replace the historical failures
-in [authorized live evidence](/docs/authorized-live-acceptance.md) or issues #19/#27.
+in [authorized live evidence](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md) or issues #19/#27.
 
 ## Safeguard follow-up verification
 
