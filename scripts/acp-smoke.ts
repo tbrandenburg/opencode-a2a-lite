@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
+import manifest from "../package.json" with { type: "json" };
 import { cleanup, prepare } from "./acp-smoke-config.js";
 
 async function smoke(workspace: Awaited<ReturnType<typeof prepare>>) {
@@ -87,7 +88,7 @@ async function smoke(workspace: Awaited<ReturnType<typeof prepare>>) {
       connection.agent.request(acp.methods.agent.initialize, {
         protocolVersion: acp.PROTOCOL_VERSION,
         clientCapabilities: {},
-        clientInfo: { name: "opencode-a2a-lite-smoke", version: "0.1.0" },
+        clientInfo: { name: "opencode-a2a-lite-smoke", version: manifest.version },
       }),
       30_000,
       "initialize",

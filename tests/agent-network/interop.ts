@@ -148,7 +148,6 @@ try {
   assert.notEqual(lines(join(root, "acp-1.jsonl"))[0]!.sessionId, receipts[0]!.sessionId);
   const before = connection.remainingCalls;
   await assert.rejects(second.submit("wrong", limits(), a.handle), /Cross-peer/);
-  await assert.rejects(first.submit("unsupported", limits(), a.handle, "streaming"), /4.0.2/);
   assert.equal(connection.remainingCalls, before);
 
   stage = "local-deadlines-and-explicit-cancel";

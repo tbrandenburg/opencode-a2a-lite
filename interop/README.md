@@ -6,9 +6,9 @@ orchestration platform. The managed network/topology runners, generated model
 profiles, readiness plugin, workloads and scorers have been retired.
 
 Historical source is retained at [pre-retirement revision a70b639](https://github.com/tbrandenburg/opencode-a2a-lite/tree/a70b639/examples/agent-network).
-[Network findings](/docs/agent-network-findings.md),
-[topology findings](/docs/topology-investigation-findings.md) and
-[authorized live failures](/docs/authorized-live-acceptance.md) remain historical
+[Network findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/agent-network-findings.md),
+[topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md) and
+[authorized live failures](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md) remain historical
 evidence, not proof of resolved defects. Neither `network-demo` nor
 `topology-investigation` is a current command. The single-gateway `make demo` and
 production `make e2e` are manual, provider-billed operations and do not run in ordinary CI.

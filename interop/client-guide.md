@@ -81,9 +81,8 @@ Bridge 4.0.2's unary peer budget is 60 seconds; the gateway default prompt budge
 is 120 seconds. Prefer nonblocking send plus bounded task polling for longer work,
 not a 150-second blocking MCP call. Polling is **not SSE streaming**.
 
-The pinned `a2a_send_streaming` schema has no `context_id`. The helper rejects
-`mode: "streaming"` before dispatch (including context-bearing requests); select
-the default polling mode explicitly for continuation. Fresh-context direct
+The pinned `a2a_send_streaming` schema has no `context_id`. The helper exposes nonblocking submission plus polling only; it does not
+accept a streaming mode option. Use polling for continuation. Fresh-context direct
 streaming remains available through the existing raw tool. Actual streaming
 continuation needs a separately reviewed upstream schema and pin change.
 

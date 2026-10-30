@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Workers would delegate or route work through a tree without relying solely on the current coordinator-to-worker adapter path.
 
-**Historical evidence:** The topology findings explicitly state that decentralized trees have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](../topology-investigation-findings.md) and [scope issue #42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42).
+**Historical evidence:** The topology findings explicitly state that decentralized trees have no verdict and worker-side MCP/delegation permissions were outside scope. See [topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md) and [scope issue #42](https://github.com/tbrandenburg/opencode-a2a-lite/issues/42).
 
 ## Adapter lens
 
@@ -24,7 +24,7 @@ up to eight spaced calls, and 32/40 ordinary-call ceiling per guard connection. 
 child's limit cannot extend its ancestor's deadline. C must collect a terminal root
 task artifact, not infer completion from worker sessions or CLI exit zero.
 
-The [third targeted correction](/docs/authorized-live-acceptance.md#42-three-targeted-corrections-2026-10-29)
+The [third targeted correction](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md#42-three-targeted-corrections-2026-10-29)
 observed terminal tasks in 14.502s, 9.127s and 3.605s with C/W1/W2 call totals
 11/6/3. Actual inputs, handles, and artifacts correlated; each send was nonblocking.
 The baseline and two incomplete corrections remain retained. The approved attempt

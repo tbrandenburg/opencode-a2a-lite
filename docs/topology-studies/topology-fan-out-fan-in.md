@@ -4,7 +4,7 @@
 
 **Traffic pattern:** Coordinator dispatches separable work to concurrent workers, then collects/synthesizes their results (historical T2; seven agents including coordinator).
 
-**Historical evidence:** Two of three original cases worked and both scored final answers were correct. A separate authorized run completed with six workers and passed recorded handoff/integrity/correctness/operations checks. These are not reliability evidence or validation through the current manual `opencode run` baseline. See [topology findings](../topology-investigation-findings.md), [authorized results](../authorized-live-acceptance.md), and [issue #39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39).
+**Historical evidence:** Two of three original cases worked and both scored final answers were correct. A separate authorized run completed with six workers and passed recorded handoff/integrity/correctness/operations checks. These are not reliability evidence or validation through the current manual `opencode run` baseline. See [topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md), [authorized results](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md), and [issue #39](https://github.com/tbrandenburg/opencode-a2a-lite/issues/39).
 
 ## Adapter lens
 
@@ -17,7 +17,7 @@ Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
 Have OpenCode submit independent nonblocking tasks before polling, track each
 actual binding, and synthesize only after the required terminal artifacts are observed.
 
-In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+In [the bounded assessment](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
 three workers were observed working in the first poll round and completed in
 13.640s, 13.638s and 13.775s with 14 paired calls. Exact inputs and artifacts were
 correlated into coordinator synthesis. The remaining three workers and synthesis

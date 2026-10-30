@@ -4,7 +4,7 @@
 
 **Traffic pattern:** A task branches to multiple workers and later converges through a downstream worker/coordinator (historical T3; five agents including coordinator).
 
-**Historical evidence (before the bounded assessment below):** Original T3 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized diamond case was recorded in that historical matrix. Missing scoring is not proof of an adapter or topology failure. See [topology findings](../topology-investigation-findings.md) and [issue #40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40).
+**Historical evidence (before the bounded assessment below):** Original T3 was WORKING in 0/3 cases and had 0/3 final answers scored. No later authorized diamond case was recorded in that historical matrix. Missing scoring is not proof of an adapter or topology failure. See [topology findings](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/topology-investigation-findings.md) and [issue #40](https://github.com/tbrandenburg/opencode-a2a-lite/issues/40).
 
 ## Adapter lens
 
@@ -17,7 +17,7 @@ Use the [reviewed setup](/docs/manual-one-worker.md), then load the portable
 Relay the exact planner artifact to two isolated reviewer tasks; relay both exact
 reviewer artifacts as separately attributed inputs to the integrator.
 
-In [the bounded assessment](/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
+In [the bounded assessment](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md#additional-bounded-adapter-assessments-2026-10-29),
 four tasks completed in 5.853s, 12.548s, 10.327s and 6.641s with 22 paired calls.
 Branch inputs and join artifacts matched worker sessions. The integrator artifact
 contained the expected markers although the coordinator's final prose omitted them.
