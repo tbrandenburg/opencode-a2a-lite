@@ -31,6 +31,11 @@ connection; subsequent attempts are locally denied but still count as attempts.
 It therefore does not hard-stop the caller itself at 40 attempts.
 If the required gate is prevention before dispatch at either limit, this recipe is
 unsupported: record BLOCKED **before submission**, not an enforcement claim.
+The endpoint guard separately denies `a2a_send_message` unless its top-level
+`blocking` value is literal `false`; this mode policy is enforced before forwarding.
+Rejected attempts still count toward the 40-attempt limit and are observed in
+sanitized receipts. The 32-call threshold, deadlines and polling cadence remain
+passive/operator supervision, not pre-dispatch enforcement.
 
 Each accepted send has its own monotonic cutoff mapped from its timestamped guard
 receipt. A result arriving after the cutoff fails even if the task completed.

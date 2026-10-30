@@ -420,6 +420,37 @@ try {
     ],
   });
   stage = "endpoint-guard-denials";
+  const promptCounts = [2, 3].map(
+    (index) =>
+      lines(join(root, `acp-${index}.jsonl`)).filter((entry) => entry.event === "prompt").length,
+  );
+  for (const args of [
+    { peer_url: peers[2]!, text: "mode-denial-true", blocking: true },
+    { peer_url: peers[2]!, text: "mode-denial-omitted" },
+  ]) {
+    const before = lines(join(root, "mcp-receipts.jsonl"));
+    assert.equal(
+      await negatives.call("a2a_send_message", args, true, limits()),
+      "Bridge request denied by endpoint guard.",
+    );
+    const delta = lines(join(root, "mcp-receipts.jsonl")).slice(before.length);
+    assert.equal(
+      delta.length,
+      1,
+      "Mode denial must not be forwarded or produce an upstream result",
+    );
+    assert.equal(delta[0]!.event, "rejected");
+    assert.equal(delta[0]!.tool, "a2a_send_message");
+    assert.equal(delta[0]!.reason, "mode");
+  }
+  assert.deepEqual(
+    [2, 3].map(
+      (index) =>
+        lines(join(root, `acp-${index}.jsonl`)).filter((entry) => entry.event === "prompt").length,
+    ),
+    promptCounts,
+    "Mode denials must not create an ACP prompt",
+  );
   for (const denied of [
     { tool: "a2a_get_task", args: { peer_url: peers[0]!, task_id: "missing" }, reason: "peer" },
     {
@@ -446,10 +477,10 @@ try {
   subcases.push({
     id: "guard-denials",
     passed: true,
-    attemptedCalls: 2,
+    attemptedCalls: 4,
     criteria: [
-      "unapproved peer and forbidden tool return exact local denial",
-      "matching peer/tool rejections without forwarded calls",
+      "blocking true and omitted, unapproved peer, and forbidden tool return exact local denial",
+      "sanitized mode/peer/tool rejections have no forwarded call/result or new ACP prompt",
     ],
   });
   stage = "busy-and-explicit-fallback";
@@ -522,6 +553,7 @@ try {
   const receiptFile = join(root, "mcp-receipts.jsonl");
   const privacyAudit = lines(receiptFile);
   assert(!readFileSync(receiptFile, "utf8").includes(sentinel));
+  assert(!readFileSync(receiptFile, "utf8").includes("mode-denial-"));
   const submittedCall = privacyAudit.find(
     (entry) => entry.event === "call" && entry.contextHash === sha256(sentinel),
   );
@@ -553,7 +585,8 @@ try {
   const negativeCalls = negativeAudit.filter((entry) => entry.event === "call");
   const negativeRejections = negativeAudit.filter((entry) => entry.event === "rejected");
   const negativeAttempts = negativeCalls.length + negativeRejections.length;
-  assert.equal(negativeRejections.length, 2);
+  assert.equal(negativeRejections.length, 4);
+  assert.equal(negativeRejections.filter((entry) => entry.reason === "mode").length, 2);
   assert.equal(negativeAttempts, 40 - negatives.remainingCalls);
   for (const call of negativeCalls) assert(pairedResult(call, negativeAudit));
   attemptedCalls += negativeAttempts;

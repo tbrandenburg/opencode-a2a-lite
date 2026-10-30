@@ -238,6 +238,13 @@ filters six tools, enforces exact peers and 40 attempts, and passes only fixed P
 and private HOME to the child. MCP `environment:{}` does not strip inherited keys.
 The guard constrains arguments, not hostile cards/redirects or other local users;
 it is not an OS/network sandbox. Review inherited configuration again.
+For `a2a_send_message`, this guard additionally requires literal `blocking:false`;
+other modes are rejected locally rather than rewritten. This optional guard policy
+does not redefine the bridge or A2A protocol. Poll the actual returned task handle
+to an observed terminal state; on continuation use its actual context and omit the
+old task ID. Local timeout/abort is not remote cancellation, and an uncertain send
+without a returned handle must not be resent. The 32-of-40 reserve, monotonic task
+deadlines and poll spacing remain caller/operator responsibilities, not guard checks.
 
 ### 5. Run the requested live CLI attempt
 

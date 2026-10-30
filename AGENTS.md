@@ -84,3 +84,7 @@ ports. Do not infer that an unfinished task was canceled.
 For past incidents and detailed investigation evidence, follow the Git-provenance
 links in [docs/history.md](docs/history.md) instead of expanding this file into a
 chronological incident diary.
+
+## Lessons Learned
+
+- 2026-10-30: Pitfall: Disposable OpenCode homes can collide on managed-service ports, and a scrubbed `PATH` can hide the pinned executable. Prevention: bind-check and set private service ports, retain pinned binary paths, and run effective-config probes from the disposable project cwd.

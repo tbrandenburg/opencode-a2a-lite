@@ -52,7 +52,7 @@ export function toolDecision(
   args: unknown,
   peers: readonly string[],
   count: number,
-): "tool" | "peer" | "budget" | undefined {
+): "tool" | "peer" | "budget" | "mode" | undefined {
   if (typeof tool !== "string" || !tools.includes(tool)) return "tool";
   const invalidPeer = (value: unknown): boolean => {
     if (Array.isArray(value)) return value.some(invalidPeer);
@@ -67,6 +67,7 @@ export function toolDecision(
   };
   if (invalidPeer(args)) return "peer";
   if (count > 40) return "budget";
+  if (tool === "a2a_send_message" && (!record(args) || args.blocking !== false)) return "mode";
   return undefined;
 }
 
