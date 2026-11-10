@@ -60,10 +60,30 @@ The final passing run does not establish that those intermittent failures are fi
 Unrelated package-version documentation drift is tracked in
 [#62](https://github.com/tbrandenburg/opencode-a2a-lite/issues/62).
 
+Initial hosted CI exposed a separate fixture portability defect: 7/80 tests
+failed because the local harness pre-created `/tmp/opencode`, while fresh runners
+did not. The original failed runs are
+[push CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863107874)
+and [PR CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863144074).
+This missing-parent failure is not the scheduling/timing issue tracked in #64.
+The focused fix uses `tmpdir()` plus `mkdtemp` and changes only two unit-test
+files. Coordinator verification at **2026-11-10T17:23:14Z** passed 12/12 focused
+tests with an empty container `/tmp`, then 12/12 with a custom `TMPDIR`; fixture
+cleanup passed and `/tmp/opencode` was never created. The container used
+`--rm --init --network none --read-only`, read-only source/Bun mounts and
+`--tmpfs /tmp:rw,exec,mode=1777` because the candidate fixture executes scripts.
+An initial coordinator probe without `exec` failed that script-execution
+precondition and is not counted as a passing portability run. The subsequent
+CI-equivalent coordinator check passed 80/80 tests and 567 assertions again.
+Production, scripts and live acceptance helpers remained byte-identical to the
+14/14 live run; no second paid run is inferred or claimed from unit results.
+
 Tested source-tree SHA-256 (`src/`, 8 files):
 `a091b58bb468db0c2d5eb6150402bdc2c06db72efca80da48d43eb08e45eaa38`.
-Source plus acceptance/probe files (`src/`, `tests/`, `scripts/`, 51 files):
+Live-run source plus acceptance/probe files (`src/`, `tests/`, `scripts/`, 51 files):
 `af5319aab496fc1fe759a96f90b374f27e3ea66f994bc411a28acdb5af097cf2`.
+After the two unit-fixture portability edits, the same 51-file tree hashes to
+`c3879c9211354695ba2fb880855ce8ef887dfca7f3316f9d8a4889bfe9bc9ed6`.
 These use the path-and-bytes hashing recipe below; later documentation-only edits
 do not change these identities.
 
