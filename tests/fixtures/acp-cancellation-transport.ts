@@ -1,7 +1,7 @@
 import { Readable, Writable } from "node:stream";
 
 if (process.argv[3] === "--version") {
-  console.log("opencode v2.0.28");
+  console.log("opencode v2.2.7");
   process.exit(0);
 }
 const acp = await import("@agentclientprotocol/sdk");

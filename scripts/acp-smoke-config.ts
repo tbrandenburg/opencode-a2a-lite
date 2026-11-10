@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createServer } from "node:net";
 import {
   existsSync,
   mkdirSync,
@@ -43,23 +44,24 @@ export async function cleanup(root: string) {
 }
 
 // Pinned source: packages/util/src/global-roots.ts and core/src/config/discovery.ts
-// at anomalyco/opencode v2.0.28. HOME also isolates .agents and .claude discovery.
-export async function prepare() {
+// at anomalyco/opencode v2.2.7. HOME also isolates .agents and .claude discovery.
+export async function prepare(options: { providerFree?: boolean } = {}) {
   assert.equal(process.platform, "linux", "This isolation probe is Linux-only");
   assert(!existsSync("/etc/opencode"), "Managed configuration requires separate review");
-  assert(process.env.OPENAI_API_KEY, "OPENAI_API_KEY must be present (never printed)");
+  if (!options.providerFree)
+    assert(process.env.OPENAI_API_KEY, "OPENAI_API_KEY must be present (never printed)");
   const base = "/tmp/opencode/opencode-a2a-lite-acp-smoke";
   mkdirSync(base, { recursive: true, mode: 0o700 });
   const root = mkdtempSync(path.join(base, "run-"));
   try {
-    return { ...configure(root), root };
+    return { ...(await configure(root, options.providerFree === true)), root };
   } catch (error) {
     await cleanup(root);
     throw error;
   }
 }
 
-function configure(root: string) {
+async function configure(root: string, providerFree: boolean) {
   const cwd = path.join(root, "workspace");
   const home = path.join(root, "home");
   mkdirSync(cwd);
@@ -93,7 +95,7 @@ function configure(root: string) {
     XDG_DATA_HOME: path.join(home, ".local/share"),
     XDG_STATE_HOME: path.join(home, ".local/state"),
     XDG_CACHE_HOME: path.join(home, ".cache"),
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ...(providerFree ? {} : { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
   };
   const executable = process.env.ACP_SMOKE_OPENCODE ?? "opencode";
   const command = (args: string[]) => {
@@ -111,11 +113,31 @@ function configure(root: string) {
   };
   assert.equal(
     command(["--version"]).trim(),
-    "opencode v2.0.28",
+    "opencode v2.2.7",
     "Review isolation for a different pin",
+  );
+  // Even service set disabled stops a discovered service. Seed an owned, bind-checked
+  // port before that command, so discovery cannot fall back to a shared default port.
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", resolve);
+  });
+  const address = probe.address();
+  assert(address && typeof address !== "string");
+  const directory = path.join(home, ".config/opencode");
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    path.join(directory, "service.json"),
+    JSON.stringify({ hostname: "127.0.0.1", port: address.port }),
+    { mode: 0o600, flag: "wx" },
+  );
+  await new Promise<void>((resolve, reject) =>
+    probe.close((error) => (error ? reject(error) : resolve())),
   );
   // server-connection.ts: disabled=true selects a leased standalone server on port 0.
   command(["service", "set", "disabled", "true"]);
+  assert.equal(command(["service", "get", "disabled"]).trim(), "true");
   {
     const entries: unknown = JSON.parse(command(["debug", "config"]));
     assert(Array.isArray(entries), "Expected ordered config source entries, not merged config");

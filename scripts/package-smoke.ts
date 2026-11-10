@@ -159,7 +159,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   assert.match(invalidDirect.stderr, /Invalid worker identity/);
   assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
   assert.equal(existsSync(record), false);
-  reject(["--workspace", ".", "--port", "0"], /exactly opencode v2.0.28/, {
+  reject(["--workspace", ".", "--port", "0"], /exactly opencode v2.2.7/, {
     PEER_MODE: "executable-version",
   });
   reject(["--workspace", ".", "--port", "0"], /Gateway startup failed/, {

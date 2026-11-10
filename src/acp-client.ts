@@ -131,7 +131,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             code === 0 ? resolve(output.trim()) : reject(new StartupError("executable")),
           );
         });
-        if (version !== "opencode v2.0.28") throw new StartupError("version");
+        if (version !== "opencode v2.2.7") throw new StartupError("version");
         if (failure.signal.aborted || stopping) throw new Error("ACP bridge closed");
         if (signalGroup(0)) throw new Error("ACP executable left owned descendants");
         child = spawn(executable, args, {

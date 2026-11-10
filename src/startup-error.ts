@@ -9,9 +9,9 @@ const messages = {
     "Invalid worker identity: use nonblank strings without control characters; name <=128, description <=1024, and up to 16 tags of <=64 characters (A2A_TAGS is comma-separated).",
   occupied: "Loopback port is in use; choose another --port or A2A_PORT (0 selects a free port).",
   executable:
-    "ACP startup failed: OpenCode is unavailable; install the reviewed OpenCode 2.0.28 executable on PATH.",
+    "ACP startup failed: OpenCode is unavailable; install the reviewed OpenCode 2.2.7 executable on PATH.",
   version:
-    "ACP startup failed: Unsupported OpenCode version; PATH must provide exactly opencode v2.0.28.",
+    "ACP startup failed: Unsupported OpenCode version; PATH must provide exactly opencode v2.2.7.",
 } as const;
 
 export class StartupError extends Error {

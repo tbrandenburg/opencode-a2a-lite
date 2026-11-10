@@ -4,7 +4,15 @@ import * as acp from "@agentclientprotocol/sdk";
 
 const mode = process.argv[2];
 if (process.argv[3] === "--version") {
-  console.log(mode === "executable-version" ? "opencode v2.0.29" : "opencode v2.0.28");
+  const version =
+    mode === "executable-version"
+      ? "2.2.8"
+      : mode === "version-old"
+        ? "2.0.28"
+        : mode === "version-floor"
+          ? "2.1.3"
+          : "2.2.7";
+  console.log(`opencode v${version}`);
   process.exit(0);
 }
 const descendant =
@@ -81,6 +89,9 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   }
   await chunk(ctx, "unrelated", "wrong-session");
   await chunk(ctx, activeSession, "child", { "opencode/child-session": false });
+  await chunk(ctx, activeSession, "child-object", {
+    "opencode/child-session": { id: "ses_child", parentID: activeSession, depth: 1 },
+  });
   await ctx.notify(acp.methods.client.session.update, {
     sessionId: activeSession,
     _meta: { "opencode/child-session": true },
@@ -99,6 +110,10 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   await ctx.notify(acp.methods.client.session.update, {
     sessionId: activeSession,
     update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "private" } },
+  });
+  await ctx.notify(acp.methods.client.session.update, {
+    sessionId: activeSession,
+    update: { sessionUpdate: "tool_call", toolCallId: "private-tool", title: "private tool" },
   });
   await ctx.notify(acp.methods.client.session.update, {
     sessionId: activeSession,
