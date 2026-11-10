@@ -114,25 +114,76 @@ test("A6: a prompt deadline rejects pending work and permanently retires the bri
   const instance = bridge("normal", { promptTimeoutMs: 200 });
   await instance.start();
   const session = await instance.newSession();
-  await expect(instance.prompt(session.sessionId, "hang", () => undefined)).rejects.toThrow(
-    "ACP prompt timed out",
-  );
+  const chunks: string[] = [];
+  await expect(
+    instance.prompt(session.sessionId, "hang", (text) => chunks.push(text)),
+  ).rejects.toThrow("ACP prompt timed out");
+  expect(chunks).toEqual(["ready"]);
   await expect(instance.newSession()).rejects.toThrow("unavailable");
   await expect(instance.start()).rejects.toThrow("unavailable");
 });
 
-test("A7: cancellation has its own deadline and rejects the hanging prompt", async () => {
-  const instance = bridge("cancel-hang", { cancelTimeoutMs: 150 });
+async function cancellationProbe(mode: "cancel-hang" | "cancel-no-receipt") {
+  const instance = bridge(mode, { cancelTimeoutMs: 150 });
   await instance.start();
   const session = await instance.newSession();
-  const ready = Promise.withResolvers<void>();
-  const prompt = instance.prompt(session.sessionId, "cancel", () => ready.resolve());
+  const ready = Promise.withResolvers<string>();
+  const receipt = Promise.withResolvers<string>();
+  const prompt = instance.prompt(session.sessionId, "cancel", (text) => {
+    if (text === "cancel-received") receipt.resolve(text);
+    else ready.resolve(text);
+  });
   const rejected = prompt.catch((error: unknown) => error);
-  await ready.promise;
-  await expect(instance.cancel(session.sessionId)).rejects.toThrow("cancel timed out");
-  expect(await rejected).toBeInstanceOf(Error);
-  expect(String(await rejected)).toContain("cancel timed out");
-  await expect(instance.newSession()).rejects.toThrow("unavailable");
+  const readiness = Promise.race([
+    ready.promise,
+    prompt.then(
+      () => {
+        throw new Error("Prompt completed before readiness");
+      },
+      (error: unknown) => {
+        throw error;
+      },
+    ),
+  ]);
+  expect(await readiness).toBe("ready");
+  return { instance, session, receipt: receipt.promise, rejected };
+}
+
+async function cancelAfterReceipt(cancellation: Promise<void>, receipt: Promise<string>) {
+  const premature = cancellation.then(
+    () => {
+      throw new Error("Cancellation settled before peer receipt");
+    },
+    (error: unknown) => {
+      throw new Error("Cancellation settled before peer receipt", { cause: error });
+    },
+  );
+  expect(await Promise.race([receipt, premature])).toBe("cancel-received");
+  await cancellation;
+}
+
+test("A7: cancellation has its own deadline and rejects the hanging prompt", async () => {
+  const probe = await cancellationProbe("cancel-hang");
+  await expect(
+    cancelAfterReceipt(probe.instance.cancel(probe.session.sessionId), probe.receipt),
+  ).rejects.toThrow("cancel timed out");
+  expect(await probe.rejected).toBeInstanceOf(Error);
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
+});
+
+test("A7 receipt gate rejects a real cancellation timeout without peer receipt", async () => {
+  const probe = await cancellationProbe("cancel-no-receipt");
+  const outcome = await cancelAfterReceipt(
+    probe.instance.cancel(probe.session.sessionId),
+    probe.receipt,
+  ).catch((error: unknown) => error);
+  expect(outcome).toBeInstanceOf(Error);
+  if (!(outcome instanceof Error)) throw new Error("Expected receipt failure");
+  expect(outcome.message).toBe("Cancellation settled before peer receipt");
+  expect(String(outcome.cause)).toContain("cancel timed out");
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
 });
 
 test("A8: close escalates only its owned group, including descendants", async () => {

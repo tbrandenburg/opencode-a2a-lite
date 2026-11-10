@@ -129,7 +129,9 @@ test("H03 ACP startup timeout never opens HTTP or advertises early readiness", a
     const pending = instance.start().catch((error: unknown) => error);
     await until(() => Bun.file(marker).exists());
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
-    expect(await pending).toBeInstanceOf(Error);
+    const failure = await pending;
+    expect(failure).toBeInstanceOf(Error);
+    expect(String(failure)).toContain("ACP startup timed out");
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
     await expect(instance.start()).rejects.toThrow("closed");
   } finally {
