@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
 import { setTimeout } from "node:timers/promises";
@@ -34,7 +35,7 @@ async function reclaimed(port: number) {
 
 ["parent", "descendant"].forEach((stopped) => {
   test(`raw ACP initialize failure cleans a stopped ${stopped}, its owned listener and leaves a sentinel alive`, async () => {
-    const root = mkdtempSync("/tmp/opencode/issue-61-stalled-");
+    const root = mkdtempSync(join(tmpdir(), "issue-61-stalled-"));
     const options = { cwd: root, env: { PATH: "/usr/bin:/bin", HOME: root } };
     const sentinel = spawnOwnedProcess(
       process.execPath,
@@ -110,7 +111,7 @@ test("owned process cleanup is registered even when spawn fails before initializ
     "/missing/acceptance-executable",
     [],
     {
-      cwd: "/tmp/opencode",
+      cwd: tmpdir(),
       env: {},
     },
     grace,

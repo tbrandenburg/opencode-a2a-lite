@@ -1,4 +1,5 @@
 import { mkdtempSync, mkdirSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
@@ -12,7 +13,7 @@ import {
 const secret = "PRIVATE-content-not-for-evidence";
 
 test("production PATH executes the exact candidate instead of a different inherited opencode", async () => {
-  const root = mkdtempSync("/tmp/opencode/issue-61-candidate-");
+  const root = mkdtempSync(join(tmpdir(), "issue-61-candidate-"));
   try {
     const baseline = join(root, "baseline");
     const selected = join(root, "selected");
@@ -48,7 +49,7 @@ test("production PATH executes the exact candidate instead of a different inheri
 });
 
 function stored(operation: (db: Database, workspace: { env: NodeJS.ProcessEnv }) => void) {
-  const root = mkdtempSync("/tmp/opencode/issue-61-evidence-");
+  const root = mkdtempSync(join(tmpdir(), "issue-61-evidence-"));
   mkdirSync(join(root, "opencode"));
   const db = new Database(join(root, "opencode/opencode.db"));
   try {
