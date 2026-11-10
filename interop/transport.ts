@@ -5,12 +5,17 @@ import { setTimeout } from "node:timers/promises";
 import manifest from "../package.json" with { type: "json" };
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResultSchema, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { proxyArgs, record, type Profile, type NetworkConnection } from "./profiles.js";
 import { interrupted, owned } from "./lifecycle.js";
 
 export type CallOptions = { deadline: number; signal?: AbortSignal };
 export class ToolError extends Error {}
+export class LocalDeadlineError extends McpError {
+  constructor() {
+    super(ErrorCode.RequestTimeout, "Local call deadline");
+  }
+}
 
 export async function callTool(
   client: Client,
@@ -21,15 +26,25 @@ export async function callTool(
 ) {
   options.signal?.throwIfAborted();
   const remaining = Math.ceil(options.deadline - performance.now());
-  if (remaining <= 0) throw new DOMException("Local call deadline", "TimeoutError");
-  const timeout = AbortSignal.timeout(remaining);
-  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
-  const result = await client.callTool({ name, arguments: args }, CallToolResultSchema, {
-    signal,
-    timeout: remaining,
-    maxTotalTimeout: remaining,
-    resetTimeoutOnProgress: false,
-  });
+  if (remaining <= 0) throw new LocalDeadlineError();
+  // The SDK requires its own timer; the actual deadline is owned by this signal.
+  const maximum = 2_147_483_647;
+  assert(Number.isFinite(remaining) && remaining <= maximum, "Invalid call deadline");
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(new LocalDeadlineError()), remaining);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, controller.signal])
+    : controller.signal;
+  let result;
+  try {
+    result = await client.callTool({ name, arguments: args }, CallToolResultSchema, {
+      signal,
+      timeout: maximum,
+      resetTimeoutOnProgress: false,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   assert(Array.isArray(result.content), "Expected MCP content");
   const text = result.content
     .map((part: unknown) => {
@@ -184,8 +199,7 @@ export async function mcp(profile: Profile, connection: NetworkConnection, signa
       const signals = [signal, options?.signal].filter((value) => value !== undefined);
       const combined = signals.length ? AbortSignal.any(signals) : undefined;
       combined?.throwIfAborted();
-      if (deadline <= performance.now())
-        throw new DOMException("Local call deadline", "TimeoutError");
+      if (deadline <= performance.now()) throw new LocalDeadlineError();
       assert(attempts < 40, "Local MCP call budget exhausted");
       attempts++;
       return callTool(client, name, args, error, {

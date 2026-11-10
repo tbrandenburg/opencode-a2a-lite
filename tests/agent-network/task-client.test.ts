@@ -1,10 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { setTimeout } from "node:timers/promises";
+import { TaskState } from "@a2a-js/sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { callTool } from "../../interop/transport.js";
+import { CallToolRequestSchema, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { callTool, LocalDeadlineError } from "../../interop/transport.js";
 import { createTaskClient, type Observation } from "../../interop/task-client.js";
 
 const releases: (() => Promise<void>)[] = [];
@@ -36,6 +37,7 @@ async function fixture(handler: (request: Request) => Promise<unknown> | unknown
     try {
       return { content: [{ type: "text", text: JSON.stringify(await handler(call)) }] };
     } catch (error) {
+      if (error instanceof McpError) throw error;
       return { isError: true, content: [{ type: "text", text: String(error) }] };
     }
   });
@@ -109,6 +111,7 @@ test("N05 deadline and local abort preserve the observed task without remote can
   expect(performance.now() - started).toBeLessThan(600);
   expect(deadline.reason).toBe("deadline");
   expect(deadline.handle).toEqual(initial.handle);
+  expect(deadline.task).toEqual(initial.task);
   expect(deadline.outcome).toBe("pending");
   const controller = new AbortController();
   const waiting = f.peer.wait(deadline, { ...options(), signal: controller.signal });
@@ -126,6 +129,228 @@ test("N05 deadline and local abort preserve the observed task without remote can
   ]);
   expect(f.calls[1]!.signal.aborted).toBe(true);
   expect(f.calls[2]!.signal.aborted).toBe(true);
+});
+
+test("an in-flight SDK call aborts using the actual cancellation signal", async () => {
+  const entered = Promise.withResolvers<void>();
+  const canceled = Promise.withResolvers<void>();
+  const f = await fixture(async (request) => {
+    if (request.name === "a2a_send_message") return raw();
+    request.signal.addEventListener("abort", () => canceled.resolve(), { once: true });
+    entered.resolve();
+    await setTimeout(10_000, undefined, { signal: request.signal });
+    return raw();
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  const controller = new AbortController();
+  const waiting = f.peer.wait(initial, { ...options(), signal: controller.signal });
+  await entered.promise;
+  controller.abort();
+  const result = await waiting;
+  await canceled.promise;
+  expect(result.reason).toBe("aborted");
+  expect(result.task).toBe(initial.task);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+  expect(f.calls[1]!.signal.aborted).toBe(true);
+});
+
+test("a transport error with the abort sentinel as its cause propagates", async () => {
+  const f = await fixture(() => raw());
+  const initial = received(await f.peer.submit("held", options()));
+  const controller = new AbortController();
+  let failure: Error | undefined;
+  let calls = 0;
+  const peer = createTaskClient(
+    {
+      get remainingCalls() {
+        return f.connection.remainingCalls - calls;
+      },
+      async call(name, args, _error, limits) {
+        calls++;
+        expect(name).toBe("a2a_get_task");
+        expect(args).toEqual({ peer_url: initial.handle.peerUrl, task_id: initial.handle.taskId });
+        if (!limits?.signal) throw new Error("Missing observation signal");
+        controller.abort();
+        expect(limits.signal.aborted).toBe(true);
+        failure = new Error("actual transport failure", { cause: limits.signal.reason });
+        throw failure;
+      },
+    },
+    initial.handle.peerUrl,
+  );
+  const waiting = peer.wait(initial, { ...options(), signal: controller.signal });
+  expect(failure).toBeInstanceOf(Error);
+  await expect(waiting).rejects.toBe(failure);
+  expect(calls).toBe(1);
+  expect(f.connection.remainingCalls).toBe(39);
+});
+
+test("caller abort during polling sleep preserves the latest task", async () => {
+  const f = await fixture(() => raw());
+  const initial = received(await f.peer.submit("held", options()));
+  const controller = new AbortController();
+  const seen: Observation[] = [];
+  const result = await f.peer.wait(initial, {
+    ...options(),
+    signal: controller.signal,
+    intervalMs: 1_000,
+    stopWhen: (observation) => {
+      seen.push(observation);
+      if (seen.length === 2) queueMicrotask(() => controller.abort());
+      return false;
+    },
+  });
+  expect(result.reason).toBe("aborted");
+  expect(result.task).toBe(seen[1]!.task);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+});
+
+test("deadline during polling sleep preserves the latest task", async () => {
+  const f = await fixture(() => raw());
+  const initial = received(await f.peer.submit("held", options()));
+  const seen: Observation[] = [];
+  const result = await f.peer.wait(initial, {
+    ...options(150),
+    intervalMs: 1_000,
+    stopWhen: (observation) => {
+      seen.push(observation);
+      return false;
+    },
+  });
+  expect(result.reason).toBe("deadline");
+  expect(result.task).toBe(seen[1]!.task);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+});
+
+test("a pre-aborted caller takes precedence over an expired deadline", async () => {
+  const f = await fixture(() => raw());
+  const initial = received(await f.peer.submit("held", options()));
+  const controller = new AbortController();
+  controller.abort();
+  const result = await f.peer.wait(initial, {
+    deadline: performance.now() - 1,
+    signal: controller.signal,
+  });
+  expect(result.reason).toBe("aborted");
+  expect(result.task).toBe(initial.task);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message"]);
+});
+
+test("an earlier transport deadline remains distinguishable from the observation timer", async () => {
+  const f = await fixture(async (request) => {
+    if (request.name === "a2a_send_message") return raw();
+    await setTimeout(10_000, undefined, { signal: request.signal });
+    return raw();
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  const peer = createTaskClient(
+    {
+      get remainingCalls() {
+        return f.connection.remainingCalls;
+      },
+      call: (name, args, error, limits) => {
+        if (!limits) throw new Error("Missing call deadline");
+        return f.connection.call(name, args, error, { ...limits, deadline: limits.deadline - 100 });
+      },
+    },
+    initial.handle.peerUrl,
+  );
+  const result = await peer.wait(initial, options(200));
+  expect(result.reason).toBe("deadline");
+  expect(result.task).toEqual(initial.task);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+});
+
+test("a later stalled poll retains the latest actual task", async () => {
+  let polls = 0;
+  const f = await fixture(async (request) => {
+    if (request.name === "a2a_send_message") return raw();
+    if (++polls === 1) return raw("INPUT_REQUIRED");
+    await setTimeout(10_000, undefined, { signal: request.signal });
+    return raw();
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  const seen: Observation[] = [];
+  const result = await f.peer.wait(initial, {
+    ...options(150),
+    intervalMs: 1,
+    stopWhen: (observation) => {
+      seen.push(observation);
+      return false;
+    },
+  });
+  expect(result.reason).toBe("deadline");
+  expect(result.task).toBe(seen[1]!.task);
+  expect(result.task.status?.state).toBe(TaskState.TASK_STATE_INPUT_REQUIRED);
+  expect(result.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual([
+    "a2a_send_message",
+    "a2a_get_task",
+    "a2a_get_task",
+  ]);
+  expect(f.connection.remainingCalls).toBe(37);
+});
+
+test("a tool error is not converted to a deadline when the event loop was delayed", async () => {
+  let deadline = 0;
+  const f = await fixture((request) => {
+    if (request.name === "a2a_send_message") return raw();
+    Atomics.wait(
+      new Int32Array(new SharedArrayBuffer(4)),
+      0,
+      0,
+      Math.max(0, deadline + 5 - performance.now()),
+    );
+    throw new Error("actual tool failure");
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  deadline = performance.now() + 30;
+  await expect(f.peer.wait(initial, { deadline })).rejects.toThrow("actual tool failure");
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+});
+
+test("a remote MCP timeout error is not treated as a local deadline", async () => {
+  const f = await fixture((request) => {
+    if (request.name === "a2a_send_message") return raw();
+    throw new McpError(ErrorCode.RequestTimeout, "remote timeout");
+  });
+  const initial = received(await f.peer.submit("held", options()));
+  await expect(f.peer.wait(initial, options())).rejects.toThrow("remote timeout");
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+});
+
+test("a stopWhen deadline error after a successful poll propagates", async () => {
+  const f = await fixture(() => raw());
+  const initial = received(await f.peer.submit("held", options()));
+  const deadline = performance.now() + 2_000;
+  const failure = new LocalDeadlineError();
+  const seen: Observation[] = [];
+  await expect(
+    f.peer.wait(initial, {
+      deadline,
+      stopWhen: (observation) => {
+        seen.push(observation);
+        if (seen.length === 1) return false;
+        expect(performance.now()).toBeLessThan(deadline);
+        throw failure;
+      },
+    }),
+  ).rejects.toBe(failure);
+  expect(seen).toHaveLength(2);
+  expect(seen[0]).toBe(initial);
+  expect(seen[1]).not.toBe(initial);
+  expect(seen[1]!.handle).toEqual(initial.handle);
+  expect(f.calls.map((call) => call.name)).toEqual(["a2a_send_message", "a2a_get_task"]);
+  expect(f.calls[1]!.args).toEqual({
+    peer_url: initial.handle.peerUrl,
+    task_id: initial.handle.taskId,
+  });
+  expect(f.connection.remainingCalls).toBe(38);
 });
 
 test("N06 timed-out submission has no fabricated handle or automatic resend", async () => {

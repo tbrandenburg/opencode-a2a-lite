@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { setTimeout } from "node:timers/promises";
 import { Task, TaskState } from "@a2a-js/sdk";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { record } from "./profiles.js";
-import type { CallOptions, mcp } from "./transport.js";
+import { LocalDeadlineError, type CallOptions, type mcp } from "./transport.js";
 
 export type Handle = Readonly<{ peerUrl: string; contextId: string; taskId: string }>;
 type Terminal = "completed" | "failed" | "canceled";
@@ -128,24 +129,49 @@ export function createTaskClient(connection: Connection, peerUrl: string) {
         const remaining = options.deadline - performance.now();
         if (remaining <= 0) return { ...last, reason: "deadline" };
         if (connection.remainingCalls <= reserve) return { ...last, reason: "budget" };
+        const controller = new AbortController();
+        const aborted = new McpError(ErrorCode.RequestTimeout, "Local observation aborted");
+        const abort = () => controller.abort(aborted);
+        options.signal?.addEventListener("abort", abort, { once: true });
+        if (options.signal?.aborted) abort();
         const timeout = AbortSignal.timeout(Math.ceil(remaining));
-        const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+        const signal = AbortSignal.any([controller.signal, timeout]);
         try {
-          last = await inspect("a2a_get_task", last.handle, { deadline: options.deadline, signal });
+          try {
+            last = await inspect("a2a_get_task", last.handle, {
+              deadline: options.deadline,
+              signal: controller.signal,
+            });
+          } catch (error) {
+            if (error === aborted) return { ...last, reason: "aborted" };
+            if (error instanceof LocalDeadlineError) return { ...last, reason: "deadline" };
+            throw error;
+          }
           if (last.outcome !== "pending" || options.stopWhen?.(last)) return last;
           if (count + 1 === maximum) return { ...last, reason: "poll-limit" };
           const wake = Math.min(options.deadline, performance.now() + interval);
           // Timer delivery can precede a fractional target; it is not permission to poll.
-          while (true) {
-            const delay = wake - performance.now();
-            if (delay <= 0) break;
-            await setTimeout(Math.ceil(delay), undefined, { signal });
+          try {
+            while (true) {
+              const delay = wake - performance.now();
+              if (delay <= 0) break;
+              await setTimeout(Math.ceil(delay), undefined, { signal });
+            }
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              error.name === "AbortError" &&
+              "code" in error &&
+              error.code === "ABORT_ERR"
+            ) {
+              if (error.cause === aborted) return { ...last, reason: "aborted" };
+              if (timeout.aborted && error.cause === timeout.reason)
+                return { ...last, reason: "deadline" };
+            }
+            throw error;
           }
-        } catch (error) {
-          if (options.signal?.aborted) return { ...last, reason: "aborted" };
-          if (timeout.aborted || performance.now() >= options.deadline)
-            return { ...last, reason: "deadline" };
-          throw error;
+        } finally {
+          options.signal?.removeEventListener("abort", abort);
         }
       }
       return { ...last, reason: "poll-limit" };

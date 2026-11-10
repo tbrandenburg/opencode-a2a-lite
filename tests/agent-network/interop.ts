@@ -246,10 +246,31 @@ try {
   process.kill(bridge, "SIGSTOP");
   let uncertain: Submission;
   try {
+    // Force the transport's timer to win, as can happen with independently rounded timers.
+    const early = createTaskClient(
+      {
+        get remainingCalls() {
+          return connection.remainingCalls;
+        },
+        call: (name, args, error, options) => {
+          assert(options);
+          return connection.call(name, args, error, {
+            ...options,
+            deadline: options.deadline - 100,
+          });
+        },
+      },
+      peers[0]!,
+    );
+    const earlyResult = await early.wait(expired, limits(200));
+    assert.equal(earlyResult.reason, "deadline");
+    assert.deepEqual(earlyResult.task, expired.task);
+    assert.deepEqual(earlyResult.handle, expired.handle);
     const stalledAt = performance.now();
     const stalled = await first.wait(expired, limits(80));
     assert.equal(stalled.reason, "deadline");
     assert.deepEqual(stalled.handle, expired.handle);
+    assert.deepEqual(stalled.task, expired.task);
     assert.equal(stalled.outcome, "pending");
     assert(performance.now() - stalledAt < 600, "Hung MCP call exceeded local deadline");
     uncertain = await second.submit("uncertain", limits(80));

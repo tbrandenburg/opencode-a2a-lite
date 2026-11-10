@@ -29,10 +29,12 @@ const observed = await peer.wait(submitted, options);
 
 Deadlines are **absolute monotonic `performance.now()` milliseconds**, not epoch
 timestamps. Submission and waiting share one deadline when they are one operation.
-Every MCP call receives the remaining timeout, maximum total timeout and abort
-signal; progress cannot extend it. Every polling sleep is capped by the remaining
-time and abortable. No new poll starts after deadline/abort. Event-loop scheduling
-still has bounded test headroom; JavaScript cannot interrupt a blocked event loop.
+Each MCP call uses an abort signal with a timer for the remaining local deadline;
+progress cannot extend it. The SDK request timer is a maximum-duration fallback,
+not the local deadline, and no maximum total timeout is configured. Every polling
+sleep is capped by the remaining time and abortable. No new poll starts after
+deadline/abort. Event-loop scheduling still has bounded test headroom; JavaScript
+cannot interrupt a blocked event loop.
 
 The immutable handle contains the **actual** peer URL, context ID and task ID.
 Follow-up submissions send `context_id`, omit `task_id` and request nonblocking
