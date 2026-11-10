@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  symlinkSync,
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { isDeepStrictEqual, promisify } from "node:util";
 import { Task, TaskState } from "@a2a-js/sdk";
@@ -348,12 +358,42 @@ export function processes(root: string) {
   });
 }
 
+export function candidateEnvironment(
+  workspace: Pick<Workspace, "root" | "cwd" | "env" | "executable">,
+) {
+  const candidates = workspace.executable.includes("/")
+    ? [resolve(workspace.cwd, workspace.executable)]
+    : (workspace.env.PATH ?? "/usr/bin:/bin")
+        .split(":")
+        .map((directory) => resolve(workspace.cwd, directory, workspace.executable));
+  const executable = candidates.find((candidate) => {
+    try {
+      accessSync(candidate, constants.X_OK);
+      return true;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        ["ENOENT", "ENOTDIR", "EACCES"].includes(String(error.code))
+      )
+        return false;
+      throw error;
+    }
+  });
+  assert(executable, "Verified OpenCode candidate is no longer executable");
+  const directory = mkdtempSync(join(workspace.root, "gateway-bin-"));
+  // The production entrypoint resolves `opencode`; alias this exact candidate,
+  // including overrides whose filename is not `opencode`, without changing production.
+  symlinkSync(realpathSync(executable), join(directory, "opencode"));
+  return { ...workspace.env, PATH: `${directory}:${workspace.env.PATH ?? "/usr/bin:/bin"}` };
+}
+
 export async function launch(workspace: Workspace, invalidCredential = false) {
   assert(existsSync(entrypoint), "Run make build before live acceptance");
   const child = spawn(process.execPath, [entrypoint], {
     cwd: workspace.cwd,
     env: {
-      ...workspace.env,
+      ...candidateEnvironment(workspace),
       A2A_WORKSPACE: workspace.cwd,
       A2A_PORT: "0",
       ...(invalidCredential ? { OPENAI_API_KEY: "sk-intentionally-invalid-acceptance" } : {}),
@@ -396,8 +436,9 @@ export async function launch(workspace: Workspace, invalidCredential = false) {
     }
     throw new Error("Gateway readiness deadline exceeded");
   } catch (error) {
-    await close();
-    throw error;
+    return withCleanup(async () => {
+      throw error;
+    }, close);
   }
 }
 

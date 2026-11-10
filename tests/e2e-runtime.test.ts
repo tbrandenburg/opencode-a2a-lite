@@ -1,10 +1,51 @@
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { deniedToolEvidence, runtimeCatalogReady } from "./e2e-support.js";
+import {
+  candidateEnvironment,
+  deniedToolEvidence,
+  exec,
+  runtimeCatalogReady,
+} from "./e2e-support.js";
 
 const secret = "PRIVATE-content-not-for-evidence";
+
+test("production PATH executes the exact candidate instead of a different inherited opencode", async () => {
+  const root = mkdtempSync("/tmp/opencode/issue-61-candidate-");
+  try {
+    const baseline = join(root, "baseline");
+    const selected = join(root, "selected");
+    mkdirSync(baseline);
+    mkdirSync(selected);
+    writeFileSync(join(baseline, "opencode"), '#!/bin/sh\nprintf "baseline:%s" "$1"\n', {
+      mode: 0o700,
+    });
+    for (const filename of ["opencode", "alternate-candidate"]) {
+      const executable = join(selected, filename);
+      writeFileSync(executable, '#!/bin/sh\nprintf "candidate:%s" "$1"\n', { mode: 0o700 });
+      const workspace = { root, cwd: root, executable, env: { PATH: baseline } };
+      const env = candidateEnvironment(workspace);
+      const result = await exec("opencode", ["acp"], { cwd: root, env, timeout: 2_000 });
+      expect(result.stdout).toBe("candidate:acp");
+      expect(readlinkSync(join(env.PATH.split(":")[0]!, "opencode"))).toBe(executable);
+      expect(workspace.env.PATH).toBe(baseline);
+    }
+    expect((await exec("opencode", ["acp"], { env: { PATH: baseline } })).stdout).toBe(
+      "baseline:acp",
+    );
+    expect(() =>
+      candidateEnvironment({
+        root,
+        cwd: root,
+        executable: "/missing/candidate",
+        env: { PATH: baseline },
+      }),
+    ).toThrow("no longer executable");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 function stored(operation: (db: Database, workspace: { env: NodeJS.ProcessEnv }) => void) {
   const root = mkdtempSync("/tmp/opencode/issue-61-evidence-");
