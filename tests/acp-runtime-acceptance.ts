@@ -5,8 +5,10 @@ import { readFileSync, readdirSync, readlinkSync } from "node:fs";
 import { createServer } from "node:net";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
+import { Database } from "bun:sqlite";
 import { createAcpBridge } from "../src/acp-client.js";
 import { cleanup, prepare } from "../scripts/acp-smoke-config.js";
+import { launch, verifyPrivateRuntime } from "./e2e-support.js";
 
 const workspace = await prepare({ providerFree: true });
 const bridge = createAcpBridge({
@@ -179,6 +181,34 @@ try {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
       connection.close();
     }
+  }
+  // A synthetic key exposes the configured catalog without authorizing a provider request.
+  const gateway = await launch({
+    ...workspace,
+    env: { ...workspace.env, OPENAI_API_KEY: "sk-intentionally-invalid-provider-free-readiness" },
+  });
+  try {
+    assert(gateway.child.pid);
+    await assert.rejects(
+      verifyPrivateRuntime(workspace, gateway.child.pid, performance.now() - 1),
+      /readiness verification failed; no prompt submitted/,
+    );
+    const db = new Database(`${workspace.env.XDG_DATA_HOME}/opencode/opencode.db`, {
+      readonly: true,
+    });
+    try {
+      const count = db
+        .query<{ count: number }, []>("SELECT count(*) AS count FROM session_message")
+        .get();
+      assert.equal(count?.count, 0, "Provider-free readiness must not submit any prompt");
+    } finally {
+      db.close();
+    }
+    console.log(
+      JSON.stringify({ sameServerReadiness: true, readinessDeadline: true, noPrompt: true }),
+    );
+  } finally {
+    await gateway.close();
   }
 } finally {
   await bridge.close();

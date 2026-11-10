@@ -162,5 +162,5 @@ async function configure(root: string, providerFree: boolean) {
     );
     console.log(JSON.stringify({ configVerified: true }));
   }
-  return { cwd, env, executable };
+  return { cwd, env, executable, config };
 }
