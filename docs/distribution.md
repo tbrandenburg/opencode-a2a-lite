@@ -45,12 +45,13 @@ before packing to verify that `prepack` rebuilds the CLI and removes stale outpu
 inspects the exact allowlist/shebang/permissions, and runs `npm exec` against the
 tarball from a fresh external consumer directory with an isolated npm cache and
 synthetic environment. It verifies help/version without OpenCode, argument/workspace/
-port/executable failures, sanitized peer failures, CLI-over-env precedence, default
-and ephemeral loopback ports, card URL/version, and owned-process SIGINT/SIGTERM
+port/executable failures, sanitized peer failures, CLI-over-env precedence, ephemeral
+loopback ports, card URL/version, and owned-process SIGINT/SIGTERM
 cleanup using a controlled ACP peer. The installed direct `server.js` entrypoint
 is checked too. It requires outbound npm dependency access,
-not provider credentials. The default-port scenario needs loopback port 41241 free;
-the smoke never stops another listener. It does not validate a published package or real models.
+not provider credentials. The installed default-port path is not covered by this
+smoke and remains part of issue #6's release acceptance. The smoke never stops
+another listener. It does not validate a published package or real models.
 
 ## Secure manual publication
 
