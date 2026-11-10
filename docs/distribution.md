@@ -2,11 +2,15 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` **0.1.2** is prepared for public distribution.
-The maintainer has authorized removal of `private: true`; public npm access is
-configured, but authenticated namespace ownership and actual registry acceptance
-are not established. Do not publish to npm until ownership is verified, or mark
-issue #6 complete based only on a local tarball or a GitHub release.
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.4**. Public npm
+access is configured, but authenticated namespace ownership and actual registry
+acceptance are not established. Historically, the maintainer authorized public
+distribution of version 0.1.1 and removal of `private: true`
+([PR #8](https://github.com/tbrandenburg/opencode-a2a-lite/pull/8)); that
+authorization does not establish publication or authorize a different version.
+Do not publish to npm until ownership and authorization for the intended version
+are verified, or mark issue #6 complete based only on a local tarball or a GitHub
+release.
 
 Supported runtime: Linux, Bun 1.4.4, exact `opencode v2.2.7` on PATH, an existing
 explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
@@ -61,8 +65,9 @@ notes. Do not add registry credentials to the repository.
    available name is **not** proof of ownership. Inspect package/version availability
    using `npm view <verified-package> --json` without printing credential files.
 2. Through a reviewed change, confirm the verified package name, intended release
-   version and repository URL. Version 0.1.2 has public publication authorized and
-   `private: true` removed; this does not establish npm scope ownership.
+   version, authorization for that version and repository URL. The historical
+   authorization for 0.1.1 does not establish npm scope ownership or authorize a
+   different version.
    Keep the single bin and public access setting. Refresh `bun.lock`
    with Bun and update the README to the verified name. Commit/push through normal
    repository review; start release verification from a clean checkout of that commit.
