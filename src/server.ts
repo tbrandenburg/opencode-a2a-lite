@@ -62,6 +62,7 @@ export function createGateway(options: ServerOptions) {
           timer = setTimeout(() => {
             try {
               server.closeAllConnections();
+              if (process.versions.bun) server.close(finish);
             } catch {
               finish(new Error("HTTP force-close failed"));
             }
@@ -69,11 +70,9 @@ export function createGateway(options: ServerOptions) {
         };
         void bridge.close().then(grace, grace);
         // Bun close() loses the handle needed to force-close incomplete HTTP headers.
-        // Keep the listener through the drain; closing middleware rejects new work.
-        if (process.versions.bun) {
-          server.once("close", finish);
-          return;
-        }
+        // Keep the listener through the drain, then explicitly close it.
+        // closeAllConnections() only drains clients; closing middleware rejects new work.
+        if (process.versions.bun) return;
         server.close(finish);
       });
       const results = await Promise.allSettled([http, bridge.close()]);
