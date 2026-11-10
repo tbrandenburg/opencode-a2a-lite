@@ -14,14 +14,15 @@ than deliberately starting from the historical mitigation floor. Its added
 ACP steering extension is not used by this gateway. Its changed cold plugin
 catalog behavior requires the live configuration check described below.
 
-This document records provider-free executable evidence, **not completed live
-acceptance**. The assigned live-provider run belongs to the coordinating session.
+This document records the runtime investigation; the coordinator subsequently
+passed **14/14 live scenarios** on this exact pair, separately recorded in
+[acceptance evidence](/docs/acceptance.md#runtime-upgrade-verification-issues-60-and-61).
 SDK 1.3.0 and the cancellation persistence adapter are unchanged; see
 [the separate removal gate](/docs/sdk-cancellation.md).
 
 ## Release and actual embedded runtime
 
-[Published immutable release v2.2.7](https://github.com/anomalyco/opencode/releases/tag/v2.2.7):
+[Published release v2.2.7](https://github.com/anomalyco/opencode/releases/tag/v2.2.7):
 
 - Release ID `440226160`, published `2026-11-10T10:37:15Z`, neither draft nor prerelease.
 - Tag commit `fedc6f208aa2bd54c1019227214568083f6380ad`.
@@ -45,36 +46,27 @@ specifies affected versions below 1.4.4 and key-based rejection including
 cross-signed paths. The actual candidate executable's embedded `fetch` was run
 without credentials, proxy variables, extra CA variables or TLS overrides:
 
-| HTTPS control                              | Result         |
-| ------------------------------------------ | -------------- |
-| `example.com`                              | HTTP 200       |
-| `github.com`                               | HTTP 200       |
-| `dv-g3b-emudhra.we-have-a-problem.com`     | `CERT_REVOKED` |
-| `dv-g3b-aaa-emudhra.we-have-a-problem.com` | `CERT_REVOKED` |
+| HTTPS control                                   | Result         |
+| ----------------------------------------------- | -------------- |
+| `example.com`                                   | HTTP 200       |
+| `github.com`                                    | HTTP 200       |
+| `dv-g3b-emudhra.we-have-a-problem.com`          | `CERT_REVOKED` |
+| `dv-g3b-aaa-emudhra.we-have-a-problem.com`      | `CERT_REVOKED` |
+| `dv-g3b-noct-emudhra.we-have-a-problem.com`     | `CERT_REVOKED` |
+| `dv-g3b-aaa-noct-emudhra.we-have-a-problem.com` | `CERT_REVOKED` |
 
-The two negative hosts are the incident-chain and AAA cross-signed controls
+The negative hosts are the incident-chain and AAA cross-signed controls, including paths without CT,
 listed in [the disclosure references](https://openwall.com/lists/oss-security/2026/10/20/1).
 A separate fetch of the disclosure landing page was reset; it is not counted as
 certificate-rejection evidence. These are external observations, not CI tests,
 and exercise embedded Bun `fetch`, not a model/provider request.
 
-Reproduce the controls using the digest-verified executable:
+The coordinator also ran the shared five-control probe through the actual
+candidate's embedded runtime. Reproduce from the repository using the
+digest-verified executable:
 
 ```sh
-env -i HOME="$PRIVATE_HOME" PATH=/usr/bin:/bin BUN_BE_BUN=1 "$OPENCODE_BIN" -e '
-for (const host of ["example.com", "github.com",
-  "dv-g3b-emudhra.we-have-a-problem.com",
-  "dv-g3b-aaa-emudhra.we-have-a-problem.com"]) {
-  try {
-    const response = await fetch("https://" + host + "/", {
-      signal: AbortSignal.timeout(15000), redirect: "manual"
-    });
-    console.log(JSON.stringify({host, status: response.status}));
-    await response.body?.cancel();
-  } catch (error) {
-    console.log(JSON.stringify({host, code: error.code, name: error.name}));
-  }
-}'
+env -i PATH=/usr/bin:/bin BUN_BE_BUN=1 "$OPENCODE_BIN" scripts/bun-tls-probe.ts
 ```
 
 Timeout, refusal, DNS failure or a generic handshake failure would be inconclusive.
@@ -123,13 +115,45 @@ denied permissions and MCP/plugin discovery in that **same** private server;
 the helper's separate debug-config probe establishes source isolation, not warmed
 session catalog readiness. No model was called during this observation.
 
-The coordinator's denied-tool evidence query also needs a storage migration:
+The coordinator's denied-tool evidence query includes the required storage migration:
 [projector.ts:662–688](https://github.com/anomalyco/opencode/blob/v2.2.7/packages/core/src/session/projector.ts#L662-L688)
 stores assistant envelopes with empty inline content; content is in `session_part`.
 Querying only `session_message.data.content` cannot prove absence of tool calls.
-This is an acceptance-helper concern, not a new production database adapter.
+The helper now reads split assistant parts across the latest assistant session,
+also checks legacy inline content, requires text evidence, and rejects tool or
+unknown content. This retains the sequential E2E assumption; it is an
+acceptance-helper concern, not a new production database adapter.
 
-## Validation and remaining acceptance
+### Same-server live preflight
+
+Before returning a production gateway from the live test's `launch()`, the helper
+locates its exact ACP child and leased server, then identifies that server's
+actual listening socket. Private lease authentication stays in memory; raw
+environment values, credentials and catalog responses are never printed.
+
+Within the existing 45-second startup budget, direct authenticated requests to
+that owned server verify the expected configuration document, default smoke
+agent/model, effective deny permissions, active builtin configuration plugins
+and an empty MCP catalog. Missing/cold catalogs wait within that one monotonic
+deadline; changed restrictions fail closed without submitting a prompt. The
+provider-free executable gate verifies readiness with a synthetic invalid key
+and confirms the database contains zero messages. It also checks expired-deadline
+rejection. This does not claim that provider access or model behavior works.
+
+Adversarial review also required exact candidate selection in the later production
+launch and cleanup registration before raw ACP initialization. The helper now
+aliases the resolved candidate through a private `opencode` symlink rather than
+falling back to inherited `PATH`. Raw acceptance owns a detached process group
+from spawn, preserves the primary failure, and applies bounded EOF/TERM/KILL
+cleanup. Regressions suspend an owned parent or descendant, then verify listener
+reclamation and unrelated sentinel survival. Forced cleanup is not accepted as a
+successful graceful EOF. Follow-up review found zero remaining findings.
+
+## Initial investigation validation
+
+These scoped investigation runs preceded the HTTP shutdown integration fix.
+They retain their actual failures; coordinator integration results are recorded
+separately in [acceptance evidence](/docs/acceptance.md).
 
 From a frozen checkout, with the verified Bun binary first on PATH:
 
@@ -171,8 +195,8 @@ Recorded on 2026-11-10:
   close without explicitly closing the listener. This cross-runtime blocker is
   handed to the coordinator/Bun integration owner, outside this change's scope.
 
-**Acceptance remains incomplete:** coordinator integration must repair/revalidate
-HTTP shutdown, rerun sequential deterministic and package gates and the verified
-provider-free interop gate, and perform the separately authorized real-provider
-continuity/permission/cancellation/death/restart/shutdown matrix. No live-provider
-call or general model/MCP readiness claim is made here.
+The initial investigation did not complete acceptance. Integration therefore
+requires HTTP shutdown repair/revalidation, sequential deterministic and package
+gates, the verified provider-free interop gate, and the separately authorized
+real-provider continuity/permission/cancellation/death/restart/shutdown matrix.
+The investigation made no live-provider call or general model/MCP readiness claim.

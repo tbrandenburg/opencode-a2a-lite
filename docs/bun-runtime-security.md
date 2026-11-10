@@ -72,11 +72,10 @@ checks, not coverage of every compromised key or TLS API. The
 [incident site's control instructions](https://emudhra.we-have-a-problem.com/#check)
 describe the chains. External availability is not a deterministic CI dependency.
 
-## Compatibility acceptance remains blocked
+## Initial shutdown compatibility blocker
 
-Security controls passed, but the standalone runtime upgrade cannot yet be
-reported as fully accepted. Candidate validation found an HTTP shutdown
-compatibility difference: `src/server.ts`'s Bun-specific path waits for `close`
+Security controls passed, but initial candidate acceptance was blocked by an HTTP shutdown
+compatibility difference: the pre-integration `src/server.ts` Bun-specific path waited for `close`
 after `closeAllConnections()` without calling `server.close()`. This relied on
 Bun 1.3.9 closing the listener as a side effect. A provider-free minimal probe:
 
@@ -95,22 +94,23 @@ bun -e '
 
 Observed: 1.3.9 reports `closed`/`false`; 1.4.4 reports `still-open`/`true`.
 The isolated `bun test ./tests/server.test.ts --test-name-pattern H01` reaches
-four assertions then times out during shutdown on 1.4.4. The integration fix must
-explicitly close the listener without losing incomplete-client force-drain
-ownership. Do not remove the patched runtime pin, loosen deadlines, or claim that
-changing the pin alone fixes application compatibility.
+four assertions then times out during shutdown on the unfixed 1.4.4 adapter.
+The integration fix explicitly closes the listener after incomplete-client
+force-draining and bridge shutdown, preserving the existing grace period and
+503 admission rejection. H06 now also checks immediate port rebinding and an
+unrelated sentinel listener's survival. No deadlines were increased.
 
-Candidate evidence: frozen installation leaves `bun.lock` unchanged; isolated
-ACP tests pass 8/8; formatting, lint, typecheck and build pass. The sequential
-CI-equivalent suite reports 53 passed/13 failed (66 tests, 15 files), with HTTP
-lifecycle/timeout failures. Package smoke fails at owned-process shutdown.
-Verified a2abridge 4.0.2 interop reports its context checks but does not finish
-within 180 seconds; cleanup/final acceptance is unproven. These failures are
-release blockers, not substitutes for passing acceptance. Concurrent machine load
+Initial candidate evidence: frozen installation left `bun.lock` unchanged; isolated
+ACP tests passed 8/8; formatting, lint, typecheck and build passed. The sequential
+CI-equivalent suite reported 53 passed/13 failed (66 tests, 15 files), with HTTP
+lifecycle/timeout failures. Package smoke failed at owned-process shutdown.
+Verified a2abridge 4.0.2 interop initially reported its context checks but did not finish
+within 180 seconds; that run did not establish cleanup or final acceptance. These initial failures
+were release blockers, not substitutes for passing acceptance. Concurrent machine load
 may affect the tight startup deadlines; the minimal listener difference does not
 depend on those deadlines.
 
-After integration, rerun these gates sequentially, retaining coverage/JUnit and
+For integration acceptance, run these gates sequentially, retaining coverage/JUnit and
 the final interop receipt:
 
 ```sh
@@ -124,13 +124,14 @@ A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test
 
 Keep test discovery scoped to `./tests`. Bridge checksums and private-environment
 setup are in [the CI workflow](/.github/workflows/ci.yml). No live-provider
-acceptance was executed by this runtime investigation; it requires separate
-authorization and cannot be inferred from provider-free results.
+acceptance was executed by the standalone Bun investigation; the coordinator's
+separate final results are recorded in [acceptance evidence](/docs/acceptance.md).
+Provider-free results cannot establish live acceptance.
 
 ## Distribution assessment
 
 The current package uses `tsc` to emit JavaScript and a `#!/usr/bin/env bun` CLI;
-it does not compile an embedded runtime. Package smoke verified its exact payload
+it does not compile an embedded runtime. Initial package smoke verified its exact payload
 allowlist and shebang before reaching the shutdown failure. Upgrading the
 consumer's Bun executable is necessary; an old package manifest or type package
 does not patch that executable.

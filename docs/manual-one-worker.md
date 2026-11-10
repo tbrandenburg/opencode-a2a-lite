@@ -4,8 +4,13 @@ For an authorized fresh-session **two-worker pipeline**, use the complete
 [two-worker bootstrap](/docs/manual-two-worker-pipeline.md) instead of extrapolating
 this continuity smoke. It supplies empty-project model/config setup and supervision.
 
-- Linux x86_64, Bun **1.3.9**, locked dependencies; manual model use also requires
-  reviewed OpenCode **2.0.28**, provider access and explicitly trusted workspaces.
+Runtime upgrades do not rerun this optional guarded-MCP workflow. The observed
+results and source links below remain tied to their historical OpenCode baseline;
+check [current runtime evidence](/docs/opencode-runtime-upgrade.md) and verify the
+actual API/tool catalog before a separately authorized manual attempt.
+
+- Linux x86_64, Bun **1.4.4**, locked dependencies; manual model use also requires
+  reviewed OpenCode **2.2.7**, provider access and explicitly trusted workspaces.
 - Reviewed **a2abridge 4.0.2 Linux amd64** binary. Download the release artifact,
   not an installer; do not install services or modify global configuration:
 
@@ -59,7 +64,7 @@ and provider settings. Supply keys securely in launch environments, never files/
 Set these Bash variables to your own absolute paths. Use a fresh, operator-owned
 `STATE` directory; do not overwrite a prior attempt's evidence. Repeat the path
 exports and `umask 077` in each dedicated terminal below; shell variables are not
-shared between terminals. Confirm Bun `1.3.9` and `opencode v2.0.28` with `--version`.
+shared between terminals. Confirm Bun `1.4.4` and `opencode v2.2.7` with `--version`.
 
 ```sh
 export REPO=/absolute/path/to/opencode-a2a-lite
@@ -256,10 +261,10 @@ are not model-callable readiness.
 
 #### Warm the same owned server before submitting
 
-OpenCode 2.0.28 can construct a cold standalone request before MCP tools enter its
+The historical OpenCode 2.0.28 probe could construct a cold standalone request before MCP tools entered its
 registry. A provider-free local request capture reproduced zero primary-request
 tools on cold startup and six on a warmed server, without changing permissions or
-the model. The pinned implementation starts MCP connections asynchronously,
+the model. That baseline implementation starts MCP connections asynchronously,
 reads the currently connected tools and debounces subsequent registry refreshes:
 [startup](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L550-L560),
 [tool reads](https://github.com/anomalyco/opencode/blob/v2.0.28/packages/core/src/mcp/index.ts#L663-L667),
@@ -318,7 +323,7 @@ In the dedicated coordinator client terminal:
 
 ```sh
 cd "$COORDINATOR"
-opencode --version   # must print opencode v2.0.28
+opencode --version   # must print opencode v2.2.7
 opencode run --help
 export MARKER="$(bun -e 'console.log(crypto.randomUUID())')"
 PROMPT="Use only the six configured network_a2a_* tools through the guarded MCP route.

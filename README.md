@@ -11,7 +11,7 @@ There is no HTTP OpenCode adapter, database, orchestrator, retry system or sandb
 
 ## Requirements
 
-- Linux, **Bun 1.3.9**, and **exactly `opencode v2.0.28`** on `PATH`.
+- Linux, **Bun 1.4.4**, and **exactly `opencode v2.2.7`** on `PATH`.
 - An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
   plugins, MCP servers and configuration.
 - The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)
@@ -20,6 +20,12 @@ There is no HTTP OpenCode adapter, database, orchestrator, retry system or sandb
 **Security:** the gateway has no authentication and must never be exposed through
 a public proxy. The production launch inherits OpenCode configuration; denying ACP
 permission requests is **not** an OS sandbox. Cancellation does not roll back work.
+
+Runtime security and compatibility evidence is tracked separately for
+[Bun](/docs/bun-runtime-security.md) and
+[OpenCode](/docs/opencode-runtime-upgrade.md). Standalone Bun and OpenCode's
+embedded runtime are separate upgrade boundaries; historical acceptance results
+do not establish compatibility of a new pair.
 
 ## Quick start from source
 
