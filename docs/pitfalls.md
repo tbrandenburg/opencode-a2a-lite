@@ -2,6 +2,10 @@
 
 Practical review notes for implementation; protocol requirements and local policy are identified separately.
 
+Current runtime contract comparisons are in the
+[OpenCode upgrade review](/docs/opencode-runtime-upgrade.md). References below to
+2.0.28 preserve the original source review, not the current executable pin.
+
 | Pitfall                                                        | Consequence                                                                                | Guardrail                                                                                                                                                                                                                         |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Treating request acceptance/delivery as task completion        | A2A clients see success while OpenCode is still working, or never receive terminal status. | Keep A2A task lifecycle open until the ACP turn reaches its version-correct completion signal. The fork probe observed no reliable admission/delivery-ID correlation to later assistant/terminal events; do not assume otherwise. |
@@ -48,4 +52,4 @@ see [SDK cancellation evidence](/docs/sdk-cancellation.md).
 - [A2A JS SDK migration guide](https://github.com/a2aproject/a2a-js/blob/main/docs/migration-guide.md)
 - [OpenCode v2.0.28 release](https://github.com/anomalyco/opencode/releases/tag/v2.0.28)
 
-**Uncertainty:** Context7 confirmed SDK v1 server components and ACP response/lifecycle shapes, but its available ACP client docs did not establish the current TypeScript `connect()` versus `connectWith()` signatures. Check the installed SDK declarations/API directly; use the long-lived `connect()` API for the gateway. A real two-prompt run against the installed OpenCode 2.0.28 executable remains required to prove compatibility.
+**Historical API uncertainty:** Context7 confirmed SDK v1 server components and ACP response/lifecycle shapes, but its available ACP client docs did not establish the TypeScript `connect()` versus `connectWith()` signatures at the original review. Check the installed SDK declarations/API directly; use the long-lived `connect()` API for the gateway. Use the reviewed patched runtime pair for new two-prompt acceptance; do not run the affected baseline with provider credentials. Current executable evidence is recorded in the [upgrade review](/docs/opencode-runtime-upgrade.md).

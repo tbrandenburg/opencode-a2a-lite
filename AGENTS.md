@@ -19,7 +19,7 @@ findings; retirement does **not** mean failures have been fixed.
 - **Never** expose the unauthenticated gateway through a public proxy.
   Workspaces must be explicitly trusted; production inherits OpenCode configuration,
   provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox.
-- Use the pinned Linux/Bun 1.3.9/OpenCode 2.0.28 runtime. For MCP interop use the
+- Use the pinned Linux/Bun 1.4.4/OpenCode 2.2.7 runtime. For MCP interop use the
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics
@@ -69,7 +69,8 @@ ports. Do not infer that an unfinished task was canceled.
 ## Common implementation traps
 
 - Bun HTTP shutdown requires rejecting new work while the bridge closes and
-  retaining the listener handle until incomplete HTTP clients are force-drained.
+  retaining the listener handle until incomplete HTTP clients are force-drained,
+  then explicitly closing the listener; draining connections alone does not close it.
 - `prepack` must remove old compiled JS before building; wildcard runtime
   packaging must not include obsolete `dist/src` files.
 - A new context uses a new ACP session; continuation must reuse the actual ACP
@@ -89,3 +90,7 @@ chronological incident diary.
 
 - 2026-10-30: Pitfall: Updating negative fixtures can remove independent policy and precedence checks. Prevention: retain original adversarial cases and add overlapping-invalid-input tests; verify each policy mutation makes a targeted assertion fail.
 - 2026-10-30: Pitfall: Disposable OpenCode homes can collide on managed-service ports, and a scrubbed `PATH` can hide the pinned executable. Prevention: bind-check and set private service ports, retain pinned binary paths, and run effective-config probes from the disposable project cwd.
+- 2026-11-10: Pitfall: GitHub's latest OpenCode release endpoint can select V1 despite newer V2 releases. Prevention: enumerate releases, select the intended major explicitly, and verify the exact tag and downloaded artifact before changing runtime admission.
+- 2026-11-10: Pitfall: Bun upgrades changed closeAllConnections from implicitly closing the listener to draining clients only. Prevention: retain the listener through incomplete-client draining, then explicitly close it and verify port rebinding plus unrelated-listener survival.
+- 2026-11-10: Pitfall: Fixture startup timeouts during concurrent validation are insufficient evidence of runtime regressions. Prevention: serialize owned timing-sensitive suites and measure startup separately before attributing failures or changing deadlines.
+- 2026-11-10: Pitfall: A pre-created local temporary directory hid fixture failures on fresh CI. Prevention: use the platform temporary directory with mkdtemp, and validate fresh-filesystem behavior instead of depending on harness-specific parent directories.

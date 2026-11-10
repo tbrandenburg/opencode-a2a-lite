@@ -4,7 +4,7 @@ import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 
 if (process.argv.includes("--version")) {
-  console.log("opencode v2.0.28");
+  console.log("opencode v2.2.7");
   process.exit(0);
 }
 const receipt = process.argv[2]!;

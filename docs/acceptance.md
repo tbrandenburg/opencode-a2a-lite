@@ -1,6 +1,99 @@
 # Real acceptance evidence
 
-## Current finite live diagnostics (issues #19 and #27)
+## Runtime upgrade verification (issues #60 and #61)
+
+Last verified by the coordinator: **2026-11-10T17:12:14Z**.
+Supported pair: **Bun 1.4.4** and **exactly OpenCode 2.2.7** (actual embedded
+Bun 1.4.4), official A2A CLI 0.3.1, and the existing `openai/gpt-6-luna` smoke model.
+No global runtime/configuration change or npm publication is implied.
+
+After integrating the focused agents and resolving two medium adversarial-review
+findings, the coordinator ran acceptance sequentially:
+
+| Gate                                           | Recorded result                                                                                                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Frozen install                                 | 132 installs across 173 packages checked; no dependency or lockfile change                                                                                                     |
+| CI-equivalent `make check`                     | **80 passed, 0 failed, 567 assertions, 17 test files**; format, lint, strict types and build passed                                                                            |
+| JUnit / coverage                               | 80 cases, zero failures/errors/skips; LCOV present; branch coverage and mutation score remain unmeasured                                                                       |
+| Installed package smoke                        | Passed; 12 allowlisted files, CLI/direct entrypoints, sanitized failures, signal and owned-process cleanup                                                                     |
+| Verified a2abridge 4.0.2 interop               | Passed; `failed:false`, `cleanup:true`; independent connections used 29 and 17 calls, each within the 32-call operating limit                                                  |
+| Real executable, no provider prompt            | ACP v1, separate/resumed sessions, cwd/stale rejection, idle cancel, successful EOF, owned child exit, port reclamation, same-server readiness and zero stored messages passed |
+| External TLS, standalone and embedded runtimes | Each returned HTTPS 200 for the positive control and `CERT_REVOKED` for four incident-chain controls, including AAA cross-signed/no-CT paths                                   |
+| Production live `make e2e`                     | **14/14 passed**, including **true cancellation**, not only a completion race                                                                                                  |
+| Independent cleanup inspection                 | Zero remaining owned probe processes                                                                                                                                           |
+| Follow-up adversarial review                   | Zero critical/high/medium/low findings                                                                                                                                         |
+
+The live matrix verified exact root text, ordered streaming/storage, two-turn
+continuity, separate contexts, busy rejection, cancellation, stale contexts,
+actual managed-child death with no implicit replacement, restart, malformed
+input, invalid credentials and SIGTERM shutdown. Write denial left the target
+absent and recorded zero tool calls; assistant content types were reasoning/text.
+**A live permission callback was not established:** deny configuration can remove
+tools before invocation. Callback rejection remains controlled-ACP evidence.
+Optional multi-worker live workflows and broad compaction/model compatibility
+were not established by this matrix.
+
+Reproduce on the digest-verified pair, with both executable directories first on
+`PATH` and provider access supplied securely only for the live command:
+`BUN_DIR` is the directory containing the reviewed Bun executable;
+`OPENCODE_BIN` is the absolute reviewed OpenCode executable path.
+
+```sh
+make install
+make check LINT_FLAGS='--format github' TEST_FLAGS='--coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage --reporter=junit --reporter-outfile=.test-results/junit.xml'
+make package-smoke
+A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test
+ACP_SMOKE_OPENCODE="$OPENCODE_BIN" bun tests/acp-runtime-acceptance.ts
+env -i PATH="$BUN_DIR:/usr/bin:/bin" bun scripts/bun-tls-probe.ts
+env -i PATH=/usr/bin:/bin BUN_BE_BUN=1 "$OPENCODE_BIN" scripts/bun-tls-probe.ts
+ACP_SMOKE_OPENCODE="$OPENCODE_BIN" make e2e
+```
+
+Private HOME/XDG state, bind-checked service ports and same-server configuration/
+catalog verification precede live prompts. No existing listener/service was stopped.
+The SDK cancellation adapter remains byte-identical to the baseline.
+Seven pre-existing structural lint warnings remain. Earlier startup failures on
+baseline/candidate runtimes and the original interop CI failure are retained,
+not relabeled passes: follow-ups [#63](https://github.com/tbrandenburg/opencode-a2a-lite/issues/63)
+and [#64](https://github.com/tbrandenburg/opencode-a2a-lite/issues/64) remain open.
+The final passing run does not establish that those intermittent failures are fixed.
+Unrelated package-version documentation drift is tracked in
+[#62](https://github.com/tbrandenburg/opencode-a2a-lite/issues/62).
+
+Initial hosted CI exposed a separate fixture portability defect: 7/80 tests
+failed because the local harness pre-created `/tmp/opencode`, while fresh runners
+did not. The original failed runs are
+[push CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863107874)
+and [PR CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863144074).
+This missing-parent failure is not the scheduling/timing issue tracked in #64.
+The focused fix uses `tmpdir()` plus `mkdtemp` and changes only two unit-test
+files. Coordinator verification at **2026-11-10T17:23:14Z** passed 12/12 focused
+tests with an empty container `/tmp`, then 12/12 with a custom `TMPDIR`; fixture
+cleanup passed and `/tmp/opencode` was never created. The container used
+`--rm --init --network none --read-only`, read-only source/Bun mounts and
+`--tmpfs /tmp:rw,exec,mode=1777` because the candidate fixture executes scripts.
+An initial coordinator probe without `exec` failed that script-execution
+precondition and is not counted as a passing portability run. The subsequent
+CI-equivalent coordinator check passed 80/80 tests and 567 assertions again.
+Production, scripts and live acceptance helpers remained byte-identical to the
+14/14 live run; no second paid run is inferred or claimed from unit results.
+
+Tested source-tree SHA-256 (`src/`, 8 files):
+`a091b58bb468db0c2d5eb6150402bdc2c06db72efca80da48d43eb08e45eaa38`.
+Live-run source plus acceptance/probe files (`src/`, `tests/`, `scripts/`, 51 files):
+`af5319aab496fc1fe759a96f90b374f27e3ea66f994bc411a28acdb5af097cf2`.
+After the two unit-fixture portability edits, the same 51-file tree hashes to
+`c3879c9211354695ba2fb880855ce8ef887dfca7f3316f9d8a4889bfe9bc9ed6`.
+These use the path-and-bytes hashing recipe below; later documentation-only edits
+do not change these identities.
+
+Runtime upgrade validation for issues #60/#61 is recorded in
+[Bun security evidence](/docs/bun-runtime-security.md) and
+[OpenCode compatibility evidence](/docs/opencode-runtime-upgrade.md).
+The dated results below retain their original runtime pair and source identity;
+they are historical evidence, not acceptance of the upgraded executables.
+
+## Historical finite live diagnostics follow-up (issues #19 and #27)
 
 E2E02 now identifies `cli`, `decode`, `completed`, `exact-text`, or `handles`;
 E2E06 identifies `async-cli`, `decode`, `handles`, `first-text`, `busy-rejection`,
@@ -96,7 +189,7 @@ print(digest.hexdigest())
 PY
 ```
 
-## Exact versions and reproduction
+## Historical exact versions and reproduction
 
 | Component                              | Verified version                                             |
 | -------------------------------------- | ------------------------------------------------------------ |

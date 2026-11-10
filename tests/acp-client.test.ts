@@ -92,12 +92,14 @@ test("A3: shutdown cancels active work before EOF, preserves final chunks and st
   await expect(instance.start()).rejects.toThrow("unavailable");
 });
 
-test("A4: an executable version mismatch permanently fails closed", async () => {
-  const instance = bridge("executable-version", { startupTimeoutMs: 1_000 });
-  await expect(instance.start()).rejects.toThrow("ACP");
-  await expect(instance.start()).rejects.toThrow("unavailable");
-  await expect(instance.newSession()).rejects.toThrow("unavailable");
-});
+for (const mode of ["executable-version", "version-old", "version-floor"]) {
+  test(`A4: unreviewed executable ${mode} permanently fails closed`, async () => {
+    const instance = bridge(mode, { startupTimeoutMs: 1_000 });
+    await expect(instance.start()).rejects.toThrow("exactly opencode v2.2.7");
+    await expect(instance.start()).rejects.toThrow("unavailable");
+    await expect(instance.newSession()).rejects.toThrow("unavailable");
+  });
+}
 
 test("A5: subprocess death rejects pending work and permanently retires the bridge", async () => {
   const instance = bridge("normal", { promptTimeoutMs: 200 });

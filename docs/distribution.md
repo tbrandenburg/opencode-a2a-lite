@@ -8,7 +8,7 @@ configured, but authenticated namespace ownership and actual registry acceptance
 are not established. Do not publish to npm until ownership is verified, or mark
 issue #6 complete based only on a local tarball or a GitHub release.
 
-Supported runtime: Linux, Bun 1.3.9, exact `opencode v2.0.28` on PATH, an existing
+Supported runtime: Linux, Bun 1.4.4, exact `opencode v2.2.7` on PATH, an existing
 explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
 also need Node; they do not replace Bun. The separate official `a2a` CLI is a client.
 Production inherits OpenCode configuration/MCP/plugins; it provides neither
@@ -21,6 +21,14 @@ the runtime package manifest, README and LICENSE; npm also includes root
 `package.json`. Runtime dependencies are declared normally and installed by the
 package runner. Tests, TypeScript sources, fixtures, scripts and development tools
 are not payload. No consumer install/prepare build hook is required.
+
+This package ships JavaScript, not a Bun-compiled native executable. Consumers
+must upgrade their separately installed Bun **and** OpenCode executables; updating
+the package cannot replace either runtime. Any independently produced
+`bun build --compile` executable must be rebuilt with a patched Bun and revalidated.
+Updating OS certificate authorities or adding `--use-system-ca` does not fix an
+affected Bun: the system store is additive, not a replacement for its bundled store.
+See [runtime security evidence](/docs/bun-runtime-security.md).
 
 ```sh
 make install

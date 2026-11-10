@@ -210,6 +210,11 @@ test("H06 shutdown bounds a client that leaves its HTTP request incomplete", asy
     client.once("close", () => resolve());
     client.once("error", reject);
   });
+  const sentinel = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: () => new Response("sentinel"),
+  });
   try {
     const started = performance.now();
     await instance.close();
@@ -217,8 +222,24 @@ test("H06 shutdown bounds a client that leaves its HTTP request incomplete", asy
     expect(performance.now() - started).toBeLessThan(2_500);
     expect(client.destroyed).toBe(true);
     await expect(fetch(ready.url)).rejects.toThrow();
+    const replacement = createServer();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        replacement.once("error", reject);
+        replacement.listen(Number(new URL(ready.url).port), "127.0.0.1", resolve);
+      });
+      expect(replacement.listening).toBe(true);
+      const response = await fetch(sentinel.url);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("sentinel");
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        replacement.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   } finally {
     client.destroy();
+    await sentinel.stop(true);
   }
 });
 

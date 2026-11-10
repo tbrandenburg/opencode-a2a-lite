@@ -34,7 +34,7 @@ async function main() {
     (await exec("a2a", ["--version"], { timeout: 10_000 })).stdout.trim(),
     "a2a version v0.3.1",
   );
-  assert.equal(Bun.version, "1.3.9");
+  assert.equal(Bun.version, "1.4.4");
   await isolated(async (workspace) => {
     let gateway = await launch(workspace);
     await withCleanup(
