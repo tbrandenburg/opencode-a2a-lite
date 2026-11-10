@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { request, type IncomingMessage } from "node:http";
 import { fileURLToPath } from "node:url";
 import { createGateway } from "../src/server.js";
+import { fixtureStartupMs, slowInitializationMs } from "./fixtures/acp-test-timeouts.js";
 
 type WireTask = {
   id: string;
@@ -87,29 +88,35 @@ function pausedStream(url: string) {
 }
 
 test.each([
-  { id: "C07", transport: "disconnect", outcome: "canceled" },
-  { id: "C08", transport: "slow-reader", outcome: "completed" },
+  { id: "C07", transport: "disconnect", outcome: "canceled", slow: false },
+  { id: "C08", transport: "slow-reader", outcome: "completed", slow: false },
+  { id: "C07-slow-start", transport: "disconnect", outcome: "canceled", slow: true },
 ])(
   "$id HTTP $transport retains persistence with $outcome outcome",
-  async ({ transport, outcome }) => {
+  async ({ transport, outcome, slow }) => {
     // Port 0 atomically reserves a free ephemeral port; no shared listener is touched.
     const gateway = createGateway({
       workspace: process.cwd(),
       port: 0,
       acp: {
         executable: process.execPath,
-        args: [fixture, outcome],
+        args: [fixture, outcome, ...(slow ? ["--slow-start"] : [])],
         versionArgs: [fixture, outcome, "--version"],
         env: { PATH: process.env.PATH },
-        startupTimeoutMs: 2_000,
+        startupTimeoutMs: fixtureStartupMs,
         promptTimeoutMs: 10_000,
         cancelTimeoutMs: 3_000,
         closeTimeoutMs: 600,
       },
     });
+    const started = performance.now();
     const ready = await gateway.start();
+    const setup = performance.now() - started;
     const stream = pausedStream(ready.url);
     try {
+      if (slow) {
+        expect(setup).toBeGreaterThanOrEqual(slowInitializationMs);
+      }
       const { response, id } = await stream.ready;
       expect(id.length).toBeGreaterThan(0);
       expect(response.headers["content-type"]).toContain("text/event-stream");
@@ -156,5 +163,5 @@ test.each([
       await gateway.close();
     }
   },
-  15_000,
+  20_000,
 );

@@ -1,6 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { spawn } from "node:child_process";
 import type { AgentContext, PermissionOption } from "@agentclientprotocol/sdk";
+import { slowInitializationMs } from "./acp-test-timeouts.js";
 
 const mode = process.argv[2];
 if (process.argv[3] === "--version") {
@@ -33,11 +34,15 @@ agent.onRequest(acp.methods.agent.initialize, async (request) => {
   initialized++;
   if (mode === "startup-exit") process.exit(12);
   if (request.params.protocolVersion !== 1 || initialized !== 1) throw new Error("bad initialize");
+  if (mode === "cancel-hang-slow-start" || mode === "slow-start")
+    await Bun.sleep(slowInitializationMs);
   return { protocolVersion: 1, agentCapabilities: {} };
 });
 agent.onRequest(acp.methods.agent.session.new, async (request) => {
   if (request.params.cwd !== process.cwd() || request.params.mcpServers.length)
     throw new Error("bad workspace");
+  // Session creation must not be counted against the completed startup phase.
+  if (mode === "cancel-hang-slow-start") await Bun.sleep(4_000);
   if (current) await chunk(current, activeSession, "late-idle");
   return { sessionId: `session-${++sessions}` };
 });
@@ -134,7 +139,7 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
 
 agent.onNotification(acp.methods.agent.session.cancel, async (notification) => {
   const ctx = notification.client;
-  if (mode === "cancel-hang") {
+  if (mode === "cancel-hang" || mode === "cancel-hang-slow-start") {
     await chunk(ctx, notification.params.sessionId, "cancel-received");
     return;
   }

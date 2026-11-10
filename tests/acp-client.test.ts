@@ -1,11 +1,17 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as bunTest } from "bun:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { createAcpBridge, type AcpBridgeOptions } from "../src/acp-client.js";
+import {
+  fixtureStartupMs,
+  fixtureTestMs,
+  slowInitializationMs,
+} from "./fixtures/acp-test-timeouts.js";
 
 const bridges: ReturnType<typeof createAcpBridge>[] = [];
 const fixture = fileURLToPath(new URL("./fixtures/acp-peer.ts", import.meta.url));
+const test = (name: string, run: () => Promise<void>) => bunTest(name, run, fixtureTestMs);
 function bridge(mode = "normal", overrides: Partial<AcpBridgeOptions> = {}) {
   const instance = createAcpBridge({
     cwd: process.cwd(),
@@ -13,7 +19,7 @@ function bridge(mode = "normal", overrides: Partial<AcpBridgeOptions> = {}) {
     args: [fixture, mode],
     versionArgs: [fixture, mode, "--version"],
     env: { PATH: process.env.PATH },
-    startupTimeoutMs: 2_000,
+    startupTimeoutMs: fixtureStartupMs,
     promptTimeoutMs: 2_000,
     cancelTimeoutMs: 500,
     closeTimeoutMs: 600,
@@ -94,7 +100,7 @@ test("A3: shutdown cancels active work before EOF, preserves final chunks and st
 
 for (const mode of ["executable-version", "version-old", "version-floor"]) {
   test(`A4: unreviewed executable ${mode} permanently fails closed`, async () => {
-    const instance = bridge(mode, { startupTimeoutMs: 1_000 });
+    const instance = bridge(mode);
     await expect(instance.start()).rejects.toThrow("exactly opencode v2.2.7");
     await expect(instance.start()).rejects.toThrow("unavailable");
     await expect(instance.newSession()).rejects.toThrow("unavailable");
@@ -123,9 +129,13 @@ test("A6: a prompt deadline rejects pending work and permanently retires the bri
   await expect(instance.start()).rejects.toThrow("unavailable");
 });
 
-async function cancellationProbe(mode: "cancel-hang" | "cancel-no-receipt") {
+async function cancellationProbe(
+  mode: "cancel-hang" | "cancel-no-receipt" | "cancel-hang-slow-start",
+) {
   const instance = bridge(mode, { cancelTimeoutMs: 150 });
+  const started = performance.now();
   await instance.start();
+  const startup = performance.now() - started;
   const session = await instance.newSession();
   const ready = Promise.withResolvers<string>();
   const receipt = Promise.withResolvers<string>();
@@ -146,7 +156,7 @@ async function cancellationProbe(mode: "cancel-hang" | "cancel-no-receipt") {
     ),
   ]);
   expect(await readiness).toBe("ready");
-  return { instance, session, receipt: receipt.promise, rejected };
+  return { instance, session, startup, receipt: receipt.promise, rejected };
 }
 
 async function cancelAfterReceipt(cancellation: Promise<void>, receipt: Promise<string>) {
@@ -168,6 +178,23 @@ test("A7: cancellation has its own deadline and rejects the hanging prompt", asy
     cancelAfterReceipt(probe.instance.cancel(probe.session.sessionId), probe.receipt),
   ).rejects.toThrow("cancel timed out");
   expect(await probe.rejected).toBeInstanceOf(Error);
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
+});
+
+test("A7 slow initialization reaches the independent cancellation deadline", async () => {
+  const started = performance.now();
+  const probe = await cancellationProbe("cancel-hang-slow-start");
+  expect(performance.now() - started).toBeGreaterThan(fixtureStartupMs);
+  expect(probe.startup).toBeGreaterThanOrEqual(slowInitializationMs);
+  expect(probe.startup).toBeLessThan(fixtureStartupMs);
+  const cancelling = performance.now();
+  await expect(
+    cancelAfterReceipt(probe.instance.cancel(probe.session.sessionId), probe.receipt),
+  ).rejects.toThrow("cancel timed out");
+  const elapsed = performance.now() - cancelling;
+  expect(elapsed).toBeGreaterThanOrEqual(100);
+  expect(elapsed).toBeLessThan(1_200);
   expect(String(await probe.rejected)).toContain("cancel timed out");
   await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
 });

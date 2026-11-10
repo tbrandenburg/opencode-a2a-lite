@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as bunTest } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { connect, createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 import manifest from "../package.json" with { type: "json" };
 import { createGateway, type ServerOptions } from "../src/server.js";
 import { until } from "./fixtures/sdk-cancellation.js";
+import { fixtureStartupMs, fixtureTestMs } from "./fixtures/acp-test-timeouts.js";
 
 const gateways: ReturnType<typeof createGateway>[] = [];
 const fixture = fileURLToPath(new URL("./fixtures/acp-peer.ts", import.meta.url));
+const test = (name: string, run: () => Promise<void>) => bunTest(name, run, fixtureTestMs);
 function gateway(mode = "normal", overrides: Partial<ServerOptions> = {}) {
   const instance = createGateway({
     workspace: process.cwd(),
@@ -20,7 +22,7 @@ function gateway(mode = "normal", overrides: Partial<ServerOptions> = {}) {
       args: [fixture, mode],
       versionArgs: [fixture, mode, "--version"],
       env: { PATH: process.env.PATH },
-      startupTimeoutMs: mode === "normal" ? 3_000 : 800,
+      startupTimeoutMs: fixtureStartupMs,
       promptTimeoutMs: 2_000,
       closeTimeoutMs: 600,
       ...overrides.acp,
@@ -123,11 +125,22 @@ test("H03 ACP startup timeout never opens HTTP or advertises early readiness", a
   const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
   const instance = gateway("startup-hang", {
     port,
-    acp: { args: [peer, marker], versionArgs: [peer, marker, "--version"] },
+    acp: {
+      args: [peer, marker],
+      versionArgs: [peer, marker, "--version"],
+      startupTimeoutMs: 800,
+    },
   });
   try {
-    const pending = instance.start().catch((error: unknown) => error);
+    let settled = false;
+    const pending = instance
+      .start()
+      .catch((error: unknown) => error)
+      .finally(() => {
+        settled = true;
+      });
     await until(() => Bun.file(marker).exists());
+    expect(settled).toBe(false);
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
     const failure = await pending;
     expect(failure).toBeInstanceOf(Error);
@@ -159,11 +172,22 @@ test("H04 close during initialization prevents late readiness and closes owned A
   const peer = fileURLToPath(new URL("./fixtures/acp-http-startup.ts", import.meta.url));
   const instance = gateway("startup-hang", {
     port,
-    acp: { args: [peer, marker], versionArgs: [peer, marker, "--version"] },
+    acp: {
+      args: [peer, marker],
+      versionArgs: [peer, marker, "--version"],
+      startupTimeoutMs: 800,
+    },
   });
   try {
-    const pending = instance.start().catch((error: unknown) => error);
+    let settled = false;
+    const pending = instance
+      .start()
+      .catch((error: unknown) => error)
+      .finally(() => {
+        settled = true;
+      });
     await until(() => Bun.file(marker).exists());
+    expect(settled).toBe(false);
     await instance.close();
     expect(await pending).toBeInstanceOf(Error);
     await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
