@@ -63,7 +63,7 @@ e2e-tck: build ## Run applicable official external TCK checks (requires pinned T
 clean: ## Remove generated build and test artifacts
 	rm -rf dist coverage .test-results
 
-.PHONY: spawn-agent team-up team-down teams-test
+.PHONY: spawn-agent team-up team-down team-report teams-test
 spawn-agent team-down: export TEAM_NETWORK := $(value NETWORK)
 team-up: export TEAM_NETWORK := $(if $(and $(value TEAM),$(filter environment,$(origin NETWORK))),,$(value NETWORK))
 spawn-agent: export TEAM_NAME := $(value NAME)
@@ -81,6 +81,11 @@ team-up: ## Open a coordinator for NETWORK or start a temporary team from TEAM
 
 team-down: ## Stop the owned coordinator and workers in NETWORK
 	@bash examples/teams/team.sh team-down
+
+team-report: export TEAM_REPORT_FILE := $(value FILE)
+team-report: ## Summarize bridge receipts: make team-report FILE=.test-results/teams/<name>.jsonl
+	@[ -f "$$TEAM_REPORT_FILE" ] || { echo 'Supply an existing FILE=<receipts.jsonl>, for example a copy in .test-results/teams/.' >&2; exit 1; }
+	@jq -rs -f examples/teams/report.jq -- "$$TEAM_REPORT_FILE"
 
 teams-test: ## Test the example team launcher with provider-free fixtures
 	@bash tests/teams.test.sh
