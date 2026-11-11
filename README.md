@@ -120,8 +120,8 @@ and runtime-selected workspaces are not claimed.
 | `make release BUMP=patch`                                              | Check, commit/tag and create **GitHub** release, not npm publication |
 | `make clean`                                                           | Remove build, coverage and test results                              |
 
-CI checks deterministic tests, installed packaging and the checksummed provider-free
-MCP bridge. Live demo/E2E are explicit manual commands requiring a provider key,
+CI checks deterministic tests, the provider-free team launcher fixtures, installed
+packaging and the checksummed provider-free MCP bridge. Live demo/E2E are explicit manual commands requiring a provider key,
 OpenCode and the official A2A CLI; `make demo` also needs `jq` and GNU `timeout`.
 For the exact live evidence/limitations see [acceptance](docs/acceptance.md).
 For quality measurement see [quality baseline](docs/quality-baseline.md).
@@ -130,6 +130,8 @@ For quality measurement see [quality baseline](docs/quality-baseline.md).
 
 The **gateway does not orchestrate other agents**. Optional guarded MCP interoperability
 helpers and their independent gate live in [`interop/`](interop/README.md).
+The experimental [team examples](examples/teams/README.md) provide a local roster
+launcher; read their supervision and cleanup limitations before use.
 For a manually owned model-issued MCP → A2A flow use the
 [one-worker recipe](docs/manual-one-worker.md), or the
 [explicit two-worker pipeline recipe](docs/manual-two-worker-pipeline.md) and

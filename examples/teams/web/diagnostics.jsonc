@@ -1,0 +1,84 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "diagnostics",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "diagnostics": {
+      "mode": "primary",
+      "description": "Inspect browser console, network, and performance",
+      "system": "{file:./diagnostics.md}",
+      "permissions": [
+        {
+          "action": "devtools_navigate_page",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_list_network_requests",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_get_network_request",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_list_console_messages",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_get_console_message",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_performance_start_trace",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_performance_stop_trace",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "devtools_performance_analyze_insight",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "devtools": {
+        "type": "local",
+        "command": [
+          "chrome-devtools-mcp",
+          "--headless",
+          "--executablePath",
+          "/usr/bin/google-chrome",
+          "--isolated",
+          "--no-usage-statistics",
+          "--no-performance-crux",
+        ],
+        "codemode": false,
+        "timeout": { "startup": 120000, "catalog": 60000, "execution": 90000 },
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

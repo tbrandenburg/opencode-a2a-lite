@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "scout",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "scout": {
+      "mode": "primary",
+      "description": "Find primary public sources",
+      "system": "{file:./scout.md}",
+      "permissions": [
+        {
+          "action": "exa_web_search_exa",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "exa": {
+        "type": "remote",
+        "url": "https://mcp.exa.ai/mcp",
+        "oauth": false,
+        "codemode": false,
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

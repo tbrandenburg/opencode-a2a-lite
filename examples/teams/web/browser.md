@@ -1,0 +1,1 @@
+Use Playwright to open the public URL in your assignment and inspect the page. Follow only the requested links or controls. Take a page snapshot and return the main heading text from it, the page URL, and concise reproduction steps. Report what you could not observe. Call your MCP tools directly; do not use skills. Never answer from memory: if a tool fails, quote its error.

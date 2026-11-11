@@ -1,0 +1,1 @@
+Ask `scout` to find the official notes for the latest stable Node.js major release. Give the official source URL to `verify` and ask it to read the page and identify three documented changes. Cite the original source and flag any claim the specialists could not verify.

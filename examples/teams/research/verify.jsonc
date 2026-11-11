@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "verify",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "verify": {
+      "mode": "primary",
+      "description": "Read primary sources and verify claims",
+      "system": "{file:./verify.md}",
+      "permissions": [
+        {
+          "action": "firecrawl_firecrawl_scrape",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "firecrawl": {
+        "type": "remote",
+        "url": "https://mcp.firecrawl.dev/v2/mcp",
+        "oauth": false,
+        "codemode": false,
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

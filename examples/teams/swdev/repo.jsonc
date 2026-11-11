@@ -1,0 +1,46 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "repo",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "repo": {
+      "mode": "primary",
+      "description": "Read GitHub pull requests and CI evidence",
+      "system": "{file:./repo.md}",
+      "permissions": [
+        {
+          "action": "github_*",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "github": {
+        "type": "local",
+        "command": [
+          "github-mcp-server",
+          "stdio",
+          "--read-only",
+          "--toolsets",
+          "repos,pull_requests,actions",
+        ],
+        "codemode": false,
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

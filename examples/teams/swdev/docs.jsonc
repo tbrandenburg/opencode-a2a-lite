@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "docs",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "docs": {
+      "mode": "primary",
+      "description": "Find version-specific library documentation",
+      "system": "{file:./docs.md}",
+      "permissions": [
+        {
+          "action": "context7_*",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "context7": {
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp",
+        "headers": {
+          "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}",
+        },
+        "oauth": false,
+        "codemode": false,
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

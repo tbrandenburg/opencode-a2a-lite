@@ -1,0 +1,1 @@
+Ask `browser` to open https://example.com/, report the visible heading, and identify the link on the page. Ask `diagnostics` to navigate to the same URL and report the main request status and any console errors. Combine the two observed results.
