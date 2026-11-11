@@ -50,6 +50,16 @@ The launcher gives each worker a private workspace and HOME/XDG paths. It passes
 
 Team-up checks the roster's worker identities and Agent Cards, then warms one coordinator for those URLs. Workers added during a session become available on the next team-up. Exiting the coordinator leaves the workers up. Team-down checks the saved PID and process start time before signaling each process. If a process cannot be confirmed stopped, the roster retains its record for a retry. The stable lock file remains beside the roster so concurrent commands keep using the same lock. Coordinator state, including receipts and session data, remains in the private runtime directory after shutdown for inspection; it can contain sensitive material. Inspect and reconcile it privately before manually removing it. Folder mode prints the retained private directory.
 
+## Receipts and telemetry
+
+When a coordinator exits, the launcher keeps a private (mode 0600) copy of its bridge `receipts.jsonl` as `.test-results/teams/<UTC timestamp>-<random>.jsonl`, in both folder and roster mode, so it survives `team-down` and temporary-folder cleanup. The copy is never overwritten and a failed copy only prints a warning. Receipts hold task and context IDs (raw in results) and call metadata, no prompt text, so treat them as private; the report prints only counts, tool names, states and timings.
+
+```bash
+make team-report FILE=.test-results/teams/<name>.jsonl
+```
+
+The report is one `jq` script (`examples/teams/report.jq`). It prints calls per tool and peer, call-to-result durations, polls (`a2a_get_task`) per task, send-to-completed time per task, rejections by tool and reason, and attempts per bridge connection against the 40-call ceiling. Tasks and connections are numbered instead of printing IDs; peers appear only as loopback `host:port`. Use it as a check, not enforcement: nothing stops a coordinator from exceeding its budget.
+
 ## Golden user journey
 
 Use the research team for the walkthrough. Start both workers in one shell, open OpenCode, ask for three changes backed by the official release notes, then exit the TUI. Reuse those workers for the headless brief and shut down the roster. The ports below are illustrative. Use the endpoints your workers print.

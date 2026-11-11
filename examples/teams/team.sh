@@ -472,11 +472,27 @@ stop_services() {
   (( failed == 0 ))
 }
 
+keep_receipts() {
+  local dir="$repo/.test-results/teams" copy
+  [[ -s $state/receipts.jsonl ]] || return 0
+  if mkdir -p -- "$dir" && copy=$(mktemp --suffix=.jsonl -- "$dir/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX"); then
+    if cat -- "$state/receipts.jsonl" >"$copy"; then
+      status receipts "Kept a private copy at $copy. Summarize with make team-report FILE=<path>."
+      return 0
+    fi
+    rm -f -- "$copy"
+  fi
+  status warn "Could not keep a copy of the receipts; the originals remain in $state."
+}
+
 coordinator_cleanup() {
   local result=$?
   trap - EXIT
   trap '' INT TERM
-  if stop_services "$state"; then
+  local stopped=0
+  stop_services "$state" || stopped=1
+  keep_receipts
+  if (( stopped == 0 )); then
     lock
     read_roster
     if [[ $(jq -r '.coordinator.state // ""' <<<"$roster") == "${state##*/}" ]]; then

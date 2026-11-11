@@ -295,6 +295,10 @@ wait "$run_pid" && exit 1
 run_pid=
 run_record=
 [[ ! -e $network && -s ${evidence[0]} ]]
+kept=(.test-results/teams/*.jsonl)
+(( ${#kept[@]} >= 3 ))
+[[ $(stat -c %a .test-results/teams) == 700 && $(stat -c %a "${kept[0]}") == 600 ]]
+cmp -- "${kept[0]}" "${evidence[0]}"
 down "$fixture/no-team.json" 2>"$fixture/no-team.err"
 grep -q 'No team is registered' "$fixture/no-team.err"
 [[ ! -e $fixture/no-team.json ]]
@@ -305,6 +309,8 @@ make --no-print-directory team-up TEAM=examples/teams/research MODE=run \
 grep -q 'stopped.*scout' "$fixture/folder.err"
 grep -q 'stopped.*verify' "$fixture/folder.err"
 [[ -n $(find "$TMPDIR" -name receipts.jsonl -print -quit) ]]
+folder_kept=(.test-results/teams/*.jsonl)
+(( ${#folder_kept[@]} == ${#kept[@]} + 1 ))
 reject make --no-print-directory team-up TEAM=examples/teams/research NETWORK="$network" MODE=run
 grep -q 'Choose TEAM.*or NETWORK' "$fixture/rejected.err"
 
@@ -313,6 +319,31 @@ if command -v script >/dev/null; then
   grep -q 'Interactive fixture' "$fixture/folder-tui"
   [[ -n $(find "$TMPDIR" -name receipts.jsonl -print -quit) ]]
 fi
+
+reject make --no-print-directory team-report
+grep -q 'Supply an existing FILE' "$fixture/rejected.err"
+reject make --no-print-directory team-report FILE="$fixture/missing.jsonl"
+grep -q 'Supply an existing FILE' "$fixture/rejected.err"
+cat >"$fixture/receipts.jsonl" <<'JSONL'
+{"connection":"c1","event":"catalog","tools":["a2a_send_message"]}
+{"connection":"c1","event":"call","id":"1","tool":"a2a_send_message","peer":"http://127.0.0.1:41321/","inputHash":"aa","blocking":false,"at":"2026-11-11T10:00:00.500Z"}
+{"connection":"c1","event":"result","id":"1","tool":"a2a_send_message","ok":true,"taskId":"RAW-TASK-ID","contextId":"RAW-CONTEXT-ID","state":"TASK_STATE_WORKING","at":"2026-11-11T10:00:01.000Z"}
+{"connection":"c1","event":"call","id":"2","tool":"a2a_get_task","peer":"http://127.0.0.1:41321/","taskHash":"hash1","at":"2026-11-11T10:00:10.000Z"}
+{"connection":"c1","event":"result","id":"2","tool":"a2a_get_task","ok":true,"taskId":"RAW-TASK-ID","state":"TASK_STATE_WORKING","at":"2026-11-11T10:00:10.100Z"}
+{"connection":"c1","event":"call","id":"3","tool":"a2a_get_task","peer":"http://127.0.0.1:41321/","taskHash":"hash1","at":"2026-11-11T10:00:20.000Z"}
+{"connection":"c1","event":"result","id":"3","tool":"a2a_get_task","ok":true,"taskId":"RAW-TASK-ID","state":"TASK_STATE_COMPLETED","at":"2026-11-11T10:00:20.200Z"}
+{"connection":"c1","event":"call","id":"4","tool":"a2a_get_task","peer":"http://127.0.0.1:41321/","taskHash":"hash1","at":"2026-11-11T10:00:30.000Z"}
+{"connection":"c1","event":"result","id":"4","tool":"a2a_get_task","ok":false,"state":"TASK_STATE_COMPLETED","at":"2026-11-11T10:00:30.100Z"}
+{"connection":"c1","event":"rejected","tool":"a2a_send_message","reason":"mode","prompt":"SECRET-PROMPT"}
+JSONL
+make --no-print-directory team-report FILE="$fixture/receipts.jsonl" >"$fixture/report.out"
+grep -q $'^  3\ta2a_get_task\t127.0.0.1:41321$' "$fixture/report.out"
+grep -q $'^  task-1\t3$' "$fixture/report.out"
+[[ $(grep -c $'^  task-' "$fixture/report.out") == 2 ]]
+grep -q $'^  task-1\t19.7s\tlast state TASK_STATE_COMPLETED$' "$fixture/report.out"
+grep -q $'^  1\ta2a_send_message\tmode$' "$fixture/report.out"
+grep -q $'^  connection-1\t5/40$' "$fixture/report.out"
+if grep -Eq 'RAW-|SECRET|hash1|http://|c1' "$fixture/report.out"; then exit 1; fi
 
 mkdir -- "$fixture/mixed-profiles"
 cp -- "$profile" "$fixture/mixed-profiles/scout.json"
