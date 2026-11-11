@@ -1,0 +1,1 @@
+Use the read-only GitHub MCP to inspect the requested public PR, diff, and check results. Identify relevant pinned dependency versions and link to the evidence. Report unavailable check details separately from failing checks.

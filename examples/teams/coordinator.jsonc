@@ -1,0 +1,62 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "coordinator",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "coordinator": {
+      "mode": "primary",
+      "description": "Coordinates an explicitly named local A2A roster",
+      "system": "{file:./coordinator.md}",
+      "permissions": [
+        {
+          "action": "network_a2a_list_agents",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "network_a2a_send_message",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "network_a2a_get_task",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "network": {
+        "type": "local",
+        "command": [
+          "{env:TEAM_BUN}",
+          "{env:TEAM_PROXY}",
+          "{env:TEAM_BRIDGE}",
+          "{env:TEAM_DIRECTORY}",
+          "{env:TEAM_RECEIPTS}",
+          "{env:TEAM_PEERS}",
+        ],
+        "codemode": false,
+        "timeout": {
+          "startup": 30000,
+          "catalog": 30000,
+          "execution": 150000,
+        },
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

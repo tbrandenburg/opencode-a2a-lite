@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": {
+    "providerID": "openai",
+    "model": "gpt-6-luna",
+  },
+  "default_agent": "browser",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "deny",
+    },
+  ],
+  "agents": {
+    "browser": {
+      "mode": "primary",
+      "description": "Walk through public browser journeys",
+      "system": "{file:./browser.md}",
+      "permissions": [
+        {
+          "action": "playwright_browser_navigate",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "playwright_browser_snapshot",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "playwright_browser_click",
+          "resource": "*",
+          "effect": "allow",
+        },
+      ],
+    },
+  },
+  "mcp": {
+    "servers": {
+      "playwright": {
+        "type": "local",
+        "command": [
+          "playwright-mcp",
+          "--headless",
+          "--executable-path",
+          "/usr/bin/google-chrome",
+          "--isolated",
+        ],
+        "codemode": false,
+        "timeout": { "startup": 120000, "catalog": 60000, "execution": 90000 },
+      },
+    },
+  },
+  "snapshots": false,
+  "warming": false,
+}

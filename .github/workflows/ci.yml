@@ -32,6 +32,8 @@ jobs:
         run: >-
           make check LINT_FLAGS='--format github'
           TEST_FLAGS='--coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage --reporter=junit --reporter-outfile=.test-results/junit.xml'
+      - name: Test team launcher without a provider
+        run: make teams-test
       - name: Verify installed npm tarball without provider credentials
         run: make package-smoke
       - name: Verify pinned real MCP bridge without provider credentials

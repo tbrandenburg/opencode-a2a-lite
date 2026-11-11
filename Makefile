@@ -62,3 +62,25 @@ e2e-tck: build ## Run applicable official external TCK checks (requires pinned T
 
 clean: ## Remove generated build and test artifacts
 	rm -rf dist coverage .test-results
+
+.PHONY: spawn-agent team-up team-down teams-test
+spawn-agent team-down: export TEAM_NETWORK := $(value NETWORK)
+team-up: export TEAM_NETWORK := $(if $(and $(value TEAM),$(filter environment,$(origin NETWORK))),,$(value NETWORK))
+spawn-agent: export TEAM_NAME := $(value NAME)
+spawn-agent: export TEAM_CONFIG := $(value CONFIG)
+spawn-agent: export TEAM_SYSTEM_PROMPT := $(value SYSTEM_PROMPT)
+team-up: export TEAM_MODE := $(value MODE)
+team-up: export TEAM_PROMPT_FILE := $(value PROMPT_FILE)
+team-up: export TEAM_FOLDER := $(value TEAM)
+
+spawn-agent: ## Start a specialist and add it to NETWORK
+	@bash examples/teams/team.sh spawn-agent
+
+team-up: ## Open a coordinator for NETWORK or start a temporary team from TEAM
+	@bash examples/teams/team.sh team-up
+
+team-down: ## Stop the owned coordinator and workers in NETWORK
+	@bash examples/teams/team.sh team-down
+
+teams-test: ## Test the example team launcher with provider-free fixtures
+	@bash tests/teams.test.sh

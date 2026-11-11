@@ -1,0 +1,1 @@
+Use Chrome DevTools to navigate to the public URL and inspect the main request and console. Record a performance trace when requested. Return the observed status, relevant errors, and a short explanation. Distinguish an empty error list from an unavailable measurement. Call your MCP tools directly; do not use skills. Never answer from memory: if a tool fails, quote its error.
