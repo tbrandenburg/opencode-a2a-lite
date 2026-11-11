@@ -2,6 +2,11 @@ import { afterEach, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { createGateway } from "../src/server.js";
 import { createAgentExecutor } from "../src/executor.js";
+import {
+  fixtureStartupMs,
+  fixtureTestMs,
+  slowInitializationMs,
+} from "./fixtures/acp-test-timeouts.js";
 
 const gateways: ReturnType<typeof createGateway>[] = [];
 const fixture = fileURLToPath(new URL("./fixtures/acp-peer.ts", import.meta.url));
@@ -10,17 +15,19 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function gateway(allocation?: Promise<void>) {
+function gateway(allocation?: Promise<void>, slow = false) {
   const calls: string[] = [];
   const started = Promise.withResolvers<void>();
+  const mode = slow ? "slow-start" : "normal";
   const instance = createGateway({
     workspace: process.cwd(),
     port: 0,
     acp: {
       executable: process.execPath,
-      args: [fixture, "normal"],
-      versionArgs: [fixture, "normal", "--version"],
+      args: [fixture, mode],
+      versionArgs: [fixture, mode, "--version"],
       env: { PATH: process.env.PATH },
+      startupTimeoutMs: fixtureStartupMs,
       closeTimeoutMs: 600,
     },
     createExecutor(bridge) {
@@ -41,6 +48,16 @@ function gateway(allocation?: Promise<void>) {
   });
   gateways.push(instance);
   return { instance, calls, started: started.promise };
+}
+
+async function start(run: ReturnType<typeof gateway>, slow: boolean) {
+  const started = performance.now();
+  const ready = await run.instance.start();
+  if (slow) {
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeGreaterThanOrEqual(slowInitializationMs);
+  }
+  return ready;
 }
 
 type WireTask = {
@@ -115,13 +132,14 @@ async function send(url: string, method: string, text: string, contextId?: strin
 }
 
 test.each([
-  { id: "H08", method: "SendMessage" },
-  { id: "H09", method: "SendStreamingMessage" },
+  { id: "H08", method: "SendMessage", slow: false },
+  { id: "H09", method: "SendStreamingMessage", slow: false },
+  { id: "H09-slow-start", method: "SendStreamingMessage", slow: true },
 ])(
   "$id $method context lifecycle preserves continuation/isolation and rejects unknown/stale IDs",
-  async ({ method }) => {
-    const run = gateway();
-    const ready = await run.instance.start();
+  async ({ method, slow }) => {
+    const run = gateway(undefined, slow);
+    const ready = await start(run, slow);
     const unknown = await send(ready.url, method, "hello", "unknown");
     expect(unknown.status.state).toBe("TASK_STATE_FAILED");
     expect(unknown.status.message?.parts[0]?.text).toContain("Unknown or expired");
@@ -156,8 +174,9 @@ test.each([
       "session-2:beta again",
     ]);
     await run.instance.close();
-    const restarted = gateway();
-    const fresh = await restarted.instance.start();
+    await expect(fetch(ready.url)).rejects.toThrow();
+    const restarted = gateway(undefined, slow);
+    const fresh = await start(restarted, slow);
     const stale = await send(fresh.url, method, "follow up", alpha.contextId);
     expect(stale.status.state).toBe("TASK_STATE_FAILED");
     expect(stale.status.message?.parts[0]?.text).toContain("Unknown or expired");
@@ -165,23 +184,31 @@ test.each([
     const accepted = await send(fresh.url, method, "new conversation");
     expect(accepted.status.state).toBe("TASK_STATE_COMPLETED");
     expect(restarted.calls).toEqual(["session", "session-1:new conversation"]);
+    await restarted.instance.close();
+    await expect(fetch(fresh.url)).rejects.toThrow();
   },
+  // Two startup budgets, two HTTP drains, and bounded time for the request phases.
+  2 * fixtureStartupMs + 8_000,
 );
 
-test("H10 HTTP busy during allocation rejects without session creation or submission", async () => {
-  const release = Promise.withResolvers<void>();
-  const run = gateway(release.promise);
-  const ready = await run.instance.start();
-  const pending = send(ready.url, "SendMessage", "first");
-  try {
-    await run.started;
-    const rejected = await send(ready.url, "SendMessage", "second");
-    expect(rejected.status.state).toBe("TASK_STATE_FAILED");
-    expect(rejected.status.message?.parts[0]?.text).toContain("busy");
-    expect(run.calls).toEqual(["session"]);
-  } finally {
-    release.resolve();
-  }
-  expect((await pending).status.state).toBe("TASK_STATE_COMPLETED");
-  expect(run.calls).toEqual(["session", "session-1:first"]);
-});
+test(
+  "H10 HTTP busy during allocation rejects without session creation or submission",
+  async () => {
+    const release = Promise.withResolvers<void>();
+    const run = gateway(release.promise);
+    const ready = await run.instance.start();
+    const pending = send(ready.url, "SendMessage", "first");
+    try {
+      await run.started;
+      const rejected = await send(ready.url, "SendMessage", "second");
+      expect(rejected.status.state).toBe("TASK_STATE_FAILED");
+      expect(rejected.status.message?.parts[0]?.text).toContain("busy");
+      expect(run.calls).toEqual(["session"]);
+    } finally {
+      release.resolve();
+    }
+    expect((await pending).status.state).toBe("TASK_STATE_COMPLETED");
+    expect(run.calls).toEqual(["session", "session-1:first"]);
+  },
+  fixtureTestMs,
+);

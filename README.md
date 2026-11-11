@@ -69,7 +69,7 @@ To run the compiled server, use
 
 ### Package distribution
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.2**.
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.4**.
 **npm registry publication has not been verified.** Do not assume these commands
 work until the scope/registry is checked:
 

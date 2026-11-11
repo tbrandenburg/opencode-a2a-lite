@@ -1,11 +1,17 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as bunTest } from "bun:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { createAcpBridge, type AcpBridgeOptions } from "../src/acp-client.js";
+import {
+  fixtureStartupMs,
+  fixtureTestMs,
+  slowInitializationMs,
+} from "./fixtures/acp-test-timeouts.js";
 
 const bridges: ReturnType<typeof createAcpBridge>[] = [];
 const fixture = fileURLToPath(new URL("./fixtures/acp-peer.ts", import.meta.url));
+const test = (name: string, run: () => Promise<void>) => bunTest(name, run, fixtureTestMs);
 function bridge(mode = "normal", overrides: Partial<AcpBridgeOptions> = {}) {
   const instance = createAcpBridge({
     cwd: process.cwd(),
@@ -13,7 +19,7 @@ function bridge(mode = "normal", overrides: Partial<AcpBridgeOptions> = {}) {
     args: [fixture, mode],
     versionArgs: [fixture, mode, "--version"],
     env: { PATH: process.env.PATH },
-    startupTimeoutMs: 2_000,
+    startupTimeoutMs: fixtureStartupMs,
     promptTimeoutMs: 2_000,
     cancelTimeoutMs: 500,
     closeTimeoutMs: 600,
@@ -94,7 +100,7 @@ test("A3: shutdown cancels active work before EOF, preserves final chunks and st
 
 for (const mode of ["executable-version", "version-old", "version-floor"]) {
   test(`A4: unreviewed executable ${mode} permanently fails closed`, async () => {
-    const instance = bridge(mode, { startupTimeoutMs: 1_000 });
+    const instance = bridge(mode);
     await expect(instance.start()).rejects.toThrow("exactly opencode v2.2.7");
     await expect(instance.start()).rejects.toThrow("unavailable");
     await expect(instance.newSession()).rejects.toThrow("unavailable");
@@ -114,25 +120,97 @@ test("A6: a prompt deadline rejects pending work and permanently retires the bri
   const instance = bridge("normal", { promptTimeoutMs: 200 });
   await instance.start();
   const session = await instance.newSession();
-  await expect(instance.prompt(session.sessionId, "hang", () => undefined)).rejects.toThrow(
-    "ACP prompt timed out",
-  );
+  const chunks: string[] = [];
+  await expect(
+    instance.prompt(session.sessionId, "hang", (text) => chunks.push(text)),
+  ).rejects.toThrow("ACP prompt timed out");
+  expect(chunks).toEqual(["ready"]);
   await expect(instance.newSession()).rejects.toThrow("unavailable");
   await expect(instance.start()).rejects.toThrow("unavailable");
 });
 
-test("A7: cancellation has its own deadline and rejects the hanging prompt", async () => {
-  const instance = bridge("cancel-hang", { cancelTimeoutMs: 150 });
+async function cancellationProbe(
+  mode: "cancel-hang" | "cancel-no-receipt" | "cancel-hang-slow-start",
+) {
+  const instance = bridge(mode, { cancelTimeoutMs: 150 });
+  const started = performance.now();
   await instance.start();
+  const startup = performance.now() - started;
   const session = await instance.newSession();
-  const ready = Promise.withResolvers<void>();
-  const prompt = instance.prompt(session.sessionId, "cancel", () => ready.resolve());
+  const ready = Promise.withResolvers<string>();
+  const receipt = Promise.withResolvers<string>();
+  const prompt = instance.prompt(session.sessionId, "cancel", (text) => {
+    if (text === "cancel-received") receipt.resolve(text);
+    else ready.resolve(text);
+  });
   const rejected = prompt.catch((error: unknown) => error);
-  await ready.promise;
-  await expect(instance.cancel(session.sessionId)).rejects.toThrow("cancel timed out");
-  expect(await rejected).toBeInstanceOf(Error);
-  expect(String(await rejected)).toContain("cancel timed out");
-  await expect(instance.newSession()).rejects.toThrow("unavailable");
+  const readiness = Promise.race([
+    ready.promise,
+    prompt.then(
+      () => {
+        throw new Error("Prompt completed before readiness");
+      },
+      (error: unknown) => {
+        throw error;
+      },
+    ),
+  ]);
+  expect(await readiness).toBe("ready");
+  return { instance, session, startup, receipt: receipt.promise, rejected };
+}
+
+async function cancelAfterReceipt(cancellation: Promise<void>, receipt: Promise<string>) {
+  const premature = cancellation.then(
+    () => {
+      throw new Error("Cancellation settled before peer receipt");
+    },
+    (error: unknown) => {
+      throw new Error("Cancellation settled before peer receipt", { cause: error });
+    },
+  );
+  expect(await Promise.race([receipt, premature])).toBe("cancel-received");
+  await cancellation;
+}
+
+test("A7: cancellation has its own deadline and rejects the hanging prompt", async () => {
+  const probe = await cancellationProbe("cancel-hang");
+  await expect(
+    cancelAfterReceipt(probe.instance.cancel(probe.session.sessionId), probe.receipt),
+  ).rejects.toThrow("cancel timed out");
+  expect(await probe.rejected).toBeInstanceOf(Error);
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
+});
+
+test("A7 slow initialization reaches the independent cancellation deadline", async () => {
+  const started = performance.now();
+  const probe = await cancellationProbe("cancel-hang-slow-start");
+  expect(performance.now() - started).toBeGreaterThan(fixtureStartupMs);
+  expect(probe.startup).toBeGreaterThanOrEqual(slowInitializationMs);
+  expect(probe.startup).toBeLessThan(fixtureStartupMs);
+  const cancelling = performance.now();
+  await expect(
+    cancelAfterReceipt(probe.instance.cancel(probe.session.sessionId), probe.receipt),
+  ).rejects.toThrow("cancel timed out");
+  const elapsed = performance.now() - cancelling;
+  expect(elapsed).toBeGreaterThanOrEqual(100);
+  expect(elapsed).toBeLessThan(1_200);
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
+});
+
+test("A7 receipt gate rejects a real cancellation timeout without peer receipt", async () => {
+  const probe = await cancellationProbe("cancel-no-receipt");
+  const outcome = await cancelAfterReceipt(
+    probe.instance.cancel(probe.session.sessionId),
+    probe.receipt,
+  ).catch((error: unknown) => error);
+  expect(outcome).toBeInstanceOf(Error);
+  if (!(outcome instanceof Error)) throw new Error("Expected receipt failure");
+  expect(outcome.message).toBe("Cancellation settled before peer receipt");
+  expect(String(outcome.cause)).toContain("cancel timed out");
+  expect(String(await probe.rejected)).toContain("cancel timed out");
+  await expect(probe.instance.newSession()).rejects.toThrow("unavailable");
 });
 
 test("A8: close escalates only its owned group, including descendants", async () => {

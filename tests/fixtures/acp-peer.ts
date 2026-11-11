@@ -1,6 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { spawn } from "node:child_process";
-import * as acp from "@agentclientprotocol/sdk";
+import type { AgentContext, PermissionOption } from "@agentclientprotocol/sdk";
+import { slowInitializationMs } from "./acp-test-timeouts.js";
 
 const mode = process.argv[2];
 if (process.argv[3] === "--version") {
@@ -15,6 +16,7 @@ if (process.argv[3] === "--version") {
   console.log(`opencode v${version}`);
   process.exit(0);
 }
+const acp = await import("@agentclientprotocol/sdk");
 const descendant =
   mode === "descendant"
     ? spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
@@ -24,7 +26,7 @@ let initialized = 0;
 let sessions = 0;
 let turns = 0;
 let release: (() => void) | undefined;
-let current: acp.AgentContext | undefined;
+let current: AgentContext | undefined;
 let activeSession = "";
 const forever = () => new Promise<never>(() => undefined);
 
@@ -32,17 +34,21 @@ agent.onRequest(acp.methods.agent.initialize, async (request) => {
   initialized++;
   if (mode === "startup-exit") process.exit(12);
   if (request.params.protocolVersion !== 1 || initialized !== 1) throw new Error("bad initialize");
+  if (mode === "cancel-hang-slow-start" || mode === "slow-start")
+    await Bun.sleep(slowInitializationMs);
   return { protocolVersion: 1, agentCapabilities: {} };
 });
 agent.onRequest(acp.methods.agent.session.new, async (request) => {
   if (request.params.cwd !== process.cwd() || request.params.mcpServers.length)
     throw new Error("bad workspace");
+  // Session creation must not be counted against the completed startup phase.
+  if (mode === "cancel-hang-slow-start") await Bun.sleep(4_000);
   if (current) await chunk(current, activeSession, "late-idle");
   return { sessionId: `session-${++sessions}` };
 });
 
 async function chunk(
-  ctx: acp.AgentContext,
+  ctx: AgentContext,
   sessionId: string,
   text: string,
   meta?: Record<string, unknown>,
@@ -64,7 +70,10 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   const text = request.params.prompt[0];
   if (text?.type !== "text") throw new Error("bad prompt");
   if (text.text === "exit") process.exit(13);
-  if (text.text === "hang") return forever();
+  if (text.text === "hang") {
+    await chunk(ctx, activeSession, "ready");
+    return forever();
+  }
   if (text.text === "cancel") {
     await chunk(ctx, activeSession, "ready");
     await new Promise<void>((resolve) => {
@@ -74,9 +83,7 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
     return { stopReason: "cancelled" };
   }
   if (text.text.startsWith("permission")) {
-    const options: acp.PermissionOption[] = [
-      { kind: "allow_once", optionId: "allow", name: "Allow" },
-    ];
+    const options: PermissionOption[] = [{ kind: "allow_once", optionId: "allow", name: "Allow" }];
     if (text.text === "permission-reject")
       options.push({ kind: "reject_once", optionId: "deny", name: "Deny" });
     const response = await ctx.request(acp.methods.client.session.requestPermission, {
@@ -132,7 +139,11 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
 
 agent.onNotification(acp.methods.agent.session.cancel, async (notification) => {
   const ctx = notification.client;
-  if (mode === "cancel-hang") return;
+  if (mode === "cancel-hang" || mode === "cancel-hang-slow-start") {
+    await chunk(ctx, notification.params.sessionId, "cancel-received");
+    return;
+  }
+  if (mode === "cancel-no-receipt") return;
   await chunk(ctx, notification.params.sessionId, "late-before-stop");
   release?.();
 });

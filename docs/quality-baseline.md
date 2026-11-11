@@ -34,7 +34,29 @@ CI summary/artifact steps use `always()` so earlier failures still produce avail
 
 The issue records an intermittent `ACP startup timed out` with the server success fixture's 800ms startup deadline. The coordinator subsequently observed another unchanged-root baseline pass (93/376), followed by a post-build run with 7/93 failures (344 assertions, 48.59s): server SSE, five invalid-input/ACP-failure cases, and incomplete-HTTP shutdown failed during fixture startup. Discovery remained 93 tests across 7 files. Concurrent agent activity was present, but this does not prove causality. The exact scheduling/root cause is unproven.
 
-Only the normal server fixture now has 3,000ms bounded startup headroom; non-normal fixture modes retain 800ms, and production defaults and dedicated negative-test deadlines are unchanged. A repeat of the server fixture file passed 85 tests / 355 assertions across five repetitions without retries (66.81s). Two subsequent coverage-enabled full checks passed 93/376 with whole-test-process times 47.803s and 33.204s, including execution after generated build output existed. This evidence reduces concern but cannot prove an intermittent failure impossible; final comparable performance measurements should be sequential.
+At that revision only the normal server fixture had 3,000ms bounded startup headroom; non-normal fixture modes retained 800ms. A repeat of the server fixture file passed 85 tests / 355 assertions across five repetitions without retries (66.81s). Two subsequent coverage-enabled full checks passed 93/376 with whole-test-process times 47.803s and 33.204s, including execution after generated build output existed. This evidence reduces concern but cannot prove an intermittent failure impossible; final comparable performance measurements should be sequential.
+
+## ACP fixture startup investigation
+
+Issue [#64](https://github.com/tbrandenburg/opencode-a2a-lite/issues/64) records a cancellation test failing during startup rather than at its intended 150ms cancellation deadline. Startup includes both an executable-version subprocess and ACP initialization, previously sharing a 2,000ms fixture budget. Removing the SDK import from version probes reduced work, but could not prevent a slow ACP initialization from exhausting that budget.
+
+A controlled real peer delayed initialization by 2,300ms. With the previous fixture budget, both the ACP cancellation and HTTP cancellation-transport probes failed during startup; with the test-only 6,000ms startup budget, they reached their cancellation and persistence assertions. The SSE context lifecycle also reproduced the old 5,000ms outer-test timeout with two slow startups; it passed with an outer budget accounting for both startups, request phases and cleanup. The actual causes of the historical startup and context-test delays are **not established** by these controlled reproductions.
+
+The focused regressions below exercise real ACP subprocesses and checked loopback HTTP ports, without a provider:
+
+```sh
+bun test ./tests/acp-client.test.ts -t 'A7 slow initialization'
+bun test ./tests/cancellation-transport.test.ts -t 'C07-slow-start'
+bun test ./tests/context-http.test.ts -t 'H09-slow-start'
+```
+
+Production deadlines remain unchanged. The dedicated startup-failure tests retain their 800ms deadlines and assert that initialization reached the peer before timeout; cancellation retains its 150ms deadline and checks the peer's cancellation receipt. Test-only setup and outer budgets are bounded, not retries or guarantees against arbitrary scheduling delays.
+
+## SQLite denial fixture timeout investigation
+
+Issue [#67](https://github.com/tbrandenburg/opencode-a2a-lite/issues/67) records a single 5.29966s timeout with three assertions under Bun 1.4.4 coverage. Its delayed phase and historical root cause remain **unknown**. Instrumenting the original synchronous test on the pinned runtime demonstrated two independently injected failures: a 5.2s setup pause and a 5.2s cleanup pause each produced a timeout and three assertions. Bun's [1.4.4 runner](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/runtime/test_runner/Execution.rs#L1000-L1048) checks the deadline after a synchronous callback returns; the assertion count does not locate the pause.
+
+The original SQLite fixture executed schema creation and seed inserts without an explicit transaction. A focused `strace` observation recorded 10 rollback-journal creations and 40 sync calls. Grouping schema and initial seed writes in one transaction produced one journal creation and four sync calls in a comparable trace. The writer commits before the independent read-only evidence connection opens. This reduces exposure to synchronous I/O but does not establish the historical cause. No timeout or durability setting changed.
 
 ## Coverage interpretation and limits
 
