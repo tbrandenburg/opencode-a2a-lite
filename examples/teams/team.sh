@@ -228,14 +228,21 @@ prepare_workspace() {
 }
 
 require_runtime() {
-  local tool key
+  local tool key version major minor patch
   for tool in bun opencode curl timeout setsid; do
     command -v "$tool" >/dev/null || die "Missing $tool."
   done
   bun=$(command -v bun)
   opencode=$(command -v opencode)
   [[ $("$bun" --version) == 1.4.4 ]] || die 'Expected Bun 1.4.4.'
-  [[ $("$opencode" --version) == 'opencode v2.2.7' ]] || die 'Expected OpenCode 2.2.7.'
+  if ! version=$("$opencode" --version); then die 'Could not read OpenCode version; expected stable OpenCode >=2.2.7.'; fi
+  [[ $version =~ ^opencode\ v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
+    die 'Expected stable OpenCode >=2.2.7.'
+  major=$((10#${BASH_REMATCH[1]}))
+  minor=$((10#${BASH_REMATCH[2]}))
+  patch=$((10#${BASH_REMATCH[3]}))
+  (( major > 2 || (major == 2 && minor > 2) || (major == 2 && minor == 2 && patch >= 7) )) ||
+    die 'Expected stable OpenCode >=2.2.7.'
   [[ ! -e /etc/opencode && ! -L /etc/opencode ]] || die 'Managed OpenCode settings require separate review.'
   read -ra forward <<<"${TEAM_PASS_ENV:-OPENAI_API_KEY}"
   for key in "${forward[@]}"; do
@@ -531,13 +538,15 @@ bridge_ready() {
 }
 
 up() {
-  local mode=${TEAM_MODE:-tui} owner next entry name url record i
+  local mode=${TEAM_MODE:-tui} owner next entry name url record i bridge_candidate
   local -a names=() peers=()
   check_mode "$mode"
   require_runtime
   config="$examples/coordinator.jsonc"
-  if ! bridge=$(realpath -e -- "${A2ABRIDGE_BIN:-}") || [[ ! -f $bridge || ! -x $bridge ]]; then
-    die 'Set A2ABRIDGE_BIN to the verified bridge binary.'
+  bridge_candidate=${A2ABRIDGE_BIN:-}
+  if [[ -z $bridge_candidate ]]; then bridge_candidate=$(type -P a2abridge || true); fi
+  if ! bridge=$(realpath -e -- "$bridge_candidate") || [[ ! -f $bridge || ! -x $bridge ]]; then
+    die 'Set A2ABRIDGE_BIN or put the verified a2abridge binary on PATH.'
   fi
   [[ $(sha256sum -- "$bridge" | cut -d ' ' -f 1) == bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2 ]] ||
     die 'Expected the pinned a2abridge 4.0.2 Linux amd64 checksum.'
