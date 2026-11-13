@@ -1,7 +1,7 @@
 {
   "name": "@tbrandenburg/opencode-a2a-lite",
   "version": "0.2.1",
-  "description": "Loopback-only OpenCode ACP to A2A gateway for trusted workspaces",
+  "description": "OpenCode ACP to A2A gateway for trusted workspaces",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -3,6 +3,7 @@
 > Expose OpenCode through A2A, with ACP doing the heavy lifting.
 
 [![CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tbrandenburg/opencode-a2a-lite)](https://github.com/tbrandenburg/opencode-a2a-lite/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: Linux](https://img.shields.io/badge/platform-linux-lightgrey)
 ![Runtime: Bun](https://img.shields.io/badge/runtime-Bun%201.4.4-black)
@@ -77,7 +78,7 @@ opencode-a2a-lite --help | --version
 | Option / variable                                                               | Meaning                                                                                                      |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust. |
-| `--port`, `A2A_PORT`                                                            | Loopback port. Default 41241; `0` requests an OS-assigned port. Flags override env.                          |
+| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.     |
 | `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                    |
 
 Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
@@ -85,7 +86,7 @@ use `make dev` for development.
 
 ### Package distribution
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.0**.
+`@tbrandenburg/opencode-a2a-lite` is released on GitHub (see the release badge above).
 **npm registry publication has not been verified**; do not assume these work until
 the scope/registry is checked:
 
