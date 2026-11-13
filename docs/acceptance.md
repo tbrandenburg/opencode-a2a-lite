@@ -3,8 +3,10 @@
 ## Runtime upgrade verification (issues #60 and #61)
 
 Last verified by the coordinator: **2026-11-10T17:12:14Z**.
-Supported pair: **Bun 1.4.4** and **exactly OpenCode 2.2.7** (actual embedded
+This recorded acceptance run used **Bun 1.4.4** and **OpenCode 2.2.7** (actual embedded
 Bun 1.4.4), official A2A CLI 0.3.1, and the existing `openai/gpt-6-luna` smoke model.
+Production admission accepts stable OpenCode 2.2.7 or newer; this run does not
+establish live compatibility for later versions.
 No global runtime/configuration change or npm publication is implied.
 
 After integrating the focused agents and resolving two medium adversarial-review

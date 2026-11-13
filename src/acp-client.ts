@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import manifest from "../package.json" with { type: "json" };
+import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 
 export interface AcpBridgeOptions {
@@ -131,7 +132,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             code === 0 ? resolve(output.trim()) : reject(new StartupError("executable")),
           );
         });
-        if (version !== "opencode v2.2.7") throw new StartupError("version");
+        if (!supportedOpenCode(version)) throw new StartupError("version");
         if (failure.signal.aborted || stopping) throw new Error("ACP bridge closed");
         if (signalGroup(0)) throw new Error("ACP executable left owned descendants");
         child = spawn(executable, args, {
