@@ -16,7 +16,7 @@ production `make e2e` are manual, provider-billed operations and do not run in o
 ## Prerequisites
 
 - Linux x86_64, Bun **1.4.4**, locked dependencies; manual model use also requires
-  reviewed OpenCode **2.2.7**, provider access and explicitly trusted workspaces.
+  stable OpenCode **2.2.7 or newer**, provider access and explicitly trusted workspaces.
 - Reviewed **a2abridge 4.0.2 Linux amd64** binary. Download the release artifact,
   not an installer; do not install services or modify global configuration:
 

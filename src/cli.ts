@@ -9,7 +9,7 @@ async function main() {
     console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>]
 
 Start the foreground, unauthenticated loopback A2A gateway.
-Linux, Bun 1.4.4, exact OpenCode 2.2.7 on PATH, and configured provider required.
+Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
 
   --workspace <path>  Explicitly trust this directory; relative paths are resolved.
   --port <0..65535>   Loopback port (default 41241; 0 selects a free port).

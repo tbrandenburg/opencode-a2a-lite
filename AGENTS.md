@@ -19,7 +19,7 @@ findings; retirement does **not** mean failures have been fixed.
 - **Never** expose the unauthenticated gateway through a public proxy.
   Workspaces must be explicitly trusted; production inherits OpenCode configuration,
   provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox.
-- Use the pinned Linux/Bun 1.4.4/OpenCode 2.2.7 runtime. For MCP interop use the
+- Use Linux/Bun 1.4.4 with stable OpenCode 2.2.7 or newer (live acceptance recorded on 2.2.7). For MCP interop use the
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics

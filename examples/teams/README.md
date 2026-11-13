@@ -8,7 +8,7 @@ Start independent OpenCode workers and open a coordinator for their roster. The 
 
 Use Linux, the optional [A2A CLI](../../README.md) (used once per worker as a warm-up so its MCP servers are connected), Bun 1.4.4, stable OpenCode >=2.2.7, Bash, jq, curl, and the Linux tools flock, setsid, ss, and GNU timeout. Run `make install` and `make build` from the repository root. Put the [verified a2abridge binary](../../interop/README.md) on `PATH`, or set `A2ABRIDGE_BIN` to its path. Either way, the launcher verifies the pinned binary checksum. The sample profiles use the repository's OpenAI smoke model and read `OPENAI_API_KEY` from the environment. For a custom model config, `TEAM_PASS_ENV` can list its model API-key variable names.
 
-The team launcher admits stable OpenCode 2.2.7 and later releases, including 2.3.0. Recorded live acceptance is for 2.2.7 only; passing the version check on another release is not evidence that every team has been validated with it. The production gateway retains its separate exact OpenCode 2.2.7 requirement.
+The team launcher admits stable OpenCode 2.2.7 and later releases, including 2.3.0. Recorded live acceptance is for 2.2.7 only; passing the version check on another release is not evidence that every team has been validated with it. The production gateway applies the same stable `>=2.2.7` rule.
 
 | Team                 | Profiles                                           | Additional setup                                                                                                                                                                   |
 | -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -51,6 +51,8 @@ make team-down NETWORK="$network"
 The launcher gives each worker a private workspace and HOME/XDG paths. It passes your native profile unchanged via `OPENCODE_CONFIG`. A sibling prompt can be referenced with `{file:./scout.md}`. For a custom profile that opts into `{file:{env:TEAM_SYSTEM_PROMPT_FILE}}`, use `SYSTEM_PROMPT=/path/to/prompt.md` or let the launcher use the sibling Markdown file. Configs and any referenced files are trusted inputs.
 
 Team-up checks the roster's worker identities and Agent Cards, then warms one coordinator for those URLs. Workers added during a session become available on the next team-up. Exiting the coordinator leaves the workers up. Team-down checks the saved PID and process start time before signaling each process. If a process cannot be confirmed stopped, the roster retains its record for a retry. The stable lock file remains beside the roster so concurrent commands keep using the same lock. Coordinator state, including receipts and session data, remains in the private runtime directory after shutdown for inspection; it can contain sensitive material. Inspect and reconcile it privately before manually removing it. Folder mode prints the retained private directory.
+
+If a worker fails its startup readiness check, the launcher stops it but retains its private `worker.err` and `ready.jsonl` files and prints their directory for diagnosis. Treat this startup evidence as sensitive; do not publish it raw.
 
 ## Receipts and telemetry
 

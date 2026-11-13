@@ -270,6 +270,9 @@ grep -q 'Unverified worker process' "$fixture/rejected.err"
 if spawn silent "$profile" "$fixture/silent.json" >"$fixture/silent.out" 2>"$fixture/silent.err"; then exit 1; fi
 grep -q 'did not become ready' "$fixture/silent.err"
 [[ ! -e $fixture/silent.json ]]
+grep -q 'startup evidence remains private' "$fixture/silent.err"
+silent_logs=("$fixture/silent.json.state"/worker.*/worker.err)
+[[ ${#silent_logs[@]} == 1 && -f ${silent_logs[0]} && -f ${silent_logs[0]%worker.err}ready.jsonl ]]
 
 printf 'fixture brief\n' >"$fixture/brief with spaces.md"
 printf '%s\n' 'opencode v2.3.0' >"$fixture/opencode-version"

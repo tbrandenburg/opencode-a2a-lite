@@ -45,7 +45,7 @@ resend an uncertain submission without a handle. Deadlines, poll spacing and the
 Make one baseline attempt; on a failure or undocumented essential step, clean up,
 record the gap, and stop without a corrective live run.
 
-Use Linux, Python 3, Bash, tmux, jq, curl, GNU timeout, Bun **1.4.4**, OpenCode **2.2.7**, and
+Use Linux, Python 3, Bash, tmux, jq, curl, GNU timeout, Bun **1.4.4**, stable OpenCode **2.2.7 or newer**, and
 the existing **openai/gpt-6-luna** smoke model with `OPENAI_API_KEY` present in the
 launch environment. This model is selected explicitly below, as in the repository's
 [isolation probe](/scripts/acp-smoke-config.ts); a different global model is irrelevant.
@@ -66,7 +66,7 @@ export BRIDGE="$REPO/.test-results/agent-network-tools/a2abridge"
 export BUN="$(command -v bun)"
 export W1_PORT=41241 W2_PORT=41242 DIRECTORY_PORT=7777 COORDINATOR_PORT=41244
 test "$(bun --version)" = 1.4.4
-test "$(opencode --version)" = 'opencode v2.2.7'
+opencode --version | grep -Eq '^opencode v(2\.2\.([7-9]|[1-9][0-9]+)|2\.([3-9]|[1-9][0-9]+)\.[0-9]+|([3-9]|[1-9][0-9]+)\.[0-9]+\.[0-9]+)$'
 test -n "${OPENAI_API_KEY:-}"  # presence only; never echo it
 for tool in python3 tmux jq curl timeout; do command -v "$tool" >/dev/null; done
 printf '%s  %s\n' bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2 "$BRIDGE" | sha256sum --check

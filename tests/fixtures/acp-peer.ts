@@ -7,12 +7,16 @@ const mode = process.argv[2];
 if (process.argv[3] === "--version") {
   const version =
     mode === "executable-version"
-      ? "2.2.8"
+      ? "2.2.6"
       : mode === "version-old"
         ? "2.0.28"
         : mode === "version-floor"
           ? "2.1.3"
-          : "2.2.7";
+          : mode === "version-newer"
+            ? "2.3.0"
+            : mode === "version-prerelease"
+              ? "2.3.0-beta.1"
+              : "2.2.7";
   console.log(`opencode v${version}`);
   process.exit(0);
 }

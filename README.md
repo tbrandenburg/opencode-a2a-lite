@@ -11,7 +11,7 @@ There is no HTTP OpenCode adapter, database, orchestrator, retry system or sandb
 
 ## Requirements
 
-- Linux, **Bun 1.4.4**, and **exactly `opencode v2.2.7`** on `PATH`.
+- Linux, **Bun 1.4.4**, and a stable **`opencode` v2.2.7 or newer** on `PATH` (live acceptance recorded on 2.2.7).
 - An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
   plugins, MCP servers and configuration.
 - The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)

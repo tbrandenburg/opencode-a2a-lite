@@ -366,6 +366,10 @@ spawn_cleanup() {
       status cleanup "Could not stop the unregistered worker. Private state remains at $state."
       exit 1
     fi
+    if [[ $retain_startup_evidence == true ]]; then
+      status cleanup "Worker startup evidence remains private at $state."
+      exit "$result"
+    fi
     rm -rf -- "$state"
   fi
   exit "$result"
@@ -412,6 +416,7 @@ spawn() {
   prepare_root
   state=$(mktemp -d -- "$runtime/worker.XXXXXXXX")
   published=false
+  retain_startup_evidence=false
   trap spawn_cleanup EXIT
   prepare_workspace
   [[ $(private timeout 4s "$opencode" service get disabled 2>/dev/null) == true ]] ||
@@ -424,7 +429,10 @@ spawn() {
   worker_pid=$child_pid
   [[ -f $state/worker.process ]] || die "Worker $name exited during launch."
   worker_record=$(<"$state/worker.process")
-  url=$(wait_for "$worker_record" 35 worker_ready) || die "Worker $name did not become ready."
+  if ! url=$(wait_for "$worker_record" 35 worker_ready); then
+    retain_startup_evidence=true
+    die "Worker $name did not become ready."
+  fi
   # A throwaway first task lets OpenCode connect the profile's MCP servers before real work.
   if command -v a2a >/dev/null; then
     timeout 90 a2a send -a "$url" 'Reply with the single word OK.' >/dev/null 2>&1 || status warn "$name warm-up did not finish."

@@ -42,7 +42,11 @@ try {
   assert.equal(packed.status, 0, `npm pack failed: ${packed.stderr}`);
   assert.equal(existsSync(obsolete), false, "prepack must remove obsolete generated runtime");
   const packs = JSON.parse(packed.stdout);
-  const pack = packs[0] as { filename: string; files: { path: string; mode: number }[] };
+  // npm 12 keys the result by package name; earlier versions return an array.
+  const pack = (Array.isArray(packs) ? packs[0] : Object.values(packs)[0]) as {
+    filename: string;
+    files: { path: string; mode: number }[];
+  };
   assert.equal(
     pack.files.some((file) => file.path === "dist/src/obsolete-debug.js"),
     false,
@@ -67,7 +71,14 @@ try {
   symlinkSync(node, join(bin, "node"));
   symlinkSync(process.execPath, join(bin, "bun"));
   symlinkSync("/bin/sh", join(bin, "sh"));
-  const isolated = { ...env, PATH: bin, A2A_PORT: "invalid", A2A_WORKSPACE: "relative" };
+  // npm 12 echoes the exec command line as a notice; keep stderr to the gateway's own output.
+  const isolated = {
+    ...env,
+    PATH: bin,
+    A2A_PORT: "invalid",
+    A2A_WORKSPACE: "relative",
+    npm_config_loglevel: "warn",
+  };
   const command = [
     join(bin, "npm"),
     "exec",
@@ -159,7 +170,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   assert.match(invalidDirect.stderr, /Invalid worker identity/);
   assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
   assert.equal(existsSync(record), false);
-  reject(["--workspace", ".", "--port", "0"], /exactly opencode v2.2.7/, {
+  reject(["--workspace", ".", "--port", "0"], /stable opencode v2.2.7 or newer/, {
     PEER_MODE: "executable-version",
   });
   reject(["--workspace", ".", "--port", "0"], /Gateway startup failed/, {

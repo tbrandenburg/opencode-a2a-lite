@@ -12,7 +12,7 @@ Do not publish to npm until ownership and authorization for the intended version
 are verified, or mark issue #6 complete based only on a local tarball or a GitHub
 release.
 
-Supported runtime: Linux, Bun 1.4.4, exact `opencode v2.2.7` on PATH, an existing
+Supported runtime: Linux, Bun 1.4.4, stable `opencode` v2.2.7 or newer on PATH, an existing
 explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
 also need Node; they do not replace Bun. The separate official `a2a` CLI is a client.
 Production inherits OpenCode configuration/MCP/plugins; it provides neither

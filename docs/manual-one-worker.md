@@ -10,7 +10,7 @@ check [current runtime evidence](/docs/opencode-runtime-upgrade.md) and verify t
 actual API/tool catalog before a separately authorized manual attempt.
 
 - Linux x86_64, Bun **1.4.4**, locked dependencies; manual model use also requires
-  reviewed OpenCode **2.2.7**, provider access and explicitly trusted workspaces.
+  stable OpenCode **2.2.7 or newer**, provider access and explicitly trusted workspaces.
 - Reviewed **a2abridge 4.0.2 Linux amd64** binary. Download the release artifact,
   not an installer; do not install services or modify global configuration:
 
@@ -64,7 +64,7 @@ and provider settings. Supply keys securely in launch environments, never files/
 Set these Bash variables to your own absolute paths. Use a fresh, operator-owned
 `STATE` directory; do not overwrite a prior attempt's evidence. Repeat the path
 exports and `umask 077` in each dedicated terminal below; shell variables are not
-shared between terminals. Confirm Bun `1.4.4` and `opencode v2.2.7` with `--version`.
+shared between terminals. Confirm Bun `1.4.4` and a stable `opencode` v2.2.7 or newer with `--version`.
 
 ```sh
 export REPO=/absolute/path/to/opencode-a2a-lite
@@ -323,7 +323,7 @@ In the dedicated coordinator client terminal:
 
 ```sh
 cd "$COORDINATOR"
-opencode --version   # must print opencode v2.2.7
+opencode --version   # must print a stable opencode v2.2.7 or newer
 opencode run --help
 export MARKER="$(bun -e 'console.log(crypto.randomUUID())')"
 PROMPT="Use only the six configured network_a2a_* tools through the guarded MCP route.

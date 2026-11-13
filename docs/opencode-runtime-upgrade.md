@@ -3,7 +3,7 @@
 ## Decision and evidence boundary
 
 Review target: **exactly OpenCode 2.2.7**, paired with standalone **Bun 1.4.4**.
-The production admission check remains literal, not a minimum-version range.
+The 2.2.7 review below is the acceptance baseline. Production admission accepts stable releases at or above 2.2.7; newer releases pass the version gate without a repeated live acceptance run.
 OpenCode 2.1.3 is the security floor, not the selected compatibility target.
 
 The [release list](https://github.com/anomalyco/opencode/releases) contained V2
