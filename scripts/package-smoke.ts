@@ -183,7 +183,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   try {
     const address = occupied.address();
     assert.ok(address && typeof address !== "string");
-    reject(["--workspace", ".", "--port", String(address.port)], /port is in use/);
+    reject(["--workspace", ".", "--port", String(address.port)], /port is in use/i);
     assert.equal(occupied.listening, true);
     assert.equal(alive(peerRecord(record)!.pid), false);
   } finally {
