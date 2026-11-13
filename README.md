@@ -7,9 +7,10 @@
 ![Platform: Linux](https://img.shields.io/badge/platform-linux-lightgrey)
 ![Runtime: Bun](https://img.shields.io/badge/runtime-Bun%201.4.4-black)
 
-A small, **loopback-only** OpenCode ACP → A2A 1.0 gateway for trusted Linux workspaces.
-It uses the official A2A and ACP SDKs: OpenCode owns coding-session behavior, the
-gateway translates plain-text tasks, streamed output and context continuity.
+A small OpenCode ACP → A2A 1.0 gateway for trusted Linux workspaces: point any A2A
+client at it and it drives OpenCode. It uses the official A2A and ACP SDKs: OpenCode
+owns coding-session behavior, the gateway translates plain-text tasks, streamed output
+and context continuity.
 
 ```text
 A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ opencode ──▶ trusted workspace
@@ -18,8 +19,8 @@ A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ 
 **Not included:** HTTP OpenCode adapter, database, orchestrator, retries, sandbox.
 
 > [!WARNING]
-> The gateway has no authentication and must **never** be exposed through a public
-> proxy. It inherits OpenCode configuration, tools, plugins and MCP. Rejecting ACP
+> The gateway has no authentication (it binds to `127.0.0.1`) and must **never** be
+> exposed through a public proxy. It inherits OpenCode configuration, tools, plugins and MCP. Rejecting ACP
 > permission requests is **not** an OS sandbox, and cancellation does not roll back work.
 
 ## Contents
