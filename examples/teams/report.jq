@@ -14,7 +14,10 @@ def count: group_by(.) | map({k: .[0], n: length}) | sort_by(-.n, .k);
 | ([$events[] | select(.event == "call" or .event == "rejected") | .connection] | unique) as $connections
 | ([$pairs[] | select(.c.taskHash and .r.taskId) | {(.c.taskHash): .r.taskId}] | add // {}) as $known
 | ($pairs | map(. + {task: (.r.taskId // $known[.c.taskHash // ""] // .c.taskHash // null)})) as $linked
-| ([$linked[] | .task | values] | unique) as $tasks
+| ([$linked[] | select(.c.tool | test("^a2a_send_(message|streaming)$"))
+    | select(.task != null) | {task: .task, at: .c.at}]
+    | sort_by(.at, .task)
+    | reduce .[] as $item ([]; if any(.[]; . == $item.task) then . else . + [$item.task] end)) as $tasks
 | "Receipt events: \($events | length)",
   "",
   "Calls per tool and peer",
@@ -36,7 +39,7 @@ def count: group_by(.) | map({k: .[0], n: length}) | sort_by(-.n, .k);
     | ([$g[] | select(.c.tool | test("^a2a_send_(message|streaming)$")) | .c.at | secs] | min) as $sent
     | ([$g[] | select(.r.state == "TASK_STATE_COMPLETED") | .r.at | secs] | min) as $done
     | select($sent != null)
-    | "  task-\($i + 1)\t\(if $done == null then "not completed" else "\($done - $sent | ms)s" end)\tlast state \([$g[] | .r.state // empty] | last // "-" | word)"),
+    | "  task-\($i + 1)\t\(if $done == null then "not completed" else "\($done - $sent | ms)s" end)\tlast state \([$g[] | select(.r.at != null)] | sort_by(.r.at) | .[-1].r.state // "-" | word)"),
   "",
   "Rejections",
   (if ($rejected | length) == 0 then "  0" else ($rejected | map("\(.tool | word)\t\(.reason | word)") | count | .[] | "  \(.n)\t\(.k)") end),

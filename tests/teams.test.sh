@@ -41,13 +41,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Probe the actual pinned parser without a provider or a running server.
+# Probe the actual compatible-version parser without a provider or a running server.
 python3 - "$real_opencode" "$fixture" <<'PY'
-import os, pathlib, socket, subprocess, sys
+import os, pathlib, re, socket, subprocess, sys
 
 binary, root = sys.argv[1:]
-if not binary or subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=5).stdout.strip() != 'opencode v2.2.7':
-    print('Pinned OpenCode parser probe skipped: executable unavailable.')
+version = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=5).stdout.strip() if binary else ''
+match = re.fullmatch(r'opencode v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version)
+if not binary or not match or tuple(map(int, match.groups())) < (2, 2, 7):
+    print('OpenCode >=2.2.7 parser probe skipped: compatible executable unavailable.')
     sys.exit(0)
 home = pathlib.Path(root) / 'parser-home'
 home.mkdir()
@@ -66,7 +68,7 @@ with socket.socket() as sock:
         result = run(['--', brief])
         assert result.returncode != 0 and 'Could not reach server' in result.stderr
         assert 'Unrecognized flag' not in result.stderr and 'USAGE' not in result.stdout
-print('Pinned OpenCode parser probe passed without a provider.')
+print('OpenCode >=2.2.7 parser probe passed without a provider.')
 PY
 
 cat >"$fixture/bin/stub" <<'STUB'
@@ -111,7 +113,7 @@ case ${0##*/} in
     ;;
   opencode)
     case $1 in
-      --version) echo 'opencode v2.2.7' ;;
+      --version) cat "$fixture/opencode-version" ;;
       service) jq -r .disabled "$XDG_CONFIG_HOME/opencode/service.json" ;;
       debug) jq -cn --arg path "$OPENCODE_CONFIG" '[{type:"document",path:$path}]' ;;
       serve)
@@ -147,7 +149,7 @@ case ${0##*/} in
       *) exit 2 ;;
     esac
     ;;
-  bridge)
+  bridge|a2abridge)
     [[ $1 == directory && ! ${OPENAI_API_KEY+x} && ! ${GITHUB_PERSONAL_ACCESS_TOKEN+x} ]]
     register directory 41330
     exec sleep 120
@@ -204,6 +206,7 @@ esac
 STUB
 chmod +x -- "$fixture/bin/stub"
 cp -- "$fixture/bin/stub" "$fixture/bin/bridge"
+cp -- "$fixture/bin/stub" "$fixture/bin/a2abridge"
 for stub in a2a bun opencode gh github-mcp-server sha256sum ss curl mv jq; do
   ln -s stub "$fixture/bin/$stub"
 done
@@ -212,6 +215,7 @@ cd -- "$fixture/checkout"
 export OPENAI_API_KEY=test-model
 export GITHUB_PERSONAL_ACCESS_TOKEN=ambient-token OPENCODE_CONFIG_CONTENT=ambient-config
 export NETWORK=ambient-network
+printf '%s\n' 'opencode v2.2.7' >"$fixture/opencode-version"
 network="$fixture/roster.json"
 spawn() {
   make --no-print-directory spawn-agent NAME="$1" CONFIG="$2" NETWORK="${3:-$network}"
@@ -224,6 +228,14 @@ reject() {
   fi
 }
 profile=examples/teams/research/scout.jsonc
+
+printf '%s\n' 'opencode v2.2.6' >"$fixture/opencode-version"
+reject spawn rejected-version "$profile" "$fixture/rejected-version.json"
+grep -q '>=2.2.7' "$fixture/rejected.err"
+printf '%s\n' 'opencode v2.3.0-beta.1' >"$fixture/opencode-version"
+reject spawn rejected-prerelease "$profile" "$fixture/rejected-prerelease.json"
+grep -q '>=2.2.7' "$fixture/rejected.err"
+printf '%s\n' 'opencode v2.2.7' >"$fixture/opencode-version"
 
 spawn scout "$profile" >"$fixture/scout.out" 2>"$fixture/scout.err" & scout=$!
 spawn verify examples/teams/research/verify.jsonc >"$fixture/verify.out" 2>"$fixture/verify.err" & verify=$!
@@ -260,7 +272,8 @@ grep -q 'did not become ready' "$fixture/silent.err"
 [[ ! -e $fixture/silent.json ]]
 
 printf 'fixture brief\n' >"$fixture/brief with spaces.md"
-make --no-print-directory team-up NETWORK="$network" MODE=run \
+printf '%s\n' 'opencode v2.3.0' >"$fixture/opencode-version"
+env -u A2ABRIDGE_BIN make --no-print-directory team-up NETWORK="$network" MODE=run \
   PROMPT_FILE="$fixture/brief with spaces.md" >"$fixture/answer" 2>"$fixture/status"
 [[ $(<"$fixture/answer") == 'Answer for fixture brief' ]]
 grep -q 'ready.*coordinator' "$fixture/status"
@@ -344,6 +357,24 @@ grep -q $'^  task-1\t19.7s\tlast state TASK_STATE_COMPLETED$' "$fixture/report.o
 grep -q $'^  1\ta2a_send_message\tmode$' "$fixture/report.out"
 grep -q $'^  connection-1\t5/40$' "$fixture/report.out"
 if grep -Eq 'RAW-|SECRET|hash1|http://|c1' "$fixture/report.out"; then exit 1; fi
+
+# Task labels follow submission time, and the reported final state follows result time,
+# not the lexical order of bridge request IDs.
+cat >"$fixture/report-order.jsonl" <<'JSONL'
+{"connection":"c1","event":"call","id":"z-send","tool":"a2a_send_message","peer":"http://127.0.0.1:41321/","blocking":false,"at":"2026-11-11T10:00:00.000Z"}
+{"connection":"c1","event":"result","id":"z-send","tool":"a2a_send_message","ok":true,"taskId":"Z-TASK","state":"TASK_STATE_SUBMITTED","at":"2026-11-11T10:00:00.100Z"}
+{"connection":"c1","event":"call","id":"a-send","tool":"a2a_send_message","peer":"http://127.0.0.1:41322/","blocking":false,"at":"2026-11-11T10:00:05.000Z"}
+{"connection":"c1","event":"result","id":"a-send","tool":"a2a_send_message","ok":true,"taskId":"A-TASK","state":"TASK_STATE_SUBMITTED","at":"2026-11-11T10:00:05.100Z"}
+{"connection":"c1","event":"call","id":"z-poll","tool":"a2a_get_task","peer":"http://127.0.0.1:41321/","taskHash":"hash-z","at":"2026-11-11T10:00:10.000Z"}
+{"connection":"c1","event":"result","id":"z-poll","tool":"a2a_get_task","ok":true,"taskId":"Z-TASK","state":"TASK_STATE_WORKING","at":"2026-11-11T10:00:10.100Z"}
+{"connection":"c1","event":"call","id":"a-poll","tool":"a2a_get_task","peer":"http://127.0.0.1:41321/","taskHash":"hash-z","at":"2026-11-11T10:00:20.000Z"}
+{"connection":"c1","event":"result","id":"a-poll","tool":"a2a_get_task","ok":true,"taskId":"Z-TASK","state":"TASK_STATE_COMPLETED","at":"2026-11-11T10:00:20.200Z"}
+{"connection":"c1","event":"call","id":"m-poll","tool":"a2a_get_task","peer":"http://127.0.0.1:41322/","taskHash":"hash-a","at":"2026-11-11T10:00:06.000Z"}
+{"connection":"c1","event":"result","id":"m-poll","tool":"a2a_get_task","ok":true,"taskId":"A-TASK","state":"TASK_STATE_FAILED","at":"2026-11-11T10:00:06.100Z"}
+JSONL
+make --no-print-directory team-report FILE="$fixture/report-order.jsonl" >"$fixture/report-order.out"
+grep -q $'^  task-1\t20.2s\tlast state TASK_STATE_COMPLETED$' "$fixture/report-order.out"
+grep -q $'^  task-2\tnot completed\tlast state TASK_STATE_FAILED$' "$fixture/report-order.out"
 
 mkdir -- "$fixture/mixed-profiles"
 cp -- "$profile" "$fixture/mixed-profiles/scout.json"

@@ -6,7 +6,9 @@ Start independent OpenCode workers and open a coordinator for their roster. The 
 
 ## Prerequisites
 
-Use Linux, the optional [A2A CLI](../../README.md) (used once per worker as a warm-up so its MCP servers are connected), and the repository-pinned [Bun and OpenCode](../../README.md), Bash, jq, curl, and the Linux tools flock, setsid, ss, and GNU timeout. Run `make install` and `make build` from the repository root. Set `A2ABRIDGE_BIN` to the [verified a2abridge binary](../../interop/README.md). The sample profiles use the repository's OpenAI smoke model and read `OPENAI_API_KEY` from the environment. For a custom model config, `TEAM_PASS_ENV` can list its model API-key variable names.
+Use Linux, the optional [A2A CLI](../../README.md) (used once per worker as a warm-up so its MCP servers are connected), Bun 1.4.4, stable OpenCode >=2.2.7, Bash, jq, curl, and the Linux tools flock, setsid, ss, and GNU timeout. Run `make install` and `make build` from the repository root. Put the [verified a2abridge binary](../../interop/README.md) on `PATH`, or set `A2ABRIDGE_BIN` to its path. Either way, the launcher verifies the pinned binary checksum. The sample profiles use the repository's OpenAI smoke model and read `OPENAI_API_KEY` from the environment. For a custom model config, `TEAM_PASS_ENV` can list its model API-key variable names.
+
+The team launcher admits stable OpenCode 2.2.7 and later releases, including 2.3.0. Recorded live acceptance is for 2.2.7 only; passing the version check on another release is not evidence that every team has been validated with it. The production gateway retains its separate exact OpenCode 2.2.7 requirement.
 
 | Team                 | Profiles                                           | Additional setup                                                                                                                                                                   |
 | -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -58,7 +60,7 @@ When a coordinator exits, the launcher keeps a private (mode 0600) copy of its b
 make team-report FILE=.test-results/teams/<name>.jsonl
 ```
 
-The report is one `jq` script (`examples/teams/report.jq`). It prints calls per tool and peer, call-to-result durations, polls (`a2a_get_task`) per task, send-to-completed time per task, rejections by tool and reason, and attempts per bridge connection against the 40-call ceiling. Tasks and connections are numbered instead of printing IDs; peers appear only as loopback `host:port`. Use it as a check, not enforcement: nothing stops a coordinator from exceeding its budget.
+The report is one `jq` script (`examples/teams/report.jq`). It prints calls per tool and peer, call-to-result durations, polls (`a2a_get_task`) per task, send-to-completed time per task, rejections by tool and reason, and attempts per bridge connection against the 40-call ceiling. Task numbers follow first submission time, and each final state is selected by the latest result timestamp. Tasks and connections are numbered instead of printing IDs; peers appear only as loopback `host:port`. Use it as a check, not enforcement: nothing stops a coordinator from exceeding its budget.
 
 ## Golden user journey
 
