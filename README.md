@@ -2,32 +2,37 @@
 
 > Expose OpenCode through A2A, with ACP doing the heavy lifting.
 
-[![CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml) · [MIT](LICENSE)
+[![CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platform: Linux](https://img.shields.io/badge/platform-linux-lightgrey)
+![Runtime: Bun](https://img.shields.io/badge/runtime-Bun%201.4.4-black)
 
 A small, **loopback-only** OpenCode ACP → A2A 1.0 gateway for trusted Linux workspaces.
-It uses the official A2A and ACP SDKs. OpenCode owns coding-session behavior; this
+It uses the official A2A and ACP SDKs: OpenCode owns coding-session behavior, the
 gateway translates plain-text tasks, streamed output and context continuity.
-There is no HTTP OpenCode adapter, database, orchestrator, retry system or sandbox.
 
-## Requirements
+```text
+A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ opencode ──▶ trusted workspace
+```
 
-- Linux, **Bun 1.4.4**, and a stable **`opencode` v2.2.7 or newer** on `PATH` (live acceptance recorded on 2.2.7).
-- An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
-  plugins, MCP servers and configuration.
-- The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)
-  (tested with 0.3.1) to interact with the running gateway.
+**Not included:** HTTP OpenCode adapter, database, orchestrator, retries, sandbox.
 
-**Security:** the gateway has no authentication and must never be exposed through
-a public proxy. The production launch inherits OpenCode configuration; denying ACP
-permission requests is **not** an OS sandbox. Cancellation does not roll back work.
+> [!WARNING]
+> The gateway has no authentication and must **never** be exposed through a public
+> proxy. It inherits OpenCode configuration, tools, plugins and MCP. Rejecting ACP
+> permission requests is **not** an OS sandbox, and cancellation does not roll back work.
 
-Runtime security and compatibility evidence is tracked separately for
-[Bun](/docs/bun-runtime-security.md) and
-[OpenCode](/docs/opencode-runtime-upgrade.md). Standalone Bun and OpenCode's
-embedded runtime are separate upgrade boundaries; historical acceptance results
-do not establish compatibility of a new pair.
+## Contents
 
-## Quick start from source
+- [Quick start](#quick-start)
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [Behavior and limitations](#behavior-and-limitations)
+- [Development](#development)
+- [Multi-agent coordination](#multi-agent-coordination)
+- [Contributing and security](#contributing-and-security)
+
+## Quick start
 
 ```sh
 make install             # frozen Bun lockfile
@@ -35,8 +40,8 @@ make check               # format, lint, typecheck, deterministic tests, build
 bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
-Wait for a JSON stdout record containing `{"ready":true,"url":"http://127.0.0.1:.../"}`,
-then use the **actual** URL in a second terminal:
+Wait for a JSON stdout record such as `{"ready":true,"url":"http://127.0.0.1:.../"}`,
+then in a second terminal use the **actual** URL (default port 41241):
 
 ```sh
 a2a card get http://127.0.0.1:41241
@@ -44,43 +49,52 @@ a2a send -a http://127.0.0.1:41241 "Reply with a short greeting." --stream
 a2a send -a http://127.0.0.1:41241 --context-id <returned-context-id> "Follow up"
 ```
 
-Those commands show the default port (41241); when starting with `--port 0`, replace
-it with the printed port. The server is foreground-only and terminates its owned ACP
-process group on SIGINT/SIGTERM.
+The server runs in the foreground and terminates its owned ACP process group on
+SIGINT/SIGTERM.
 
-### CLI and environment
+## Requirements
+
+- Linux, **Bun 1.4.4**, and stable **`opencode` v2.2.7 or newer** on `PATH`
+  (live acceptance recorded on 2.2.7).
+- An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
+  plugins, MCP servers and configuration.
+- The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)
+  (tested with 0.3.1) to talk to the running gateway.
+
+Runtime security and compatibility evidence is tracked for
+[Bun](docs/bun-runtime-security.md) and [OpenCode](docs/opencode-runtime-upgrade.md).
+Standalone Bun and OpenCode's embedded runtime are separate upgrade boundaries;
+historical acceptance results do not establish compatibility of a new pair.
+
+## Usage
 
 ```text
 opencode-a2a-lite --workspace <path> [--port <0..65535>]
 opencode-a2a-lite --help | --version
 ```
 
-- `--workspace` explicitly trusts the directory; relative flags are resolved.
-  Alternatively set `A2A_WORKSPACE` to an **absolute** path. There is no implicit
-  current-directory trust.
-- `--port` or `A2A_PORT` selects a loopback port. Default: 41241; zero requests
-  an OS-assigned port. Flags override environment variables.
-- `A2A_NAME` (128 characters), `A2A_DESCRIPTION` (1024) and `A2A_TAGS` (up to
-  16 comma-separated tags, 64 characters each) customize card metadata, **not**
-  identity-based access or permissions. Values must be nonblank and control-free.
+| Option / variable                                                               | Meaning                                                                                                      |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust. |
+| `--port`, `A2A_PORT`                                                            | Loopback port. Default 41241; `0` requests an OS-assigned port. Flags override env.                          |
+| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                    |
 
-To run the compiled server, use
-`A2A_WORKSPACE=/absolute/trusted/path make run`. For development, use `make dev`.
+Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
+use `make dev` for development.
 
 ### Package distribution
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.4**.
-**npm registry publication has not been verified.** Do not assume these commands
-work until the scope/registry is checked:
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.0**.
+**npm registry publication has not been verified**; do not assume these work until
+the scope/registry is checked:
 
 ```sh
 bunx @tbrandenburg/opencode-a2a-lite --workspace .
 npx --yes @tbrandenburg/opencode-a2a-lite --workspace .
 ```
 
-Both runners still require Bun; `npx` also requires Node/npm. The verified
-`make package-smoke` check packs and tests an installed tarball, **not** registry
-publication. Read [distribution and release policy](docs/distribution.md).
+Both runners still require Bun. `make package-smoke` tests an installed tarball,
+**not** registry publication. See [distribution and release policy](docs/distribution.md).
 
 ## Behavior and limitations
 
@@ -107,7 +121,7 @@ See [architecture](docs/architecture.md), [pitfalls](docs/pitfalls.md) and
 Full A2A TCK certification, interactive approval, rich media, push notifications
 and runtime-selected workspaces are not claimed.
 
-## Verification and development
+## Development
 
 | Command                                                                | Purpose                                                              |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -126,7 +140,7 @@ OpenCode and the official A2A CLI; `make demo` also needs `jq` and GNU `timeout`
 For the exact live evidence/limitations see [acceptance](docs/acceptance.md).
 For quality measurement see [quality baseline](docs/quality-baseline.md).
 
-### Optional multi-agent coordination
+## Multi-agent coordination
 
 The **gateway does not orchestrate other agents**. Optional guarded MCP interoperability
 helpers and their independent gate live in [`interop/`](interop/README.md).
