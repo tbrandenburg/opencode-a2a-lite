@@ -19,9 +19,14 @@ findings; retirement does **not** mean failures have been fixed.
 - **Never** expose the unauthenticated gateway through a public proxy.
   Workspaces must be explicitly trusted; production inherits OpenCode configuration,
   provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox.
-- Use Linux/Bun 1.4.4 with stable OpenCode 2.2.7 or newer (live acceptance recorded on 2.2.7). For MCP interop use the
+- For the full live acceptance suite and guarded MCP workflows, use Linux/Bun 1.4.4 with stable OpenCode 2.2.7 or newer (live acceptance recorded on 2.2.7). For MCP interop use the
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
+- Provider-free core gateway checks and package smoke also run on macOS with Bun
+  1.4.4. The isolated live demo can run on macOS after its effective config and
+  owned-process cleanup checks pass. macOS gateway use remains experimental: the
+  recorded live evidence is limited to a two-turn demo; full acceptance and
+  guarded MCP/team workflows use Linux-specific process and listener inspection.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics
   or private network reports in logs, issues or pull requests.
 - Run `make check` and relevant focused tests. CI also executes

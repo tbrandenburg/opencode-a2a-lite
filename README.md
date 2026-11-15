@@ -5,10 +5,10 @@
 [![CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/tbrandenburg/opencode-a2a-lite)](https://github.com/tbrandenburg/opencode-a2a-lite/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Platform: Linux](https://img.shields.io/badge/platform-linux-lightgrey)
+![Platform: Linux and experimental macOS](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20experimental-lightgrey)
 ![Runtime: Bun](https://img.shields.io/badge/runtime-Bun%201.4.4-black)
 
-A small OpenCode ACP → A2A 1.0 gateway for trusted Linux workspaces: point any A2A
+A small OpenCode ACP → A2A 1.0 gateway for trusted workspaces: point any A2A
 client at it and it drives OpenCode. It uses the official A2A and ACP SDKs: OpenCode
 owns coding-session behavior, the gateway translates plain-text tasks, streamed output
 and context continuity.
@@ -59,17 +59,22 @@ SIGINT/SIGTERM.
 
 ## Requirements
 
-- Linux, **Bun 1.4.4**, and stable **`opencode` v2.2.7 or newer** on `PATH`
-  (live acceptance recorded on 2.2.7).
+- Linux, or macOS for experimental gateway use, **Bun 1.4.4**, and stable
+  **`opencode` v2.2.7 or newer** on `PATH` (full live acceptance recorded on
+  Linux with 2.2.7; a two-turn macOS live demo passed with 2.3.0).
 - An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
   plugins, MCP servers and configuration.
 - The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)
-  (tested with 0.3.1) to talk to the running gateway.
+  (tested with 0.3.1 on Linux and 0.4.0 in the macOS demo) to talk to the running gateway.
 
 Runtime security and compatibility evidence is tracked for
 [Bun](docs/bun-runtime-security.md) and [OpenCode](docs/opencode-runtime-upgrade.md).
 Standalone Bun and OpenCode's embedded runtime are separate upgrade boundaries;
 historical acceptance results do not establish compatibility of a new pair.
+macOS package installation requires a release containing the `darwin` package
+manifest entry; older published versions remain Linux-only. The isolated `make demo`
+also supports macOS, but the full live acceptance suite, guarded MCP and team
+launcher still use Linux-specific tooling.
 
 ## Usage
 
@@ -135,6 +140,7 @@ bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build     |
 | `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider  |
+| `make runtime-smoke`                                                   | Isolated gateway and real OpenCode startup, without a model prompt   |
 | `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance          |
 | `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)        |
 | `make e2e`                                                             | Production live-model acceptance (**live, billable**)                |
@@ -142,9 +148,11 @@ bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 | `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release. |
 | `make clean`                                                           | Remove build, coverage and test results                              |
 
-CI checks deterministic tests, the provider-free team launcher fixtures, installed
-packaging and the checksummed provider-free MCP bridge. Live demo/E2E are explicit manual commands requiring a provider key,
+CI is configured to check core deterministic tests and installed packaging on Linux and macOS;
+the provider-free team launcher fixtures and checksummed MCP bridge run on Linux.
+Live demo/E2E are explicit manual commands requiring a provider key,
 OpenCode and the official A2A CLI; `make demo` also needs `jq` and GNU `timeout`.
+On macOS its isolated workspace cleanup additionally uses `/usr/sbin/lsof`.
 For the exact live evidence/limitations see [acceptance](docs/acceptance.md).
 For quality measurement see [quality baseline](docs/quality-baseline.md).
 

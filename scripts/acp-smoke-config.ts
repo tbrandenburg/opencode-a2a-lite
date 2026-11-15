@@ -1,44 +1,27 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readlinkSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { setTimeout } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
+import { supportedOpenCode } from "../src/opencode-version.js";
+import { workspaceInUse } from "./smoke-processes.js";
 
-export async function cleanup(root: string) {
+export async function cleanup(root: string, timeoutMs = 5_000) {
   // The private server may outlive its ACP lease holder briefly while shutting down.
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const active = readdirSync("/proc").some((pid) => {
-      if (!/^\d+$/.test(pid)) return false;
-      try {
-        const cwd = readlinkSync(`/proc/${pid}/cwd`);
-        return cwd === root || cwd.startsWith(root + path.sep);
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          "code" in error &&
-          ["ENOENT", "EACCES", "ESRCH"].includes(String(error.code))
-        )
-          return false;
-        throw error;
-      }
-    });
+  const deadline = performance.now() + timeoutMs;
+  for (;;) {
+    const active = workspaceInUse(root);
     if (!active) {
       rmSync(root, { recursive: true, force: true });
       assert(!existsSync(root), "Temporary workspace cleanup failed");
       console.log(JSON.stringify({ cleanup: true, processesStopped: true }));
       return;
     }
-    await setTimeout(50);
+    if (performance.now() >= deadline) break;
+    await setTimeout(Math.min(50, deadline - performance.now()));
   }
   throw new Error("Owned workspace processes did not stop before cleanup");
 }
@@ -46,13 +29,10 @@ export async function cleanup(root: string) {
 // Pinned source: packages/util/src/global-roots.ts and core/src/config/discovery.ts
 // at anomalyco/opencode v2.2.7. HOME also isolates .agents and .claude discovery.
 export async function prepare(options: { providerFree?: boolean } = {}) {
-  assert.equal(process.platform, "linux", "This isolation probe is Linux-only");
   assert(!existsSync("/etc/opencode"), "Managed configuration requires separate review");
   if (!options.providerFree)
     assert(process.env.OPENAI_API_KEY, "OPENAI_API_KEY must be present (never printed)");
-  const base = "/tmp/opencode/opencode-a2a-lite-acp-smoke";
-  mkdirSync(base, { recursive: true, mode: 0o700 });
-  const root = mkdtempSync(path.join(base, "run-"));
+  const root = mkdtempSync(path.join(realpathSync(tmpdir()), "opencode-a2a-lite-acp-smoke-"));
   try {
     return { ...(await configure(root, options.providerFree === true)), root };
   } catch (error) {
@@ -111,10 +91,9 @@ async function configure(root: string, providerFree: boolean) {
     assert.equal(result.status, 0, `OpenCode ${args.join(" ")} exited unsuccessfully`);
     return result.stdout;
   };
-  assert.equal(
-    command(["--version"]).trim(),
-    "opencode v2.2.7",
-    "Review isolation for a different pin",
+  assert(
+    supportedOpenCode(command(["--version"]).trim()),
+    "Expected stable OpenCode 2.2.7 or newer",
   );
   // Even service set disabled stops a discovered service. Seed an owned, bind-checked
   // port before that command, so discovery cannot fall back to a shared default port.

@@ -6,6 +6,7 @@ import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import { Database } from "bun:sqlite";
 import { createAcpBridge } from "../src/acp-client.js";
+import { supportedOpenCode } from "../src/opencode-version.js";
 import { cleanup, prepare } from "../scripts/acp-smoke-config.js";
 import { launch, verifyPrivateRuntime, withCleanup } from "./e2e-support.js";
 import { spawnOwnedProcess } from "./owned-process.js";
@@ -76,7 +77,7 @@ await withCleanup(
           }),
         );
         assert.equal(initialized.protocolVersion, 1);
-        assert.equal(initialized.agentInfo?.version, "2.2.7");
+        assert(supportedOpenCode(`opencode v${initialized.agentInfo?.version}`));
         assert.equal(initialized.agentCapabilities?.loadSession, true);
         owned = readFileSync(`/proc/${child.pid}/task/${child.pid}/children`, "utf8")
           .trim()

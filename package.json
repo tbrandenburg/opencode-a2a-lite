@@ -17,7 +17,8 @@
     "LICENSE"
   ],
   "os": [
-    "linux"
+    "linux",
+    "darwin"
   ],
   "type": "module",
   "publishConfig": {

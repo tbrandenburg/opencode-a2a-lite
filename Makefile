@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke release doctor demo interop-test e2e e2e-tck clean
+.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke runtime-smoke release doctor demo interop-test e2e e2e-tck clean
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -35,6 +35,9 @@ check: fmt-check lint typecheck test build ## Run deterministic local checks
 
 package-smoke: ## Pack and test the installed tarball outside the checkout (npm required; no provider)
 	bun run package-smoke
+
+runtime-smoke: ## Check the gateway with isolated real OpenCode (no provider)
+	bun scripts/gateway-runtime-smoke.ts
 
 release: ## Bump, check, commit and push a tag to trigger npm publication and a GitHub release (BUMP=patch|minor|major or VERSION=x.y.z)
 	bun scripts/release.ts "$(or $(VERSION),$(BUMP),patch)"

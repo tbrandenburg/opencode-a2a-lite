@@ -1,5 +1,20 @@
 # Real acceptance evidence
 
+## macOS live demo
+
+On **2026-11-15**, the isolated `make demo` passed on macOS 13.7.8 x86_64
+with Bun 1.4.4, OpenCode 2.3.0, official A2A CLI 0.4.0, and the configured
+`openai/gpt-6-luna` smoke model. Effective configuration verification passed;
+the compiled gateway started, the CLI discovered its Agent Card, a streamed
+task completed, and a follow-up completed in the same context with a new task.
+Workspace cleanup reported that its processes stopped. The provider-free
+`make runtime-smoke` also verified gateway port reclamation.
+
+This is one live two-turn demo, not the Linux full acceptance matrix or evidence
+for other macOS architectures, versions, providers, cancellation, or optional
+guarded MCP/team workflows. The published package still needs a release containing
+the macOS manifest change.
+
 ## Runtime upgrade verification (issues #60 and #61)
 
 Last verified by the coordinator: **2026-11-10T17:12:14Z**.

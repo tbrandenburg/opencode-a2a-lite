@@ -2,15 +2,21 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.5**, and npm
-registry publication of 0.2.5 is verified. The registry reports the package
+Publication of `@tbrandenburg/opencode-a2a-lite` **0.2.7** is verified on npm.
+The registry reports the package
 version and tarball integrity; `npx` installation was verified with both `--help`
 and a gateway startup/Agent Card check in a trusted workspace. This does not
 establish live model completion or complete release acceptance; do not claim
 those based only on registry publication, CLI help, or an Agent Card.
 
-Supported runtime: Linux, Bun 1.4.4, stable `opencode` v2.2.7 or newer on PATH, an existing
-explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
+Runtime: Linux, or experimental macOS gateway use, Bun 1.4.4, stable `opencode`
+v2.2.7 or newer on PATH, an existing explicitly trusted workspace, and reviewed
+provider/model configuration. macOS has provider-free core and packaging checks
+and a recorded two-turn live demo, but not the full live acceptance matrix. The
+isolated live demo supports macOS; the
+full acceptance suite and Linux-only optional workflows have not been ported.
+Published versions predating the
+`darwin` manifest entry remain Linux-only. npm/npx
 also need Node; they do not replace Bun. The separate official `a2a` CLI is a client.
 Production inherits OpenCode configuration/MCP/plugins; it provides neither
 authentication nor sandboxing. Never expose it through a public proxy.

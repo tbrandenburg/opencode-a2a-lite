@@ -60,6 +60,7 @@ try {
     [...runtime, "dist/package.json", "package.json", "README.md", "LICENSE"].sort(),
   );
   assert.equal(Object.keys(manifest.bin).length, 1);
+  assert.deepEqual(manifest.os, ["linux", "darwin"]);
   assert.ok(
     pack.files.find((file) => file.path === manifest.bin["opencode-a2a-lite"])!.mode & 0o111,
   );
@@ -84,9 +85,6 @@ try {
     join(bin, "npm"),
     "exec",
     "--yes",
-    // The production package is Linux-only; force the known local tarball so
-    // packaging and CLI checks can run on macOS without changing that contract.
-    "--force",
     `--package=${tarball}`,
     "--",
     "opencode-a2a-lite",
