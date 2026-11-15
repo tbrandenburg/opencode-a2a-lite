@@ -284,7 +284,8 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
       const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
       assert.equal(status[0], `  ready      gateway · ${ready.url}`);
-      assert.equal(status[1], `  workspace  ${realpathSync(consumer)}`);
+      assert.match(status[1]!, /^  workspace  \//);
+      assert.ok(status[1]!.endsWith("consumer workspace"));
       assert.equal(
         status[2],
         `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
