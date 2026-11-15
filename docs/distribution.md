@@ -1,4 +1,4 @@
-# Distribution and manual npm release
+# Distribution and npm release
 
 ## Status and package contract
 
@@ -55,8 +55,10 @@ another listener. It does not validate a published package or real models.
 
 ## Secure manual publication
 
-`make release` tags/pushes and creates a GitHub release; it does **not** publish npm.
-This manual procedure is a separate maintainer action. Never put tokens, OTPs,
+`make release` pushes a version tag that triggers npm publication and then creates a GitHub release.
+Before running it, verify npm scope ownership and authorization for the intended version, and configure npm Trusted Publishing for this repository and `.github/workflows/publish.yml`. The workflow supports a manual dry run; a non-dry run requires the matching tag. Monitor the workflow after pushing. If it fails, retain the tag and inspect the registry before retrying via workflow dispatch against the tag.
+
+The following manual procedure remains an alternative maintainer action; do not run it after the automated workflow has already published the same version. Never put tokens, OTPs,
 provider keys, private prompts, reasoning, or raw peer logs into commands/release
 notes. Do not add registry credentials to the repository.
 
@@ -96,9 +98,7 @@ notes. Do not add registry credentials to the repository.
    Run `make demo` and `make e2e` using the documented isolated live configuration.
 
 5. Ensure the GitHub tag/release identifies the same reviewed version/commit.
-   If using `make release VERSION=<version>`, use the version in the verified
-   artifact, not the default bump. It requires clean HEAD matching `origin` and
-   performs GitHub writes; do not confuse those with npm publication.
+   The automated `make release` triggers npm publication; do not invoke it as part of a separate manual tarball publication.
 6. Publish the retained tarball explicitly with
    `npm publish /absolute/path/to/artifact.tgz --access public` and the interactive
    protected-account authentication/2FA flow. Do not use a long-lived repository
@@ -130,9 +130,7 @@ notes. Do not add registry credentials to the repository.
 
 Prefer npm Trusted Publishing/OIDC with provenance once the verified npm package
 has a configured trusted publisher and a reviewed protected GitHub release workflow.
-That setup is follow-up work, not provided by ordinary CI or the existing GitHub
-release command. Keep routine provider-free CI read-only and do not invent token
-storage or custom release machinery for the first CLI distribution.
+Configure the npm trusted publisher before the first automated release. Routine provider-free CI remains read-only.
 
 References: [Bun bunx/shebangs](https://bun.com/docs/pm/bunx),
 [npm bin/files](https://docs.npmjs.com/cli/configuring-npm/package-json/),
