@@ -67,12 +67,12 @@ function fixture() {
   return { directory, env, run, git };
 }
 
-test("REL03: release pushes the annotated tag and invokes GitHub publication", () => {
+test("REL03: release pushes the annotated tag for the publish workflow", () => {
   const version = "0.1.1";
   const context = fixture();
   const result = context.run(["make", "release", "BUMP=patch"]);
   expect(result.status).toBe(0);
-  expect(result.stdout).toContain(`/releases/tag/v${version}`);
+  expect(result.stdout).toContain(`publish workflow for v${version}`);
   expect(JSON.parse(readFileSync(join(context.directory, "package.json"), "utf8")).version).toBe(
     version,
   );
@@ -85,17 +85,7 @@ test("REL03: release pushes the annotated tag and invokes GitHub publication", (
   );
   expect(context.git("status", "--porcelain")).toBe("");
   expect(readFileSync(join(context.directory, "checked"), "utf8")).toBe("");
-  expect(JSON.parse(readFileSync(join(context.directory, "gh-args.json"), "utf8"))).toEqual([
-    "release",
-    "create",
-    `v${version}`,
-    "--repo",
-    join(context.directory, "remote.git"),
-    "--verify-tag",
-    "--generate-notes",
-    "--title",
-    `v${version}`,
-  ]);
+  expect(() => readFileSync(join(context.directory, "gh-args.json"))).toThrow();
 });
 
 test.each(["dirty", "check"])("REL04: rejects %s state before creating a release", (failure) => {
@@ -119,17 +109,6 @@ test.each(["dirty", "check"])("REL04: rejects %s state before creating a release
   expect(result.stderr).toContain(failure === "check" ? "make check failed" : "Release requires");
   expect(context.git("rev-parse", "HEAD")).toBe(before);
   expect(context.git("ls-remote", "origin", "refs/tags/v0.1.1")).toBe("");
-});
-
-test("REL05: publication failure retains the pushed commit and tag for recovery", () => {
-  const context = fixture();
-  Object.assign(context.env, { FAIL_PUBLICATION: "1" });
-  const result = context.run(["make", "release", "BUMP=patch"]);
-  expect(result.status).not.toBe(0);
-  expect(result.stderr).toContain("gh release create v0.1.1");
-  expect(context.git("ls-remote", "origin", "refs/tags/v0.1.1")).toContain("refs/tags/v0.1.1");
-  expect(context.git("rev-parse", "v0.1.1^{commit}")).toBe(context.git("rev-parse", "origin/main"));
-  expect(context.git("status", "--porcelain")).toBe("");
 });
 
 test("REL06: remote rejection retains local release state without publishing or partially pushing", () => {
