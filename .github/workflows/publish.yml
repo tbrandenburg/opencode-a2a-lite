@@ -1,0 +1,105 @@
+name: Build and Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Rehearse publication without publishing or creating a release"
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - run: make install
+      - run: make check
+      - run: make package-smoke
+      - run: npm pack --dry-run
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@^11.5.1
+      - name: Resolve version and verify tag
+        id: vars
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            DRY_RUN="$INPUT_DRY_RUN"
+          elif [ "$REF_TYPE" = "tag" ] && [ "$REF_NAME" = "$TAG" ]; then
+            DRY_RUN=false
+          else
+            echo "::error::Tag does not match package.json version $TAG."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$(git rev-parse HEAD)" || {
+              echo "::error::HEAD does not match $TAG."
+              exit 1
+            }
+          elif [ "$DRY_RUN" != "true" ]; then
+            echo "::error::Tag $TAG not found."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+      - run: make install
+      - name: Publish to npm
+        run: npm publish --access public ${{ steps.vars.outputs.dry_run == 'true' && '--dry-run' || '' }}
+      - name: Create GitHub Release
+        if: steps.vars.outputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
+          fi

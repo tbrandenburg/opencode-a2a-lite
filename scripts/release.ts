@@ -94,23 +94,10 @@ function release(option: string): void {
   }
   command(["git", "tag", "-a", tag, "-m", `Release ${tag}`]);
   console.log(
-    `Publishing ${tag}; if publication fails, retain the commit/tag and follow README recovery instructions.`,
+    `Pushing ${tag}; the publish workflow will publish to npm and create the GitHub release.`,
   );
   command(["git", "push", "--atomic", "origin", `HEAD:refs/heads/${branch}`, `refs/tags/${tag}`]);
-  console.log(
-    command([
-      "gh",
-      "release",
-      "create",
-      tag,
-      "--repo",
-      repository,
-      "--verify-tag",
-      "--generate-notes",
-      "--title",
-      tag,
-    ]),
-  );
+  console.log(`Monitor the publish workflow for ${tag}; retain the commit and tag if it fails.`);
 }
 
 if (import.meta.main) {

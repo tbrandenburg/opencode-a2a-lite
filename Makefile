@@ -36,7 +36,7 @@ check: fmt-check lint typecheck test build ## Run deterministic local checks
 package-smoke: ## Pack and test the installed tarball outside the checkout (npm required; no provider)
 	bun run package-smoke
 
-release: ## Bump, check, commit, tag, push and create a GitHub release, not npm (BUMP=patch|minor|major or VERSION=x.y.z)
+release: ## Bump, check, commit and push a tag to trigger npm publication and a GitHub release (BUMP=patch|minor|major or VERSION=x.y.z)
 	bun scripts/release.ts "$(or $(VERSION),$(BUMP),patch)"
 
 doctor: ## Check local development prerequisites
