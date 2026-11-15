@@ -36,14 +36,17 @@ A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ 
 
 ## Quick start
 
+Run it from any directory outside a checkout of this repository:
+
 ```sh
-make install             # frozen Bun lockfile
-make check               # format, lint, typecheck, deterministic tests, build
-bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
+npx --yes @tbrandenburg/opencode-a2a-lite@latest --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
-Wait for a JSON stdout record such as `{"ready":true,"url":"http://127.0.0.1:.../"}`,
-then in a second terminal use the **actual** URL (default port 41241):
+This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
+process over ACP in that workspace. It does not run any task by itself: OpenCode only
+works when an A2A client sends a prompt. Wait for a JSON stdout record such as
+`{"ready":true,"url":"http://127.0.0.1:.../"}`, then in a second terminal use the
+**actual** URL (default port 41241):
 
 ```sh
 a2a card get http://127.0.0.1:41241
@@ -86,16 +89,11 @@ use `make dev` for development.
 
 ### Package distribution
 
-`@tbrandenburg/opencode-a2a-lite` is published on npm; registry publication and
-the installed CLI were verified for version 0.2.5. To run that version:
-
-```sh
-npx --yes @tbrandenburg/opencode-a2a-lite@0.2.5 --workspace .
-```
-
-The package requires Node.js 22 or newer to use `npx`, plus Bun 1.4.4 and
-OpenCode 2.2.7 or newer on `PATH`. `bunx` can be used instead of `npx` where Bun
-is installed. See [distribution and release policy](docs/distribution.md) for
+`@tbrandenburg/opencode-a2a-lite` is published on npm (see [Quick start](#quick-start)).
+Pin a version with `@x.y.z` instead of `@latest`. The package requires Node.js 22 or
+newer to use `npx`, plus Bun 1.4.4 and OpenCode 2.2.7 or newer on `PATH`. `bunx` can
+be used instead of `npx` where Bun is installed. Inside a checkout of this repository
+`npx` can fail with `opencode-a2a-lite: not found`; run it from another directory. See [distribution and release policy](docs/distribution.md) for
 verification scope and release details.
 
 ## Behavior and limitations
@@ -124,6 +122,14 @@ Full A2A TCK certification, interactive approval, rich media, push notifications
 and runtime-selected workspaces are not claimed.
 
 ## Development
+
+Run from source:
+
+```sh
+make install             # frozen Bun lockfile
+make check               # format, lint, typecheck, deterministic tests, build
+bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
+```
 
 | Command                                                                | Purpose                                                              |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
