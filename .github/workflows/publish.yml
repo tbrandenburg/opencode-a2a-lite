@@ -89,8 +89,40 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
       - run: make install
+      - name: Pack release artifact and check registry version
+        id: artifact
+        run: |
+          set -euo pipefail
+          artifact_dir="$(mktemp -d)"
+          pack_json="$(npm pack --json --pack-destination "$artifact_dir")"
+          filename="$(node -e 'process.stdout.write(JSON.parse(process.argv[1])[0].filename)' "$pack_json")"
+          integrity="$(node -e 'process.stdout.write(JSON.parse(process.argv[1])[0].integrity)' "$pack_json")"
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if published_integrity="$(npm view "$name@$version" dist.integrity 2>/dev/null)"; then
+            if [ "$integrity" != "$published_integrity" ]; then
+              echo "::error::Registry already has $name@$version with different package integrity."
+              exit 1
+            fi
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "file=$artifact_dir/$filename" >> "$GITHUB_OUTPUT"
       - name: Publish to npm
-        run: npm publish --access public ${{ steps.vars.outputs.dry_run == 'true' && '--dry-run' || '' }}
+        env:
+          ARTIFACT: ${{ steps.artifact.outputs.file }}
+          SKIP_PUBLISH: ${{ steps.artifact.outputs.skip_publish }}
+          DRY_RUN: ${{ steps.vars.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$SKIP_PUBLISH" = "true" ]; then
+            echo "Identical package version is already published; skipping duplicate upload."
+          elif [ "$DRY_RUN" = "true" ]; then
+            npm publish --access public --dry-run "$ARTIFACT"
+          else
+            npm publish --access public "$ARTIFACT"
+          fi
       - name: Create GitHub Release
         if: steps.vars.outputs.dry_run == 'false'
         env:

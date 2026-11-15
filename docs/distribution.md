@@ -2,7 +2,7 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.4**. Public npm
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.4**. Public npm
 access is configured, but authenticated namespace ownership and actual registry
 acceptance are not established. Historically, the maintainer authorized public
 distribution of version 0.1.1 and removal of `private: true`
@@ -57,6 +57,22 @@ another listener. It does not validate a published package or real models.
 
 `make release` pushes a version tag that triggers npm publication and then creates a GitHub release.
 Before running it, verify npm scope ownership and authorization for the intended version, and configure npm Trusted Publishing for this repository and `.github/workflows/publish.yml`. The workflow supports a manual dry run; a non-dry run requires the matching tag. Monitor the workflow after pushing. If it fails, retain the tag and inspect the registry before retrying via workflow dispatch against the tag. If npm publication succeeded but GitHub release creation failed, create the GitHub release for the existing tag instead of retrying npm publication. If the atomic push failed, inspect the local commit and tag and the remote state before retrying the push.
+
+### First npm publication
+
+An unpublished package has no npm package settings page, so Trusted Publishing cannot be configured before its first successful publication. Bootstrap the package by manually publishing the exact reviewed artifact for the intended initial release using the protected npm account and interactive 2FA, following steps 1–4 and 6–8 below. This first manual publication does not have npm Trusted Publishing provenance.
+
+Immediately after the package exists, configure a GitHub Actions trusted publisher for user `tbrandenburg`, repository `opencode-a2a-lite`, workflow file `publish.yml`, with no environment and direct `npm publish` permission. This configuration must complete its first successful CI publish within two days. The tag workflow packs the release artifact and compares its integrity with the registry: it skips a duplicate upload only when the published version has the identical integrity, then creates the GitHub Release. A different integrity fails the workflow. Therefore the matching tag can safely be pushed for the manually bootstrapped version after the trust configuration is saved; subsequent versions are published by CI with provenance.
+
+The CLI alternative for setting the trusted publisher requires npm 11.15.0 or later and account-level 2FA:
+
+```sh
+npm trust github @tbrandenburg/opencode-a2a-lite \
+  --repo tbrandenburg/opencode-a2a-lite \
+  --file publish.yml \
+  --allow-publish
+npm trust list @tbrandenburg/opencode-a2a-lite
+```
 
 The following manual procedure remains an alternative maintainer action; do not run it after the automated workflow has already published the same version. Never put tokens, OTPs,
 provider keys, private prompts, reasoning, or raw peer logs into commands/release

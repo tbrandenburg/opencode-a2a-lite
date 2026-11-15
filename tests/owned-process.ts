@@ -8,7 +8,6 @@ export function spawnOwnedProcess(
   options: { cwd: string; env: NodeJS.ProcessEnv },
   grace = { eof: 10_000, term: 1_000, kill: 1_000 },
 ) {
-  assert.equal(process.platform, "linux", "Owned acceptance processes require Linux");
   const child = spawn(executable, args, {
     ...options,
     detached: true,
@@ -26,6 +25,8 @@ export function spawnOwnedProcess(
       return true;
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
+      if (value === 0 && error instanceof Error && "code" in error && error.code === "EPERM")
+        return true;
       throw new Error("Owned acceptance process group cleanup failed");
     }
   }

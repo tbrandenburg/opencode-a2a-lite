@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -77,12 +78,15 @@ try {
     PATH: bin,
     A2A_PORT: "invalid",
     A2A_WORKSPACE: "relative",
-    npm_config_loglevel: "warn",
+    npm_config_loglevel: "silent",
   };
   const command = [
     join(bin, "npm"),
     "exec",
     "--yes",
+    // The production package is Linux-only; force the known local tarball so
+    // packaging and CLI checks can run on macOS without changing that contract.
+    "--force",
     `--package=${tarball}`,
     "--",
     "opencode-a2a-lite",
@@ -271,7 +275,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       );
       assert.equal(card.supportedInterfaces[0].url, ready.url);
       const owned = peerRecord(record)!;
-      assert.equal(owned.cwd, consumer);
+      assert.equal(owned.cwd, realpathSync(consumer));
       // Signal the installed gateway, not npm's wrapper; OpenCode has its own group.
       process.kill(owned.parent, scenario.termination);
       await until(
