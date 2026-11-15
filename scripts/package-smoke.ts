@@ -282,7 +282,29 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       );
       assert.equal(await child.exited, 0);
       await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
-      assert.equal(child.output.stderr, "");
+      const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
+      assert.equal(status[0], `  ready      gateway · ${ready.url}`);
+      assert.match(status[1]!, /^  workspace  \//);
+      assert.ok(status[1]!.endsWith("consumer workspace"));
+      assert.equal(
+        status[2],
+        `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
+      );
+      assert.equal(
+        status[3],
+        `  connect    a2a send -a ${ready.url} "Reply with a short greeting." --stream`,
+      );
+      assert.equal(status[4], "  stop       press Ctrl-C to stop the gateway");
+      assert.equal(
+        status[5],
+        "  stopping   gateway · draining active work and closing the listener",
+      );
+      assert.equal(
+        status[6],
+        "  stopped    gateway · listener closed and OpenCode process released",
+      );
+      assert.equal(status.length, 7);
+      assert.equal(status.join("\n").includes("\u001b["), false);
     } finally {
       const owned = peerRecord(record);
       if (owned && alive(owned.parent)) process.kill(owned.parent, "SIGTERM");

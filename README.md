@@ -50,8 +50,9 @@ npx --yes @tbrandenburg/opencode-a2a-lite@latest --workspace /absolute/path/to/t
 
 This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
 process over ACP in that workspace. It does not run any task by itself: OpenCode only
-works when an A2A client sends a prompt. Wait for a JSON stdout record such as
-`{"ready":true,"url":"http://127.0.0.1:.../"}`, then in a second terminal use the
+works when an A2A client sends a prompt. On startup, the CLI prints aligned lifecycle
+status to stderr and a machine-readable readiness record to stdout
+(`{"ready":true,"url":"http://127.0.0.1:.../"}`). In a second terminal use the
 **actual** URL (default port 41241):
 
 ```sh
@@ -60,8 +61,10 @@ a2a send -a http://127.0.0.1:41241 "Reply with a short greeting." --stream
 a2a send -a http://127.0.0.1:41241 --context-id <returned-context-id> "Follow up"
 ```
 
-The server runs in the foreground and terminates its owned ACP process group on
-SIGINT/SIGTERM.
+The server runs in the foreground. Press Ctrl-C to see shutdown progress; it reports
+`stopped` only after closing the listener and releasing its owned OpenCode process.
+Status lines use color only on interactive terminals, honor `NO_COLOR`, and remain
+plain when redirected. Startup JSON stays on stdout; human-readable status is on stderr.
 
 ## Requirements
 
