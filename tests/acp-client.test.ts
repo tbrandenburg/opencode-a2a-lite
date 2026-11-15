@@ -1,4 +1,4 @@
-import { afterEach, expect, test as bunTest } from "bun:test";
+import { afterEach, expect, spyOn, test as bunTest } from "bun:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
@@ -248,5 +248,89 @@ test("A8: close escalates only its owned group, including descendants", async ()
   } finally {
     sentinel.kill("SIGKILL");
     await exited;
+  }
+});
+
+for (const persistent of [false, true]) {
+  test(`A9: ${persistent ? "persistent" : "transient"} EPERM during the post-kill probe remains inconclusive`, async () => {
+    const instance = bridge("descendant", { closeTimeoutMs: 1_500 });
+    // A deliberately failed close is already settled and must not fail afterEach again.
+    if (persistent) bridges.splice(bridges.indexOf(instance), 1);
+    let spy: ReturnType<typeof spyOn<typeof process, "kill">> | undefined;
+    try {
+      await instance.start();
+      const session = await instance.newSession();
+      const response = await instance.prompt(session.sessionId, "hello", () => undefined);
+      const parent = response._meta?.pid;
+      const descendant = response._meta?.descendant;
+      if (typeof parent !== "number" || typeof descendant !== "number")
+        throw new Error("Missing owned PIDs");
+      const originalKill = process.kill.bind(process);
+      let killed = false;
+      let denied = 0;
+      spy = spyOn(process, "kill").mockImplementation((pid, signal) => {
+        if (pid === -parent && signal === "SIGKILL") killed = true;
+        if (pid === -parent && signal === 0 && killed && (persistent || denied < 2)) {
+          denied++;
+          throw Object.assign(new Error("injected permission failure"), { code: "EPERM" });
+        }
+        return originalKill(pid, signal);
+      });
+      if (persistent) {
+        await expect(instance.close()).rejects.toThrow("owned process did not stop");
+        expect(denied).toBeGreaterThan(2);
+      } else {
+        await instance.close();
+        expect(denied).toBe(2);
+      }
+      expect(killed).toBe(true);
+      expect(() => originalKill(parent, 0)).toThrow();
+      expect(() => originalKill(descendant, 0)).toThrow();
+    } finally {
+      spy?.mockRestore();
+      await instance.close().catch(() => undefined);
+    }
+  });
+}
+
+test("A10: EPERM sending SIGKILL is not treated as an inconclusive probe", async () => {
+  const instance = bridge("descendant", { closeTimeoutMs: 1_500 });
+  bridges.splice(bridges.indexOf(instance), 1);
+  let spy: ReturnType<typeof spyOn<typeof process, "kill">> | undefined;
+  try {
+    await instance.start();
+    const session = await instance.newSession();
+    const response = await instance.prompt(session.sessionId, "hello", () => undefined);
+    const parent = response._meta?.pid;
+    if (typeof parent !== "number") throw new Error("Missing owned PID");
+    const originalKill = process.kill.bind(process);
+    let injected = false;
+    spy = spyOn(process, "kill").mockImplementation((pid, signal) => {
+      if (pid === -parent && signal === "SIGKILL") {
+        // Actually stop the fixture before simulating a failed signal write.
+        originalKill(pid, signal);
+        injected = true;
+        throw Object.assign(new Error("injected permission failure"), { code: "EPERM" });
+      }
+      return originalKill(pid, signal);
+    });
+    await expect(instance.close()).rejects.toThrow("owned process cleanup failed");
+    expect(injected).toBe(true);
+    spy.mockRestore();
+    spy = undefined;
+    const deadline = performance.now() + 3_000;
+    for (;;) {
+      try {
+        originalKill(-parent, 0);
+      } catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ESRCH") break;
+        if (!(error instanceof Error && "code" in error && error.code === "EPERM")) throw error;
+      }
+      if (performance.now() >= deadline) throw new Error("Fixture group did not stop");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  } finally {
+    spy?.mockRestore();
+    await instance.close().catch(() => undefined);
   }
 });

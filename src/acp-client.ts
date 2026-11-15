@@ -291,6 +291,10 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       return true;
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
+      // On macOS an unreaped process group can briefly return EPERM after SIGKILL.
+      // Treat an existence probe as inconclusive, never as proof of cleanup.
+      if (signal === 0 && error instanceof Error && "code" in error && error.code === "EPERM")
+        return true;
       throw new Error("ACP owned process cleanup failed");
     }
   }
