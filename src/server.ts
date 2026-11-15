@@ -13,6 +13,7 @@ import { createRequestHandler } from "./request-handler.js";
 import { parseOptions } from "./cli-options.js";
 import { reportStartupError, StartupError } from "./startup-error.js";
 import { validateIdentity, type WorkerIdentity } from "./identity.js";
+import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
@@ -179,17 +180,29 @@ export function createGateway(options: ServerOptions) {
 
 export async function launchGateway(options: ServerOptions) {
   const gateway = createGateway(options);
+  const status = (label: string, detail: string) =>
+    console.error(formatStatus(label, detail, supportsTerminalColor(process.stderr, process.env)));
   const stop = () => {
-    void gateway.close().catch(() => {
-      console.error("Gateway shutdown failed");
-      process.exitCode = 1;
-    });
+    status("stopping", "gateway · draining active work and closing the listener");
+    void gateway
+      .close()
+      .then(() => status("stopped", "gateway · listener closed and OpenCode process released"))
+      .catch(() => {
+        status("error", "gateway shutdown failed · inspect the process before restarting");
+        process.exitCode = 1;
+      });
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
     const ready = await gateway.start();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
+    const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
+    status("ready", `gateway · ${ready.url}`);
+    status("workspace", options.workspace);
+    status("agent card", cardUrl);
+    status("connect", `a2a send -a ${ready.url} "Reply with a short greeting." --stream`);
+    status("stop", "press Ctrl-C to stop the gateway");
   } catch (error) {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
