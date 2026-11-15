@@ -1082,32 +1082,12 @@ the user separately requests another test; a fresh session does not reset old li
 
 ## Observed validation
 
-On 2026-10-29, the recipe's rendered configuration, private path/source assertions, card/discovery
-registration, same-server warmup, documented session inspection, and cleanup commands
-were exercised during author validation. One real two-worker pipeline baseline
-completed with **11 paired calls/results**, zero denials, explicit `blocking:false`
-on both sends, and no pending operations in the passive supervisor. The two observed
-submit-to-terminal times were **9.130s** and **9.124s**, with two and five polls.
-Model arguments, dispatched hashes, received worker inputs and stored artifacts
-correlated; W2 received the exact W1 artifact. Three sessions used the approved model.
-Both unregister responses were HTTP 204; 15 recorded PIDs were absent and seven
-recorded ports rebound. Shared listeners were untouched.
-
-The watchdog/cleanup templates were also exercised against real owned sleep-process
-groups and synthetic metadata fixtures for expired sends, eight nonterminal polls,
-the 32-attempt reserve boundary, unpaired results, unexpected submissions/signals,
-reporting failure and completed operations. Those
-are supervisor fixture tests, not mock-based adapter E2E evidence.
-
-This is author-run operational validation, **not an independent fresh-session
-usability pass**, a repeated-model reliability result, or validation of another
-topology. The earlier failed fresh-session report remains evidence of the gaps that
-motivated this recipe; rerun that usability prompt separately to test the revised
-instructions without prior context. No historical investigation limits are reset.
-The subsequent defensive revisions were exercised with the real pinned read-only
-OpenCode API (startup pending→ready and stopped-server private inspection), 11
-supervisor fixture cases, full-stream overrun reconciliation, a refused foreign-context
-PID, a real detached child/TCP listener, and bounded inspection/cursor/scoped-stop
-checks. These submitted no model task. They
-validate those helper paths, not a second live pipeline or independent fresh-session
-usability. The reserve remains an observed final-count gate, not a hard pre-dispatch guarantee.
+On 2026-10-29, one author-run two-worker baseline completed with 11 paired calls,
+nonblocking sends and correlated stored artifacts; W2 received W1's exact artifact.
+Owned unregister, process and port cleanup were verified. Later watchdog and cleanup
+fixture checks did not submit another model task. This is **not** an independent
+fresh-session usability pass, a reliability result, or validation of another topology.
+The earlier failed fresh-session report remains evidence; the
+[full dated record](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/manual-two-worker-pipeline.md#observed-validation)
+remains in Git. The reserve remains an observed final-count gate, not a hard
+pre-dispatch guarantee.

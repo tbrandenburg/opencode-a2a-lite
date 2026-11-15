@@ -37,8 +37,29 @@ not from the current checkout.
 - [Manual one-worker](manual-one-worker.md),
   [two-worker bootstrap](manual-two-worker-pipeline.md) and
   [passive supervision](passive-mcp-supervision.md)
-- [Scoped topology studies](topology-studies/topology-pipeline.md) and
-  [portable OpenCode skill](../.opencode/skills/multi-a2a-agent/SKILL.md)
+- [Portable OpenCode skill](../.opencode/skills/multi-a2a-agent/SKILL.md)
+
+## Archived topology observations
+
+The following links preserve the scoped studies at revision `5190759`. These are
+historical observations, not authorization for new runs or evidence that full
+topologies or model quality are reliable. Follow the active skill and reviewed
+runbooks for any separately requested investigation.
+
+| Study                                                                                                                                                                                      | Observed boundary and remaining limitation                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [Pipeline](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-pipeline.md)                                     | Two-worker handoff observed; full six-worker pipeline unverified.                                                                     |
+| [Bounded ring](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-bounded-ring.md)                             | W1→W6→W1 observed; full ring unverified.                                                                                              |
+| [Propose–critique–revise](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-propose-critique-revise.md)       | Three-task sequence observed; semantic refinement failure remains unresolved.                                                         |
+| [Competing proposals / judge](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-competing-proposals-judge.md) | Two proposers and a judge observed; full layout and judge quality unverified; earlier integrity failure remains unresolved.           |
+| [Fan-out / fan-in](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-fan-out-fan-in.md)                       | Three-worker bounded assessment observed; a separate historical six-worker case passed its recorded checks, not a reliability result. |
+| [Diamond](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-diamond.md)                                       | Planner, two reviewers and integrator observed; model quality unscored.                                                               |
+| [Decentralized tree](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-decentralized-tree.md)                 | One corrected two-hop path observed; full tree and sibling branches unverified; that assessment's attempt cap is exhausted.           |
+| [Decentralized mesh](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/topology-studies/topology-decentralized-mesh.md)                 | One worker-originated edge observed; full mesh unverified.                                                                            |
+
+Historical [quality measurements](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/quality-baseline.md)
+and [architecture pitfalls](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/pitfalls.md)
+remain in Git; current operating risks are in [architecture](architecture.md).
 
 The dated research and test decisions remain recoverable from Git/issue history;
 the active repository does not need to ship their full internal ledgers.

@@ -1,159 +1,49 @@
-# Distribution and npm release
+# Distribution and release
 
-## Status and package contract
+`@tbrandenburg/opencode-a2a-lite` ships JavaScript with a Bun shebang, not a
+compiled Bun executable. Consumers need Bun 1.4.4 and stable OpenCode 2.2.7 or
+newer separately; `npx` also needs Node 22+. See the [README](../README.md) for
+the Linux and experimental macOS runtime contract. Old published versions without
+the `darwin` manifest entry remain Linux-only. Upgrading the package does not
+replace standalone Bun or OpenCode's embedded runtime; see
+[runtime security evidence](bun-runtime-security.md).
 
-Publication of `@tbrandenburg/opencode-a2a-lite` **0.2.7** is verified on npm.
-The registry reports the package
-version and tarball integrity; `npx` installation was verified with both `--help`
-and a gateway startup/Agent Card check in a trusted workspace. This does not
-establish live model completion or complete release acceptance; do not claim
-those based only on registry publication, CLI help, or an Agent Card.
+The `prepack` hook deletes stale generated `dist/src`, rebuilds the executable and
+sets its executable bit. The package allowlist includes the runtime files, README,
+license and manifest, but not tests, scripts or development dependencies.
 
-Runtime: Linux, or experimental macOS gateway use, Bun 1.4.4, stable `opencode`
-v2.2.7 or newer on PATH, an existing explicitly trusted workspace, and reviewed
-provider/model configuration. macOS has provider-free core and packaging checks
-and a recorded two-turn live demo, but not the full live acceptance matrix. The
-isolated live demo supports macOS; the
-full acceptance suite and Linux-only optional workflows have not been ported.
-Published versions predating the
-`darwin` manifest entry remain Linux-only. npm/npx
-also need Node; they do not replace Bun. The separate official `a2a` CLI is a client.
-Production inherits OpenCode configuration/MCP/plugins; it provides neither
-authentication nor sandboxing. Never expose it through a public proxy.
-
-There is one executable, `opencode-a2a-lite`, with `#!/usr/bin/env bun`.
-`prepack` cleans generated `dist/src`, rebuilds JavaScript, and sets the executable bit before `npm pack` or
-directory publication. The `files` allowlist includes runtime `dist/src/*.js`,
-the runtime package manifest, README and LICENSE; npm also includes root
-`package.json`. Runtime dependencies are declared normally and installed by the
-package runner. Tests, TypeScript sources, fixtures, scripts and development tools
-are not payload. No consumer install/prepare build hook is required.
-
-This package ships JavaScript, not a Bun-compiled native executable. Consumers
-must upgrade their separately installed Bun **and** OpenCode executables; updating
-the package cannot replace either runtime. Any independently produced
-`bun build --compile` executable must be rebuilt with a patched Bun and revalidated.
-Updating OS certificate authorities or adding `--use-system-ca` does not fix an
-affected Bun: the system store is additive, not a replacement for its bundled store.
-See [runtime security evidence](/docs/bun-runtime-security.md).
+## Verify and release
 
 ```sh
 make install
 make check
 make package-smoke
+make release BUMP=patch # or BUMP=minor, BUMP=major, VERSION=x.y.z
 ```
 
-The last command removes the emitted CLI and seeds an obsolete generated runtime file
-before packing to verify that `prepack` rebuilds the CLI and removes stale output,
-inspects the exact allowlist/shebang/permissions, and runs `npm exec` against the
-tarball from a fresh external consumer directory with an isolated npm cache and
-synthetic environment. It verifies help/version without OpenCode, argument/workspace/
-port/executable failures, sanitized peer failures, CLI-over-env precedence, ephemeral
-loopback ports, card URL/version, and owned-process SIGINT/SIGTERM
-cleanup using a controlled ACP peer. The installed direct `server.js` entrypoint
-is checked too. It requires outbound npm dependency access,
-not provider credentials. The installed default-port path is not covered by this
-smoke and remains part of issue #6's release acceptance. The smoke never stops
-another listener. It does not validate a published package or real models.
+`make package-smoke` packs and installs a local tarball into an isolated external
+consumer, verifies its allowlist and CLI, and exercises controlled ACP startup,
+errors, Agent Card, signal handling and owned-process cleanup. It needs npm
+dependency access but no provider credentials. It does not validate a published
+package or a real model. Live checks require separate authorization; see
+[acceptance](acceptance.md).
 
-## Secure manual publication
+`make release` requires a clean default branch matching origin, checks that the
+tag is absent, reruns `make check`, creates the version commit and annotated tag,
+and pushes both atomically. The [publish workflow](../.github/workflows/publish.yml)
+requires Linux and macOS validation before npm Trusted Publishing and GitHub
+Release creation. Verify scope ownership, intended version and trusted publisher
+configuration before running it; monitor the workflow and check the published
+version and integrity. npm may report that a newly published version is still
+being processed before it becomes visible.
 
-`make release` pushes a version tag that triggers Linux and macOS validation,
-followed by npm publication and GitHub release creation.
-Before running it, verify npm scope ownership and authorization for the intended version, and configure npm Trusted Publishing for this repository and `.github/workflows/publish.yml`. The workflow supports a manual dry run; a non-dry run requires the matching tag. Monitor the workflow after pushing. If it fails, retain the tag and inspect the registry before retrying via workflow dispatch against the tag. If npm publication succeeded but GitHub release creation failed, create the GitHub release for the existing tag instead of retrying npm publication. If the atomic push failed, inspect the local commit and tag and the remote state before retrying the push.
+If the atomic push fails, inspect the local commit/tag and remote state; do not
+discard them blindly. If publication fails, retain the tag and inspect the
+registry before retrying the workflow against that tag. If npm publication
+succeeded but GitHub Release creation failed, create the release for the existing
+tag rather than republishing. The workflow skips an existing registry version only
+if its integrity matches the packed artifact; mismatched integrity fails.
 
-### First npm publication
-
-An unpublished package has no npm package settings page, so Trusted Publishing cannot be configured before its first successful publication. Bootstrap the package by manually publishing the exact reviewed artifact for the intended initial release using the protected npm account and interactive 2FA, following steps 1–4 and 6–8 below. This first manual publication does not have npm Trusted Publishing provenance.
-
-Immediately after the package exists, configure a GitHub Actions trusted publisher for user `tbrandenburg`, repository `opencode-a2a-lite`, workflow file `publish.yml`, with no environment and direct `npm publish` permission. This configuration must complete its first successful CI publish within two days. The tag workflow packs the release artifact and compares its integrity with the registry: it skips a duplicate upload only when the published version has the identical integrity, then creates the GitHub Release. A different integrity fails the workflow. Therefore the matching tag can safely be pushed for the manually bootstrapped version after the trust configuration is saved; subsequent versions are published by CI with provenance.
-
-The CLI alternative for setting the trusted publisher requires npm 11.15.0 or later and account-level 2FA:
-
-```sh
-npm trust github @tbrandenburg/opencode-a2a-lite \
-  --repo tbrandenburg/opencode-a2a-lite \
-  --file publish.yml \
-  --allow-publish
-npm trust list @tbrandenburg/opencode-a2a-lite
-```
-
-The following manual procedure remains an alternative maintainer action; do not run it after the automated workflow has already published the same version. Never put tokens, OTPs,
-provider keys, private prompts, reasoning, or raw peer logs into commands/release
-notes. Do not add registry credentials to the repository.
-
-1. Authenticate to npm interactively using the maintainer's protected account with
-   2FA. Inspect `npm whoami` privately and confirm that the publisher owns the chosen
-   user scope (or has verified organization publish rights). A registry 404 or an
-   available name is **not** proof of ownership. Inspect package/version availability
-   using `npm view <verified-package> --json` without printing credential files.
-2. Through a reviewed change, confirm the verified package name, intended release
-   version, authorization for that version and repository URL. The historical
-   authorization for 0.1.1 does not establish npm scope ownership or authorize a
-   different version.
-   Keep the single bin and public access setting. Refresh `bun.lock`
-   with Bun and update the README to the verified name. Commit/push through normal
-   repository review; start release verification from a clean checkout of that commit.
-3. Remove stale generated output with `make clean`, then run `make install`,
-   `make check`, `make package-smoke`, `npm pack --dry-run`, and
-   `npm pack --json --pack-destination <external-artifact-directory>`.
-   Inspect the tarball with `tar -tzf <artifact.tgz>`. Record its exact filename,
-   version, size, integrity/digest and file list. Retain this exact verified artifact;
-   do not rebuild it implicitly during publication.
-4. In a fresh directory outside the source checkout, with reviewed isolated OpenCode
-   config and securely supplied provider access, run:
-
-   ```sh
-   npm exec --yes --package=/absolute/path/to/artifact.tgz -- opencode-a2a-lite --help
-   npm exec --yes --package=/absolute/path/to/artifact.tgz -- opencode-a2a-lite --version
-   npm exec --yes --package=/absolute/path/to/artifact.tgz -- opencode-a2a-lite --workspace . --port 0
-   ```
-
-   Help/version must also work without OpenCode/provider access. Verify paths with
-   spaces, absolute/env paths, precedence, missing/non-directory workspace, missing/
-   wrong pinned OpenCode, malformed/occupied port and unknown flags. Capture the
-   actual readiness URL, use `a2a card get <url>`, send a streamed greeting, and send
-   a follow-up with the actual returned context ID and a unique continuity marker.
-   Verify SIGINT/SIGTERM listener and owned ACP-group cleanup, then restart.
-   Run `make demo` and `make e2e` using the documented isolated live configuration.
-
-5. Ensure the GitHub tag/release identifies the same reviewed version/commit.
-   The automated `make release` triggers npm publication; do not invoke it as part of a separate manual tarball publication.
-6. Publish the retained tarball explicitly with
-   `npm publish /absolute/path/to/artifact.tgz --access public` and the interactive
-   protected-account authentication/2FA flow. Do not use a long-lived repository
-   token. Local manual publishing does not establish CI provenance: do not claim
-   provenance or add a misleading local `--provenance` workaround.
-7. Verify `npm view <verified-package>@<version> version dist.integrity dist.tarball`
-   against the retained artifact and verify installation from the registry, not a
-   local npm link or warmed project dependency. From two fresh trusted external
-   workspaces, separately run:
-
-   ```sh
-   bunx <verified-package>@<version> --workspace . --port 0
-   npx --yes <verified-package>@<version> --workspace . --port 0
-   ```
-
-   For each, verify card discovery and real streamed completion; verify context
-   continuity with the actual context ID, shutdown/owned-group cleanup and restart
-   on the primary runner. Repeat missing/wrong OpenCode, workspace and occupied-port
-   failures on the registry-installed executable. Verify the version matches the
-   tag, CLI, card and published artifact. Do not expose a public listener/proxy.
-
-8. Attach sanitized evidence to PR/release notes: OS, Bun/npm/npx/OpenCode/a2a
-   versions, package version/digest, exact commands, pass/fail per scenario, process
-   cleanup and registry links. Only then update the README's unreleased status and
-   claim registry acceptance. Record a release-blocking exception explicitly if
-   publication or live acceptance is deferred.
-
-## Future trusted publishing
-
-Prefer npm Trusted Publishing/OIDC with provenance once the verified npm package
-has a configured trusted publisher and a reviewed protected GitHub release workflow.
-Configure the npm trusted publisher before the first automated release. Routine provider-free CI remains read-only.
-
-References: [Bun bunx/shebangs](https://bun.com/docs/pm/bunx),
-[npm bin/files](https://docs.npmjs.com/cli/configuring-npm/package-json/),
-[npm prepack lifecycle](https://docs.npmjs.com/cli/using-npm/scripts/),
-[npm exec](https://docs.npmjs.com/cli/commands/npm-exec/),
-[npm trusted publishers](https://docs.npmjs.com/trusted-publishers/).
+Never put npm tokens, OTPs, provider keys, raw prompts or diagnostics in commands,
+logs, issues or release notes. Manual first-publication and historical acceptance
+details remain in the [previous release guide](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/distribution.md).

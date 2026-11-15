@@ -495,32 +495,9 @@ Receipt hashes still contain local URLs and opaque identifiers: private metadata
 
 ### Observed CLI results
 
-Source baseline `ae91940`; Linux, Bun 1.3.9, OpenCode 2.0.28, checksummed
-a2abridge 4.0.2, A2A 1.0 and the existing `openai/gpt-6-luna` smoke model.
-The original paid request was not wire-captured; the cold-start mechanism was
-reproduced separately against a local provider-free capture endpoint.
-
-| Authorized attempt                  | Observed outcome                                                                                                                                                                                                      |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cold standalone                     | CLI exit zero, catalog received, zero model tool calls and zero worker sessions; BLOCKED.                                                                                                                             |
-| Warmed server, initial supervisor   | Six paired calls; first task completed with matching prompt/artifact/answer. An invented three-second minimum interrupted the CLI at a 2.69-second poll gap before the follow-up; INCOMPLETE, not an adapter failure. |
-| Warmed server, corrected supervisor | Two completed tasks in one context with distinct task IDs, exact worker inputs and matching stored artifacts/root answers; observed pass on 2026-10-28 at 09:22 UTC.                                                  |
-
-The final attempt was separately authorized with fresh private state and a fresh
-synthetic marker after correcting the supervisor; no earlier evidence was replaced
-and no pending/uncertain submission was resent. It used one CLI invocation and
-one guard connection, eight paired calls of forty with the eight-call reserve
-untouched, two nonblocking sends and three/one polls per turn. Submit-to-completed
-observations were 9.036s and 2.252s, within the unchanged 30-second deadlines;
-observed repeated-poll gaps were 2.190s and 3.788s. Provider-selected arguments,
-guard input hashes and worker-received text matched. The follow-up used the actual
-returned context and omitted task ID. Two pages per session were inspected.
-
-Unregister succeeded. The first process-exit check still saw an owned child; final
-verification, before accepting cleanup, found zero owned processes and five
-recorded ports released and reusable. The disposable MCP entry was disabled.
-Raw prompts/answers, handles, receipts, credentials and provider diagnostics remain
-private. Cost and token usage were not measured. This dated pass does not resolve
-historical production E2E/topology failures, repair cold standalone readiness or
-establish repeatability. Future user-requested attempts may incur provider charges;
-the user monitors spend.
+On 2026-10-28, a corrected warmed-server attempt completed two tasks in one
+context with distinct task IDs and matching stored artifacts; cleanup was verified.
+The earlier cold standalone attempt was BLOCKED and an initial supervisor attempt
+was INCOMPLETE. The [full dated evidence](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/manual-one-worker.md#observed-cli-results)
+remains in Git. That pass does not repair cold readiness, resolve historical
+failures, or establish repeatability or compatibility with later runtime pins.

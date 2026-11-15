@@ -1,429 +1,87 @@
-# Real acceptance evidence
+# Acceptance evidence and limits
+
+Provider-free tests establish protocol and lifecycle behavior under controlled ACP
+peers; they are not evidence of live-model quality. Live tests are explicit,
+billable operations. All results below apply only to the stated configurations and
+dates, not every later runtime, provider, architecture or model.
 
 ## macOS live demo
 
-On **2026-11-15**, the isolated `make demo` passed on macOS 13.7.8 x86_64
-with Bun 1.4.4, OpenCode 2.3.0, official A2A CLI 0.4.0, and the configured
-`openai/gpt-6-luna` smoke model. Effective configuration verification passed;
-the compiled gateway started, the CLI discovered its Agent Card, a streamed
-task completed, and a follow-up completed in the same context with a new task.
-Workspace cleanup reported that its processes stopped. The provider-free
-`make runtime-smoke` also verified gateway port reclamation.
+On **2026-11-15**, isolated `make demo` passed on macOS 13.7.8 x86_64 with Bun
+1.4.4, OpenCode 2.3.0, official A2A CLI 0.4.0 and `openai/gpt-6-luna`.
+Effective configuration verification passed; the compiled gateway started, the
+CLI discovered its Agent Card, a streamed task completed, and a follow-up
+completed in the same context with a new task. Workspace cleanup reported that
+its processes stopped. Provider-free `make runtime-smoke` also verified gateway
+port reclamation.
 
-This is one live two-turn demo, not the Linux full acceptance matrix or evidence
-for other macOS architectures, versions, providers, cancellation, or optional
-guarded MCP/team workflows. The published package still needs a release containing
-the macOS manifest change.
+This is one two-turn demo, not the full live acceptance matrix or evidence for
+other macOS architectures, versions, providers, cancellation, or optional guarded
+MCP/team workflows. macOS gateway use remains experimental.
 
 ## Runtime upgrade verification (issues #60 and #61)
 
-Last verified by the coordinator: **2026-11-10T17:12:14Z**.
-This recorded acceptance run used **Bun 1.4.4** and **OpenCode 2.2.7** (actual embedded
-Bun 1.4.4), official A2A CLI 0.3.1, and the existing `openai/gpt-6-luna` smoke model.
-Production admission accepts stable OpenCode 2.2.7 or newer; this run does not
-establish live compatibility for later versions.
-No global runtime/configuration change or npm publication is implied.
+On **2026-11-10**, the Linux x64 live acceptance run used standalone Bun 1.4.4,
+OpenCode 2.2.7 (embedded Bun 1.4.4), official A2A CLI 0.3.1 and
+`openai/gpt-6-luna`. Production admits stable OpenCode 2.2.7 or newer, but this
+run does not establish full live compatibility for newer versions. The complete
+[dated evidence and source identities](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/acceptance.md#runtime-upgrade-verification-issues-60-and-61)
+remain in Git; see also [Bun security](bun-runtime-security.md) and
+[OpenCode compatibility](opencode-runtime-upgrade.md).
 
-After integrating the focused agents and resolving two medium adversarial-review
-findings, the coordinator ran acceptance sequentially:
+- `make e2e` passed **14/14 live scenarios**, including confirmed cancellation,
+  streaming/storage, context continuity and isolation, busy rejection, stale
+  contexts, actual child death, restart, invalid input/credentials and shutdown.
+- Write denial left the target absent and recorded zero tool calls. A **live ACP
+  permission callback was not established**: deny configuration may remove tools
+  before invocation. Callback rejection is controlled-ACP evidence only.
+- Provider-free checks included installed-package lifecycle, the verified
+  a2abridge 4.0.2 interop gate, real-executable ACP sessions and cleanup, and
+  separate standalone/embedded runtime TLS probes.
+- Earlier intermittent startup and interop failures were not erased by a later
+  passing run; see issues [#63](https://github.com/tbrandenburg/opencode-a2a-lite/issues/63)
+  and [#64](https://github.com/tbrandenburg/opencode-a2a-lite/issues/64).
+  Optional multi-worker reliability, broad model compatibility and full TCK
+  certification were not established.
 
-| Gate                                           | Recorded result                                                                                                                                                                |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Frozen install                                 | 132 installs across 173 packages checked; no dependency or lockfile change                                                                                                     |
-| CI-equivalent `make check`                     | **80 passed, 0 failed, 567 assertions, 17 test files**; format, lint, strict types and build passed                                                                            |
-| JUnit / coverage                               | 80 cases, zero failures/errors/skips; LCOV present; branch coverage and mutation score remain unmeasured                                                                       |
-| Installed package smoke                        | Passed; 12 allowlisted files, CLI/direct entrypoints, sanitized failures, signal and owned-process cleanup                                                                     |
-| Verified a2abridge 4.0.2 interop               | Passed; `failed:false`, `cleanup:true`; independent connections used 29 and 17 calls, each within the 32-call operating limit                                                  |
-| Real executable, no provider prompt            | ACP v1, separate/resumed sessions, cwd/stale rejection, idle cancel, successful EOF, owned child exit, port reclamation, same-server readiness and zero stored messages passed |
-| External TLS, standalone and embedded runtimes | Each returned HTTPS 200 for the positive control and `CERT_REVOKED` for four incident-chain controls, including AAA cross-signed/no-CT paths                                   |
-| Production live `make e2e`                     | **14/14 passed**, including **true cancellation**, not only a completion race                                                                                                  |
-| Independent cleanup inspection                 | Zero remaining owned probe processes                                                                                                                                           |
-| Follow-up adversarial review                   | Zero critical/high/medium/low findings                                                                                                                                         |
+### Reproduction boundaries
 
-The live matrix verified exact root text, ordered streaming/storage, two-turn
-continuity, separate contexts, busy rejection, cancellation, stale contexts,
-actual managed-child death with no implicit replacement, restart, malformed
-input, invalid credentials and SIGTERM shutdown. Write denial left the target
-absent and recorded zero tool calls; assistant content types were reasoning/text.
-**A live permission callback was not established:** deny configuration can remove
-tools before invocation. Callback rejection remains controlled-ACP evidence.
-Optional multi-worker live workflows and broad compaction/model compatibility
-were not established by this matrix.
+Run `make install`, `make check`, and `make package-smoke` for provider-free
+checks. `make runtime-smoke` starts the real OpenCode executable without a model
+prompt. On Linux, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make
+interop-test` verifies the separate guarded interop path. `make demo` and Linux
+`make e2e` require explicit live authorization, reviewed isolation, provider
+access and the official A2A CLI; never silently substitute provider-free evidence.
 
-Reproduce on the digest-verified pair, with both executable directories first on
-`PATH` and provider access supplied securely only for the live command:
-`BUN_DIR` is the directory containing the reviewed Bun executable;
-`OPENCODE_BIN` is the absolute reviewed OpenCode executable path.
+The [isolation verifier](../scripts/acp-smoke-config.ts) creates private HOME,
+XDG and workspace state, verifies configuration, disables tools/plugins and
+excludes inherited overrides. It refuses managed `/etc/opencode`; private service
+and HTTP listeners use loopback and ephemeral ports. This is **configuration
+isolation, not an OS sandbox**. Do not publish raw prompts, credentials, provider
+diagnostics or private reasoning. Cleanup must verify owned resources; stopping a
+client is not proof of remote cancellation.
 
-```sh
-make install
-make check LINT_FLAGS='--format github' TEST_FLAGS='--coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage --reporter=junit --reporter-outfile=.test-results/junit.xml'
-make package-smoke
-A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test
-ACP_SMOKE_OPENCODE="$OPENCODE_BIN" bun tests/acp-runtime-acceptance.ts
-env -i PATH="$BUN_DIR:/usr/bin:/bin" bun scripts/bun-tls-probe.ts
-env -i PATH=/usr/bin:/bin BUN_BE_BUN=1 "$OPENCODE_BIN" scripts/bun-tls-probe.ts
-ACP_SMOKE_OPENCODE="$OPENCODE_BIN" make e2e
-```
+## Official A2A TCK
 
-Private HOME/XDG state, bind-checked service ports and same-server configuration/
-catalog verification precede live prompts. No existing listener/service was stopped.
-The SDK cancellation adapter remains byte-identical to the baseline.
-Seven pre-existing structural lint warnings remain. Earlier startup failures on
-baseline/candidate runtimes and the original interop CI failure are retained,
-not relabeled passes: follow-ups [#63](https://github.com/tbrandenburg/opencode-a2a-lite/issues/63)
-and [#64](https://github.com/tbrandenburg/opencode-a2a-lite/issues/64) remain open.
-The final passing run does not establish that those intermittent failures are fixed.
-Unrelated package-version documentation drift is tracked in
-[#62](https://github.com/tbrandenburg/opencode-a2a-lite/issues/62).
+A historical, separately scoped applicable A2A 1.0 JSON-RPC TCK run passed
+**17 tests, with one inapplicable test deselected**. A broader initial MUST run
+reported **63 passed, 5 failed and 166 skipped**. The failures expected canned
+scenario output or rich/direct-message responses not implemented by this text-only
+gateway; skips are not passes. **Full TCK conformance is not claimed.**
 
-Initial hosted CI exposed a separate fixture portability defect: 7/80 tests
-failed because the local harness pre-created `/tmp/opencode`, while fresh runners
-did not. The original failed runs are
-[push CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863107874)
-and [PR CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/runs/42863144074).
-This missing-parent failure is not the scheduling/timing issue tracked in #64.
-The focused fix uses `tmpdir()` plus `mkdtemp` and changes only two unit-test
-files. Coordinator verification at **2026-11-10T17:23:14Z** passed 12/12 focused
-tests with an empty container `/tmp`, then 12/12 with a custom `TMPDIR`; fixture
-cleanup passed and `/tmp/opencode` was never created. The container used
-`--rm --init --network none --read-only`, read-only source/Bun mounts and
-`--tmpfs /tmp:rw,exec,mode=1777` because the candidate fixture executes scripts.
-An initial coordinator probe without `exec` failed that script-execution
-precondition and is not counted as a passing portability run. The subsequent
-CI-equivalent coordinator check passed 80/80 tests and 567 assertions again.
-Production, scripts and live acceptance helpers remained byte-identical to the
-14/14 live run; no second paid run is inferred or claimed from unit results.
+The external TCK must be a clean checkout of revision
+`d4d6fae7887f88ef607fb461c13e3b0e1802f19b` with its frozen `.venv`; run
+`TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck` on Linux with explicit
+authorization and provider access for the isolated gateway. Missing or wrong
+prerequisites fail rather than skip. The [original methodology, exact
+selection and limitations](https://github.com/tbrandenburg/opencode-a2a-lite/blob/519075932bb8398b76407127bac593af2e29687b/docs/acceptance.md#official-tck-external-dependency-only)
+remain in Git.
 
-Tested source-tree SHA-256 (`src/`, 8 files):
-`a091b58bb468db0c2d5eb6150402bdc2c06db72efca80da48d43eb08e45eaa38`.
-Live-run source plus acceptance/probe files (`src/`, `tests/`, `scripts/`, 51 files):
-`af5319aab496fc1fe759a96f90b374f27e3ea66f994bc411a28acdb5af097cf2`.
-After the two unit-fixture portability edits, the same 51-file tree hashes to
-`c3879c9211354695ba2fb880855ce8ef887dfca7f3316f9d8a4889bfe9bc9ed6`.
-These use the path-and-bytes hashing recipe below; later documentation-only edits
-do not change these identities.
+## Other historical results
 
-Runtime upgrade validation for issues #60/#61 is recorded in
-[Bun security evidence](/docs/bun-runtime-security.md) and
-[OpenCode compatibility evidence](/docs/opencode-runtime-upgrade.md).
-The dated results below retain their original runtime pair and source identity;
-they are historical evidence, not acceptance of the upgraded executables.
-
-## Historical finite live diagnostics follow-up (issues #19 and #27)
-
-E2E02 now identifies `cli`, `decode`, `completed`, `exact-text`, or `handles`;
-E2E06 identifies `async-cli`, `decode`, `handles`, `first-text`, `busy-rejection`,
-or `original-working` (each prefixed by its scenario ID). Failures retain only
-that allowlisted criterion, a finite error category, normalized last task state,
-task/context presence and text-presence booleans, monotonic elapsed milliseconds,
-and nullable first-observed-text milliseconds. A separate nullable cleanup category
-preserves cleanup failure without replacing the primary criterion. No raw IDs,
-assertion values, exception names/messages, CLI output or model/provider text is retained.
-
-First text is observed by polling, not timestamped at backend emission. An
-`observation-deadline` means observation incomplete and cause unknown, not proven
-latency or a protocol violation. An `exact-text` assertion is an oracle failure,
-not an SDK/provider attribution. CLI timeout, numeric exit, decode, assertion,
-cleanup and unknown errors remain distinct; expected failed-task responses remain valid.
-The 14-scenario ordering, original assertions, 120s CLI/130000ms exec limits,
-90000ms observation deadline and no-retry behavior remain. Provider-free regression
-tests exercise these diagnostics; **a new paid `make e2e` run is pending a separate
-explicit decision**. These changes do not explain or replace the historical failures
-in [authorized live evidence](https://github.com/tbrandenburg/opencode-a2a-lite/blob/c0f718d27728d8941f06ecf4b0554b8ecb1c58c9/docs/authorized-live-acceptance.md) or issues #19/#27.
-
-## Safeguard follow-up verification
-
-Coordinator verification at **2026-10-26T08:54:36Z** for issues #1 and #2:
-
-- CI-equivalent `make check` with native coverage/JUnit passed **131 tests,
-  0 failures, 583 assertions across 9 files**, plus formatting, lint, strict
-  types and build. The measured test process took 35.397s; this is an observation,
-  not a runtime budget. Six pre-existing structural findings remain warnings.
-- JUnit contained 131 test cases and zero failures/errors; LCOV included the four
-  expected production modules. Production remains 4 files / 801 physical lines;
-  deterministic test files are 9 files / 1,733 physical lines, excluding fixtures.
-- A deliberately failing test in a disposable directory made the real test
-  wrapper exit 1 and record exit 1. The probe was removed; no failure was hidden.
-- `make e2e` passed **14/14 real-model production-entrypoint scenarios** after
-  integration and adversarial review. Production source remained unchanged; its
-  source-tree hash still matches the four-file hash recorded below.
-- After integration, `bun tests/live-cancellation.ts` passed with real root text,
-  confirmed cancellation, stored canceled state and owned-process cleanup.
-  A loopback port-0 bind checked free-port allocation before each live gate;
-  no existing service was stopped.
-- `bun test ./tests/server.test.ts --rerun-each=5` passed 85 tests / 355 assertions
-  without retries. Both independent adversarial reviews returned zero findings.
-  A final `/proc` ownership check found zero remaining live-acceptance processes.
-- Hosted CI exposed duplicated annotations from replaying captured workflow
-  commands. A reporting-only follow-up retained complete summary/artifact
-  diagnostics while suppressing their replay on stdout; a coordinator probe
-  confirmed six retained diagnostics and zero re-emitted annotation commands.
-
-The stock SDK defect is reported as
-[a2aproject/a2a-js#798](https://github.com/a2aproject/a2a-js/issues/798).
-[Cancellation evidence](/docs/sdk-cancellation.md) keeps issue #1 open until a
-fixed official SDK release passes its removal gate.
-[Quality measurements](/docs/quality-baseline.md) distinguish native function/line
-coverage from unmeasured branch coverage and mutation score. The remaining
-sections preserve the original MVP acceptance evidence and its historical counts.
-
-## Outcome and limits
-
-The real production-entrypoint acceptance gate passed **14/14 scenarios**.
-The separately scoped official A2A 1.0 JSON-RPC TCK gate passed **17 tests,
-0 failures, 0 skips**, with one explicitly deselected inapplicable test.
-**Full TCK conformance is not established:** the initial broader MUST run had
-**63 passed, 5 failed, 166 skipped** (234 reported test cases).
-
-Live file-write denial passed with zero recorded tool calls and an absent target
-file. A live ACP permission callback was **not established**: denied configuration
-can remove tools before the model calls them. Callback rejection is verified by
-the deterministic real-ACP-subprocess tests, not represented as live-model evidence.
-This is configuration isolation, not an operating-system sandbox.
-
-Last verified by the coordinator: **2026-10-26T07:28:38Z**, following a complete
-`make install`, `make check`, `make demo`, `make e2e`, and applicable TCK rerun.
-The source hashes below identify the exact tested production implementation.
-The implementation commit is recorded in the publication section after committing;
-later documentation-only changes do not change those source hashes.
-
-Production source-tree SHA256 (`src/`, four files):
-`3009fae7cc17278d2a658278f962562afd3b7ca57c543c6cbdbbb49c0f125dd5`.
-Source plus acceptance/probe files (`src/`, `tests/`, `scripts/`, 22 files):
-`f165ecaf7dcbb22d12fd8edbd28d7e5c109d62ff76c9e9d9729d915719edee53`.
-The hash includes relative paths and bytes, not generated `dist/` output:
-
-```sh
-python3 - <<'PY'
-from pathlib import Path
-import hashlib
-digest = hashlib.sha256()
-roots = ('src',)  # Use ('src', 'tests', 'scripts') for the second hash.
-for file in sorted(path for root in roots for path in Path(root).rglob('*') if path.is_file()):
-    digest.update(str(file).encode() + b'\0' + file.read_bytes() + b'\0')
-print(digest.hexdigest())
-PY
-```
-
-## Historical exact versions and reproduction
-
-| Component                              | Verified version                                             |
-| -------------------------------------- | ------------------------------------------------------------ |
-| Bun                                    | 1.3.9 (`cf6cdbbb`)                                           |
-| OpenCode                               | `opencode v2.0.28` (enforced by isolation helper and bridge) |
-| Official `a2aproject/a2a-cli`          | `a2a version v0.3.1`                                         |
-| Model                                  | `openai/gpt-6-luna`                                          |
-| A2A wire protocol / ACP                | 1.0 / 1                                                      |
-| A2A JS SDK                             | `@a2a-js/sdk` 1.3.0                                          |
-| ACP JS SDK                             | `@agentclientprotocol/sdk` 2.0.2                             |
-| Express / TypeScript                   | 5.3.0 / 7.0.2                                                |
-| Official TCK                           | 1.0.0, revision `d4d6fae7887f88ef607fb461c13e3b0e1802f19b`   |
-| External TCK Python / uv               | CPython 3.13.9 / uv 0.12.7                                   |
-| External TCK pytest / httpx / protobuf | 9.0.2 / 0.28.1 / 6.33.5                                      |
-
-On Linux, install the pinned tools and provide `OPENAI_API_KEY` securely in the
-environment. Neither a key nor inherited environment contents are logged.
-
-```sh
-make install
-make check
-make e2e
-```
-
-Expected summaries:
-
-```text
-93 pass
-0 fail
-376 expect() calls
-Ran 93 tests across 7 files.
-{"liveAcceptance":true,"passed":14,"failed":0}
-```
-
-[`tests/e2e.ts`](/tests/e2e.ts) is an executable, deliberately not named
-`*.test.ts`; `bun test ./tests` does not discover paid acceptance runs. `make e2e`
-builds and runs the compiled [`src/server.ts`](/src/server.ts) production
-entrypoint. The live probes are not mocked. The deterministic suite separately
-uses a controlled ACP subprocess peer and is not labelled E2E.
-
-The shared [`isolation verifier`](/scripts/acp-smoke-config.ts) creates a private
-HOME/XDG/workspace, permits exactly one verified configuration document, denies
-tools, and excludes inherited provider overrides, plugins, instructions, skills,
-MCP sources and shared-service discovery. Managed `/etc/opencode` causes a refusal.
-Each HTTP server and private service uses port 0. Requests/readiness/shutdown have
-deadlines; the official CLI receives only isolated HOME and PATH, not provider
-credentials. CLI success means a valid protocol exchange, **not** successful task
-completion: negative cases inspect `TASK_STATE_FAILED`, its safe diagnostic, and
-empty artifacts. Provider stderr/reasoning and private diagnostics are not printed.
-
-## Scenario matrix
-
-| ID    | Real scenario and assertions                                                                                                                                                                                                  | Recorded outcome                                                                        |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| E2E01 | Production readiness; official CLI card; streaming advertised; one JSONRPC interface at protocol 1.0; OS-assigned port                                                                                                        | Passed                                                                                  |
-| E2E02 | Nonstream CLI prompt; random exact marker; completed task with real task/context IDs                                                                                                                                          | Passed                                                                                  |
-| E2E03 | Stream CLI JSONL through existing independent jq verifier; submitted snapshot, working, stable identities/artifact, append ordering, final empty chunk, exactly one completion; stored text equals marker without duplication | Passed                                                                                  |
-| E2E04 | Follow-up uses actual first context; recalls marker; same context and different task ID; completed                                                                                                                            | Passed                                                                                  |
-| E2E05 | Second separate context and follow-up recall its own random marker, not the first marker; completed                                                                                                                           | Passed                                                                                  |
-| E2E06 | Real 8000-word prompt produces text while working; concurrent new-context request returns busy failed task without artifacts; original still working                                                                          | Passed                                                                                  |
-| E2E07 | Official CLI cancels the genuinely active task; stored terminal is canceled; partial text retained; completion-race branch requires honest not-cancelable response                                                            | Passed: **true cancellation**, not a completion race                                    |
-| E2E08 | Ask model to write a disposable file, verify absence before/after; completed explanatory text; read only assistant content-type/count metadata across its fresh isolated session                                              | Passed: **0 recorded tool calls**, content types reasoning/text; no live callback claim |
-| E2E09 | Unknown explicit context fails with no artifacts; fresh context completes with expected text                                                                                                                                  | Passed                                                                                  |
-| E2E10 | Wait for real active text; locate exactly one direct ACP child of the owned gateway by PPid, cwd and argv; SIGKILL that PID only; task fails; context invalidates; zero replacement ACP children                              | Passed; no automatic restart/resend observed                                            |
-| E2E11 | Stop and restart production process; old context fails; new context completes with expected text and new ID                                                                                                                   | Passed                                                                                  |
-| E2E12 | Data-only input fails with text-only diagnostic and no artifacts; subsequent valid random-marker text completes                                                                                                               | Passed                                                                                  |
-| E2E13 | Separate private HOME/service with deliberately invalid OpenAI credential; async task reaches failed, never completed; no credential text in artifacts                                                                        | Passed                                                                                  |
-| E2E14 | SIGTERM production gateway during a real active text task; process exits; listener refuses connection; exact temporary-root `/proc` checks finish before temporary directories are removed                                    | Passed                                                                                  |
-
-Cleanup runs in `finally`, checks `/proc` cwd ownership against exact temporary
-roots, waits for the private lease to stop, and refuses removal while owned-root
-processes remain. The child-death probe never signals a name-matched process or
-an unrelated service. The three isolated workspaces must each report
-`{"cleanup":true,"processesStopped":true}` before the final success record.
-
-Initial harness development exposed two test assumptions, not production defects:
-the CLI correctly exits 0 for a failed task, and a bare requested response token
-once elicited “Understood.” The gate now checks task state/diagnostics and uses a
-random remember-marker prompt for recovery. Successful evidence comes from a
-fresh complete rerun; partial earlier runs are not counted as acceptance passes.
-
-## Official TCK, external dependency only
-
-The current official main branch supports A2A 1.0, including `supportedInterfaces`
-and `SendMessage`/`SendStreamingMessage`. The remote also exposes legacy `0.3.x`
-and `0.3.0-beta-x` branches; no downgrade or protocol rewrite was used.
-
-Install outside the gateway repository (the gateway remains TypeScript-only):
-
-```sh
-git clone https://github.com/a2aproject/a2a-tck.git /tmp/opencode/a2a-tck-acceptance
-git -C /tmp/opencode/a2a-tck-acceptance checkout d4d6fae7887f88ef607fb461c13e3b0e1802f19b
-uv sync --frozen --project /tmp/opencode/a2a-tck-acceptance
-TCK_DIR=/tmp/opencode/a2a-tck-acceptance make e2e-tck
-```
-
-The runner requires that exact clean tracked revision and its `.venv/bin/python`;
-missing installation or an unexpected revision fails nonzero. No silent skip is
-implemented. The gateway is real, isolated and ephemeral as in `make e2e`.
-
-The applicable gate invokes the **unmodified official pytest tests** directly:
-
-```sh
-.venv/bin/python -m pytest --sut-host "$SUT_URL" --transport jsonrpc -m must \
-  tests/compatibility/agent_card/test_agent_card.py \
-  tests/compatibility/jsonrpc/test_error_codes.py \
-  tests/compatibility/jsonrpc/test_sse_streaming.py::TestSseStreamingFormat \
-  tests/compatibility/jsonrpc/test_sse_streaming.py::TestSseSubscribeToTask::test_subscribe_nonexistent_task_returns_error \
-  -k 'not unsupported_operation_error' -q \
-  --compatibility-report=reports/applicable --junitxml=reports/applicable.xml
-```
-
-`SUT_URL` above is the actual port-0 readiness URL; `make e2e-tck` supplies it.
-Result: **17 passed, 1 deselected**. JUnit additionally enforces exactly 17 tests,
-zero failures/errors/skips. The deselected test tries to trigger unsupported
-streaming on a server that advertises streaming, so its precondition is false.
-Coverage: card retrieval/schema/interfaces, JSON-RPC error codes and ranges
-(missing task/cancel, unsupported push, wrong content type, unsupported version),
-SSE JSON-RPC envelope/StreamResponse schema, missing-task subscription error.
-
-The initial command used official `run_tck.py --transport jsonrpc --level must`
-with explicit test paths after `--`. At this revision `run_tck.py:34-70` always
-prepends `tests/compatibility/`, so paths **add** to rather than restrict collection.
-The exact initial invocation (from the external clone, against its live readiness
-URL) was:
-
-```sh
-.venv/bin/python run_tck.py --sut-host "$SUT_URL" --transport jsonrpc --level must -- \
-  tests/compatibility/agent_card/test_agent_card.py \
-  tests/compatibility/jsonrpc/test_error_codes.py \
-  -k 'not unsupported_operation_error' -q
-```
-
-Its real result was 63 passed, 5 failed, 166 skipped. The failures were:
-
-1. `TestTextArtifact::test_task_has_text_artifact[jsonrpc]`: expects literal
-   `Generated text content` for `TCK artifact test`.
-2. `TestFileArtifact::test_task_has_file_artifact[jsonrpc]`: expects raw file and `output.txt`.
-3. `TestFileUrlArtifact::test_task_has_file_url_artifact[jsonrpc]`: expects URL file and `output.txt`.
-4. `TestDataArtifact::test_task_has_data_artifact[jsonrpc]`: expects a particular JSON data part.
-5. `TestMessageResponse::test_returns_message_with_text_part[jsonrpc]`: expects a direct Message, not a Task.
-
-Those tests target the generated TCK scenario SUT's canned responses/message IDs;
-this text-only live-model gateway does not implement that behavior. No test or
-gateway was changed to fake those responses. The 166 skips are the external TCK's
-own transport/scenario prerequisite decisions, not passes. Detailed initial and
-applicable reports remain under the external clone's `reports/`; raw reports are
-not copied here because they include host metadata and model text. The applicable
-subset is useful protocol evidence, **not** a full certification. The TCK's
-aggregate percentage includes unexecuted registry requirements and is not quoted
-as the percentage of this subset passing.
-
-## Size, state ownership and scope comparison
-
-Compared against a fresh read-only clone of
-[`tbrandenburg/opencode-a2a`](https://github.com/tbrandenburg/opencode-a2a), revision
-`7c67017cd863347995884064d87c61848d79c1be`. No fork code was modified or executed.
-Counts use production `src/**/*.ts` for lite and `src/**/*.py` for the fork,
-excluding tests, generated build output, dependencies and documentation.
-
-| Measure                                           | Lite working tree                      | Pinned Python fork                                |
-| ------------------------------------------------- | -------------------------------------- | ------------------------------------------------- |
-| Production source files                           | 4                                      | 95                                                |
-| Physical source lines, including comments/blanks  | 801                                    | 21,781                                            |
-| Nonblank source lines (not compiler semantic LOC) | 766                                    | 19,630                                            |
-| Direct required runtime dependencies              | 3                                      | 14                                                |
-| Transport to OpenCode                             | Persistent official ACP SDK subprocess | Native HTTP V2 adapter/event hub/execution engine |
-
-Lite's complete production file inventory: `src/acp-client.ts` 332 lines,
-`src/executor.ts` 223, `src/request-handler.ts` 60, `src/server.ts` 186. These four
-TypeScript modules are compiled by `make build`; test/script output in `dist/`
-is excluded. Counts can be reproduced using `Path('src').rglob('*.ts')` or
-`rglob('*.py')`, `read_text().splitlines()` and `bool(line.strip())`.
-
-Lite's dependencies are `@a2a-js/sdk`, `@agentclientprotocol/sdk`, and `express`.
-The fork's 14 required declarations in `pyproject.toml:27-47` are `a2a-sdk`,
-`aiosqlite`, `certifi`, `click`, `fastapi`, `httpx`, `pydantic`,
-`pydantic-settings`, `protobuf`, `pyasn1`, `sqlalchemy`, `sse-starlette`,
-`urllib3`, and `uvicorn`. This compares direct declarations, not transitive package
-counts, OpenCode's dependencies, deployment size, or security quality.
-
-State ownership is simpler because scope is narrower, not because state vanished:
-
-- Lite owns ACP transport/turn/cancel/shutdown state in `acp-client.ts:18-332`,
-  context/session bindings and one admission slot in `executor.ts:32-223`, and
-  task-store cancellation synchronization in `request-handler.ts:11-60`.
-  The official SDK owns wire parsing, task storage, event buses and SSE.
-- The fork additionally maintains native invocation enqueue/delivery/terminal and
-  abort settlement (`upstream/v2_execution.py:49-99`), subscription/event correlation
-  (`upstream/v2_events.py`), rich text/reasoning/tool chunk assembly and caches
-  (`execution/stream_state.py:16-84`), identity/workspace-aware execution setup
-  (`execution/coordinator.py:63-100`), persisted session/owner/interrupt bindings
-  (`server/state_store.py:37-74`), and interrupt expiry/tombstone resolution
-  (`interrupt_request_tracker.py:9-75`, `runtime_state.py:7-23`). This is a named
-  state-area comparison, not a purported numeric count of finite-state machines.
-
-Correctness evidence here covers lite's enumerated matrix plus deterministic
-regressions, not the fork. Smaller LOC does not prove a more correct implementation.
-Lite deliberately omits authentication/multi-tenancy, persisted restart recovery,
-workspace routing, rich file/data/reasoning/tool outputs, interactive approval,
-push notifications, deployment hardening, parallel turns and native HTTP recovery.
-It is loopback-only; contexts/task storage remain memory-only, and a failed bridge
-requires a new gateway instance. ACP's lack of a stable turn ID and escaped-process
-limitations remain as described in the [README](/README.md). These omissions and
-the live-callback/full-TCK limits preclude a claim of feature parity or unrestricted
-production readiness.
-
-## Follow-up tracking
-
-- [SDK cancellation workaround](https://github.com/tbrandenburg/opencode-a2a-lite/issues/1): remove the narrow adapter only after upstream fixes and regression verification.
-- [Quality-drift baseline](https://github.com/tbrandenburg/opencode-a2a-lite/issues/2): measure structural gates before extending the MVP; no extra infrastructure is part of this implementation.
-
-## Publication identity
-
-Tested implementation commit: `7914804242bd7a75779a2232f5c3320a130f2d5a`.
-This documentation-only follow-up records that commit without modifying the
-tested production, test, or script source trees. The hashes above remain unchanged.
-Remote CI results are recorded in the implementation PR rather than inferred from
-local checks. This first subprocess/security-boundary implementation is left open
-for maintainer review rather than automatically merged as a low-risk change.
+The [historical research index](history.md) retains the retired managed lab's
+failures, bounded observations and original reports. Retirement does not mean
+those failures were fixed. The [SDK cancellation removal gate](sdk-cancellation.md)
+remains separate from all live-model results. The archived acceptance document
+also retains older source hashes, diagnostics, test matrices and comparison data;
+its counts and runtime pins are not the current release contract.
