@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
@@ -29,7 +29,9 @@ test("production PATH executes the exact candidate instead of a different inheri
       const env = candidateEnvironment(workspace);
       const result = await exec("opencode", ["acp"], { cwd: root, env, timeout: 2_000 });
       expect(result.stdout).toBe("candidate:acp");
-      expect(readlinkSync(join(env.PATH.split(":")[0]!, "opencode"))).toBe(executable);
+      expect(realpathSync(join(env.PATH.split(":")[0]!, "opencode"))).toBe(
+        realpathSync(executable),
+      );
       expect(workspace.env.PATH).toBe(baseline);
     }
     expect((await exec("opencode", ["acp"], { env: { PATH: baseline } })).stdout).toBe(

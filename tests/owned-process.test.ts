@@ -91,8 +91,8 @@ async function reclaimed(port: number) {
       );
       await expect(result).rejects.toBe(primary);
       expect(diagnostics(primary)).toHaveProperty("cleanupErrorCategory", "cleanup");
-      expect(() => process.kill(owner.child.pid!, 0)).toThrow("No such process");
-      expect(() => process.kill(leased.pid, 0)).toThrow("No such process");
+      assert.throws(() => process.kill(owner.child.pid!, 0), { code: "ESRCH" });
+      assert.throws(() => process.kill(leased.pid, 0), { code: "ESRCH" });
       await reclaimed(leased.port);
       expect(process.kill(unrelated.pid, 0)).toBe(true);
       await expect(reclaimed(unrelated.port)).rejects.toHaveProperty("code", "EADDRINUSE");

@@ -2,7 +2,7 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.1.4**. Public npm
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.4**. Public npm
 access is configured, but authenticated namespace ownership and actual registry
 acceptance are not established. Historically, the maintainer authorized public
 distribution of version 0.1.1 and removal of `private: true`
