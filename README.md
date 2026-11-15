@@ -133,7 +133,7 @@ and runtime-selected workspaces are not claimed.
 | `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)        |
 | `make e2e`                                                             | Production live-model acceptance (**live, billable**)                |
 | `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                   |
-| `make release BUMP=patch`                                              | Check, commit and push a tag to trigger npm publication and a GitHub release |
+| `make release BUMP=patch`                                              | Push tag for npm and GitHub release                                 |
 | `make clean`                                                           | Remove build, coverage and test results                              |
 
 CI checks deterministic tests, the provider-free team launcher fixtures, installed
