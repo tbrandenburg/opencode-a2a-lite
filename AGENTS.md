@@ -10,7 +10,7 @@ adapter correctness. Do not add production schedulers, roles, scorers, model
 profiles, retries or new dependencies to restore the retired managed lab.
 
 Start with [README](README.md), [architecture](docs/architecture.md),
-[pitfalls](docs/pitfalls.md), and [SDK cancellation constraints](docs/sdk-cancellation.md).
+and [SDK cancellation constraints](docs/sdk-cancellation.md).
 The [historical index](docs/history.md) records the retired lab and unresolved
 findings; retirement does **not** mean failures have been fixed.
 

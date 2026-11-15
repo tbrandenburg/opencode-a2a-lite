@@ -38,6 +38,24 @@ HTTP client disconnect and is not a supported takeover mechanism. See
 [SDK cancellation evidence](/docs/sdk-cancellation.md) before changing the
 adapter or the transport's stream-consumption lifecycle.
 
+## Operational pitfalls
+
+- An explicitly selected workspace is not a sandbox. The gateway runs OpenCode
+  as the invoking user, inherits configuration, tools, plugins and MCP, and
+  rejects only permission requests that actually reach its ACP callback. Review
+  effective configuration; use OS isolation when the workspace or callers are untrusted.
+- The HTTP listener has no authentication. Keep it on loopback and never expose it
+  through a public proxy; loopback alone is not protection from other local users.
+- ACP stdout is protocol-only. Drain stderr without publishing provider diagnostics.
+  Use the prompt response, not quiet output or HTTP admission, as the completion signal.
+- A timeout or dispatched cancellation is not confirmed cancellation. Preserve
+  the original task outcome and context binding; never retry an uncertain prompt.
+- Close owned subprocess groups and listeners without affecting unrelated services.
+  OpenCode's private lease needs stdin EOF and a grace period before escalation.
+  Process-group probe `EPERM` is inconclusive, not proof of cleanup.
+- Private HOME and workspace configuration alone do not prove isolation. Check
+  effective configuration and all inherited sources before a live prompt.
+
 ## Deliberately unsupported
 
 OpenCode HTTP adapters, ACP v2, rich file/image inputs, reasoning/tool output, interactive permission/forms, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.

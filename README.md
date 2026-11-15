@@ -24,6 +24,12 @@ A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ 
 > exposed through a public proxy. It inherits OpenCode configuration, tools, plugins and MCP. Rejecting ACP
 > permission requests is **not** an OS sandbox, and cancellation does not roll back work.
 
+Choosing a workspace is an explicit trust decision, not a filesystem boundary:
+OpenCode runs as the invoking user and can access resources permitted to that user.
+For stronger isolation use a separately secured VM or container with minimal
+workspace mounts, credentials and network access. The isolated demo uses a private
+HOME/configuration, but is not an OS sandbox.
+
 ## Contents
 
 - [Quick start](#quick-start)
@@ -121,7 +127,7 @@ reusing the ACP session for that context.
   SDK-owned; the small [request-handler adapter](src/request-handler.ts) is retained
   for a documented upstream cancellation persistence defect.
 
-See [architecture](docs/architecture.md), [pitfalls](docs/pitfalls.md) and
+See [architecture and implementation pitfalls](docs/architecture.md) and
 [SDK cancellation removal criteria](docs/sdk-cancellation.md).
 Full A2A TCK certification, interactive approval, rich media, push notifications
 and runtime-selected workspaces are not claimed.
@@ -154,7 +160,8 @@ Live demo/E2E are explicit manual commands requiring a provider key,
 OpenCode and the official A2A CLI; `make demo` also needs `jq` and GNU `timeout`.
 On macOS its isolated workspace cleanup additionally uses `/usr/sbin/lsof`.
 For the exact live evidence/limitations see [acceptance](docs/acceptance.md).
-For quality measurement see [quality baseline](docs/quality-baseline.md).
+`bun scripts/quality-report.ts` summarizes the latest local measurements;
+native line/function coverage is not branch coverage or a correctness guarantee.
 
 ## Multi-agent coordination
 
@@ -167,9 +174,8 @@ For a manually owned model-issued MCP → A2A flow use the
 [explicit two-worker pipeline recipe](docs/manual-two-worker-pipeline.md) and
 [passive supervision](docs/passive-mcp-supervision.md). The
 [portable OpenCode multi-agent skill](.opencode/skills/multi-a2a-agent/SKILL.md)
-includes eight topology procedures; the
-[topology study pages](docs/topology-studies/topology-pipeline.md) contain scoped
-observations, not proof of general reliability.
+includes eight topology procedures. The [historical research index](docs/history.md)
+links scoped observations, not proof of general reliability.
 
 The managed network/topology research lab has been **retired, not fixed**. Its
 original failures and unverified outcomes are linked in the
