@@ -86,17 +86,17 @@ use `make dev` for development.
 
 ### Package distribution
 
-`@tbrandenburg/opencode-a2a-lite` is released on GitHub (see the release badge above).
-**npm registry publication has not been verified**; do not assume these work until
-the scope/registry is checked:
+`@tbrandenburg/opencode-a2a-lite` is published on npm; registry publication and
+the installed CLI were verified for version 0.2.5. To run that version:
 
 ```sh
-bunx @tbrandenburg/opencode-a2a-lite --workspace .
-npx --yes @tbrandenburg/opencode-a2a-lite --workspace .
+npx --yes @tbrandenburg/opencode-a2a-lite@0.2.5 --workspace .
 ```
 
-Both runners still require Bun. `make package-smoke` tests an installed tarball,
-**not** registry publication. See [distribution and release policy](docs/distribution.md).
+The package requires Node.js 22 or newer to use `npx`, plus Bun 1.4.4 and
+OpenCode 2.2.7 or newer on `PATH`. `bunx` can be used instead of `npx` where Bun
+is installed. See [distribution and release policy](docs/distribution.md) for
+verification scope and release details.
 
 ## Behavior and limitations
 

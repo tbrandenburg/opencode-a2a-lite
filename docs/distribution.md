@@ -2,15 +2,12 @@
 
 ## Status and package contract
 
-`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.4**. Public npm
-access is configured, but authenticated namespace ownership and actual registry
-acceptance are not established. Historically, the maintainer authorized public
-distribution of version 0.1.1 and removal of `private: true`
-([PR #8](https://github.com/tbrandenburg/opencode-a2a-lite/pull/8)); that
-authorization does not establish publication or authorize a different version.
-Do not publish to npm until ownership and authorization for the intended version
-are verified, or mark issue #6 complete based only on a local tarball or a GitHub
-release.
+`@tbrandenburg/opencode-a2a-lite` is at repository version **0.2.5**, and npm
+registry publication of 0.2.5 is verified. The registry reports the package
+version and tarball integrity; `npx` installation was verified with both `--help`
+and a gateway startup/Agent Card check in a trusted workspace. This does not
+establish live model completion or complete release acceptance; do not claim
+those based only on registry publication, CLI help, or an Agent Card.
 
 Supported runtime: Linux, Bun 1.4.4, stable `opencode` v2.2.7 or newer on PATH, an existing
 explicitly trusted workspace, and reviewed provider/model configuration. npm/npx
