@@ -10,6 +10,8 @@ import {
 import type { Activity } from "./activity.js";
 import type { createAcpBridge } from "./acp-client.js";
 import { BridgeError } from "./bridge-error.js";
+import { createPermissionDesk } from "./permission-desk.js";
+import { parseAnswer, type PermissionRequest } from "./permission.js";
 
 export type ExecutorBridge = Pick<
   ReturnType<typeof createAcpBridge>,
@@ -21,9 +23,21 @@ export const EXPLICIT_CONTEXT = "opencode.explicitContext";
 export interface ExecutorOptions {
   maxContexts?: number;
   activity?: boolean;
+  permissions?: "ask";
+  permissionTimeoutMs?: number;
 }
 
 export const ACTIVITY_EXTENSION = "urn:opencode-a2a-lite:activity:v1";
+export const PERMISSIONS_EXTENSION = "urn:opencode-a2a-lite:permissions:v1";
+
+function permissionPart(requestId: string, request: PermissionRequest): Part {
+  return {
+    content: { $case: "data", value: { permission: { requestId, ...request } } },
+    mediaType: "application/json",
+    filename: "",
+    metadata: undefined,
+  };
+}
 
 function dataPart(value: Activity): Part {
   return {
@@ -50,6 +64,7 @@ export function createAgentExecutor(
   const maximum = options.maxContexts ?? 100;
   if (!Number.isSafeInteger(maximum) || maximum < 1) throw new Error("Invalid context capacity");
   const sessions = new Map<string, string>();
+  const desk = createPermissionDesk(options.permissionTimeoutMs ?? 120_000);
   type Active = {
     taskId: string;
     sessionId?: string;
@@ -57,6 +72,29 @@ export function createAgentExecutor(
     cancellation?: Promise<void>;
   };
   let active: Active | undefined;
+
+  // Handles a message that answers a pending permission request; true when it was consumed.
+  async function resume(
+    ctx: RequestContext,
+    status: (state: TaskState, text?: string, extra?: Part[]) => void,
+  ): Promise<boolean> {
+    const state = ctx.task?.status?.state;
+    const entry = desk.pending(ctx.taskId);
+    if (!entry) {
+      // A live task must not be failed by a stray follow-up; the snapshot is the whole reply.
+      return (
+        state === TaskState.TASK_STATE_WORKING || state === TaskState.TASK_STATE_INPUT_REQUIRED
+      );
+    }
+    const answer = parseAnswer(ctx.userMessage.parts, entry.requestId, entry.options);
+    if ("error" in answer) {
+      status(TaskState.TASK_STATE_INPUT_REQUIRED, `${answer.error}. Reply allow or reject.`);
+      return true;
+    }
+    entry.settle(answer.optionId);
+    await entry.finished;
+    return true;
+  }
 
   async function execute(ctx: RequestContext, bus: ExecutionEventBus): Promise<void> {
     const taskId = ctx.taskId;
@@ -67,8 +105,9 @@ export function createAgentExecutor(
     let emitted = false;
     let activityEmitted = false;
     let terminal = false;
+    const finished = Promise.withResolvers<void>();
 
-    function status(state: TaskState, text?: string) {
+    function status(state: TaskState, text?: string, extra: Part[] = []) {
       bus.publish(
         AgentEvent.statusUpdate({
           taskId,
@@ -82,7 +121,7 @@ export function createAgentExecutor(
                   taskId,
                   contextId,
                   role: Role.ROLE_AGENT,
-                  parts: [textPart(text)],
+                  parts: [textPart(text), ...extra],
                   metadata: undefined,
                   extensions: [],
                   referenceTaskIds: [],
@@ -137,8 +176,15 @@ export function createAgentExecutor(
       activityEmitted = true;
     }
 
+    function clearPending() {
+      if (meta["opencode.permissionPending"] !== "true") return;
+      meta["opencode.permissionPending"] = "false";
+      meta["opencode.permissionRequestId"] = "";
+    }
+
     function finish(state: TaskState, text?: string) {
       terminal = true;
+      clearPending();
       if (emitted) chunk("", true);
       if (activityEmitted) activity();
       status(state, text);
@@ -160,6 +206,8 @@ export function createAgentExecutor(
         },
       ),
     );
+
+    if (options.permissions === "ask" && ctx.task && (await resume(ctx, status))) return;
 
     const message = ctx.userMessage;
     if (ctx.task || message.referenceTaskIds.length) {
@@ -231,6 +279,23 @@ export function createAgentExecutor(
               if (!terminal) activity(entry);
             }
           : undefined,
+        options.permissions === "ask"
+          ? async (request) => {
+              const entry = desk.open(taskId, request.options, finished.promise);
+              meta["opencode.permissionPending"] = "true";
+              meta["opencode.permissionRequestId"] = entry.requestId;
+              const label = request.kind ? `${request.title} (${request.kind})` : request.title;
+              status(
+                TaskState.TASK_STATE_INPUT_REQUIRED,
+                `Allow "${label}"? Reply allow or reject.`,
+                [permissionPart(entry.requestId, request)],
+              );
+              const answer = await entry.answer;
+              clearPending();
+              if (!terminal && !record.cancellation) status(TaskState.TASK_STATE_WORKING);
+              return answer;
+            }
+          : undefined,
       );
       meta["opencode.stopReason"] = response.stopReason;
       if (response.permissionDenied) meta["opencode.permissionDenied"] = "true";
@@ -242,7 +307,7 @@ export function createAgentExecutor(
         finish(
           TaskState.TASK_STATE_CANCELED,
           response.permissionDenied && !record.cancellation
-            ? "Permission request rejected; the gateway never approves tool permissions"
+            ? "Permission request rejected; the tool run was not approved"
             : undefined,
         );
         return;
@@ -258,6 +323,8 @@ export function createAgentExecutor(
           error instanceof BridgeError ? error.message : "ACP execution failed",
         );
     } finally {
+      desk.release(taskId);
+      finished.resolve();
       record.terminal = true;
       await record.cancellation?.catch(() => undefined);
       if (active === record) active = undefined;

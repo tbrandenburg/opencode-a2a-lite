@@ -7,6 +7,7 @@ async function main() {
   const options = parseOptions(process.argv.slice(2), process.env);
   if (options.action === "help") {
     console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
+                         [--permissions <reject|ask>]
 
 Start the foreground, unauthenticated A2A gateway.
 Linux or macOS (experimental), Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
@@ -16,6 +17,10 @@ Linux or macOS (experimental), Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH
   --publish-activity  Also publish an "activity" artifact with tool call ids, titles, kinds and
                       statuses (no inputs or outputs) and the model's reasoning text.
                       May reveal paths, commands or workspace data.
+  --permissions <reject|ask>
+                      reject (default) rejects every OpenCode permission request. ask pauses the
+                      task as input-required until a client answers allow or reject; anyone who
+                      can reach this unauthenticated port can then approve tool runs.
   --help, -h         Show help without starting OpenCode.
   --version, -v      Print package version without starting OpenCode.
 

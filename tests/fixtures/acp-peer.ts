@@ -88,8 +88,11 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
     return { stopReason: "cancelled" };
   }
   if (text.text.startsWith("permission")) {
-    const options: PermissionOption[] = [{ kind: "allow_once", optionId: "allow", name: "Allow" }];
-    if (text.text === "permission-reject")
+    const options: PermissionOption[] = [
+      { kind: "allow_once", optionId: "allow", name: "Allow" },
+      { kind: "allow_always", optionId: "always", name: "Always" },
+    ];
+    if (text.text === "permission-reject" || text.text === "permission-wait")
       options.push({ kind: "reject_once", optionId: "deny", name: "Deny" });
     const response = await ctx.request(acp.methods.client.session.requestPermission, {
       sessionId: activeSession,
@@ -97,6 +100,9 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
       options,
     });
     await chunk(ctx, activeSession, JSON.stringify(response.outcome));
+    // Like OpenCode, a cancelled permission ends the turn as cancelled.
+    if (text.text === "permission-wait" && response.outcome.outcome === "cancelled")
+      return { stopReason: "cancelled" };
     return { stopReason: "refusal" };
   }
   await chunk(ctx, "unrelated", "wrong-session");

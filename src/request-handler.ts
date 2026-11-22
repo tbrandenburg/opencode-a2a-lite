@@ -12,6 +12,7 @@ export function createRequestHandler(card: AgentCard, executor: AgentExecutor, t
   const memory = new InMemoryTaskStore();
   const buses = new DefaultExecutionEventBusManager();
   const listeners = new Map<string, Set<() => void>>();
+  const interrupted = (task: Task) => task.status?.state === TaskState.TASK_STATE_INPUT_REQUIRED;
   const terminal = (task: Task) =>
     task.status &&
     ![TaskState.TASK_STATE_SUBMITTED, TaskState.TASK_STATE_WORKING].includes(task.status.state);
@@ -27,7 +28,8 @@ export function createRequestHandler(card: AgentCard, executor: AgentExecutor, t
   // SDK 1.3's CancelTask creates a second ResultManager on the live bus, so
   // cancellation-time artifact appends are persisted twice. Keep one consumer;
   // await that consumer's terminal save through the public TaskStore interface.
-  handler.cancelTask = async (params, context) => {
+  const stock = handler.cancelTask.bind(handler);
+  const cancelWithOwner: typeof stock = async (params, context) => {
     const task = await handler.getTask(params, context);
     if (task.status?.state === TaskState.TASK_STATE_CANCELED) return task;
     const bus = buses.getByTaskId(params.id, context);
@@ -56,5 +58,11 @@ export function createRequestHandler(card: AgentCard, executor: AgentExecutor, t
       if (!callbacks.size) listeners.delete(params.id);
     }
   };
+  // The original event consumer ended at INPUT_REQUIRED, so nothing else would persist the
+  // canceled state; the stock path attaches its own single consumer, which cannot duplicate.
+  handler.cancelTask = async (params, context) =>
+    interrupted(await handler.getTask(params, context))
+      ? stock(params, context)
+      : cancelWithOwner(params, context);
   return handler;
 }

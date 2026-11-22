@@ -5,6 +5,7 @@ import * as acp from "@agentclientprotocol/sdk";
 import manifest from "../package.json" with { type: "json" };
 import { activityOf, type Activity } from "./activity.js";
 import { BridgeError } from "./bridge-error.js";
+import { askOperator, decide, type PermissionRequest } from "./permission.js";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 
@@ -18,6 +19,11 @@ export interface AcpBridgeOptions {
   promptTimeoutMs?: number;
   cancelTimeoutMs?: number;
   closeTimeoutMs?: number;
+}
+
+interface Hold {
+  count: number;
+  rearm?: () => void;
 }
 
 export function createAcpBridge(options: AcpBridgeOptions) {
@@ -50,6 +56,9 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         sessionId: string;
         onText: (text: string) => void;
         onActivity: ((activity: Activity) => void) | undefined;
+        onPermission: ((request: PermissionRequest) => Promise<string | undefined>) | undefined;
+        hold: Hold;
+        released: ReturnType<typeof Promise.withResolvers<undefined>>;
         denied: boolean;
         cancelled: boolean;
         settled: boolean;
@@ -67,10 +76,26 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     void close().catch(() => undefined);
   }
 
-  function bounded<T>(operation: () => Promise<T>, ms: number, label: string): Promise<T> {
+  // While a human decision is pending (hold.count > 0) the deadline is suspended and restarts on release.
+  function bounded<T>(
+    operation: () => Promise<T>,
+    ms: number,
+    label: string,
+    hold?: Hold,
+  ): Promise<T> {
     if (failure.signal.aborted) return Promise.reject(failure.signal.reason);
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => fail(`ACP ${label} timed out`), ms);
+      const expire = () => {
+        if (hold?.count) timer = setTimeout(expire, ms);
+        else fail(`ACP ${label} timed out`);
+      };
+      let timer = setTimeout(expire, ms);
+      if (hold) {
+        hold.rearm = () => {
+          clearTimeout(timer);
+          timer = setTimeout(expire, ms);
+        };
+      }
       const cleanup = () => {
         clearTimeout(timer);
         failure.signal.removeEventListener("abort", abort);
@@ -150,23 +175,25 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         child.stderr.resume();
         const client = acp.client({ name: "opencode-a2a-lite" });
         client.onRequest(acp.methods.client.session.requestPermission, async (request) => {
-          if (
+          const current = turn;
+          const unusable = () =>
             stopping ||
             failure.signal.aborted ||
-            !turn ||
-            turn.settled ||
-            turn.cancelled ||
-            request.params.sessionId !== turn.sessionId
-          )
-            return { outcome: { outcome: "cancelled" } };
-          turn.denied = true;
-          const reject = request.params.options.find(
-            (option) => option.kind === "reject_once" || option.kind === "reject_always",
-          );
+            !current ||
+            current.settled ||
+            current.cancelled ||
+            request.params.sessionId !== current.sessionId;
+          if (unusable() || !current) return { outcome: { outcome: "cancelled" } };
+          const options = request.params.options;
+          const chosen = await askOperator(current, request.params);
+          if (current.onPermission && unusable()) return { outcome: { outcome: "cancelled" } };
+          const decision = decide(options, chosen);
+          if (decision.denied) current.denied = true;
           return {
-            outcome: reject
-              ? { outcome: "selected", optionId: reject.optionId }
-              : { outcome: "cancelled" },
+            outcome:
+              decision.outcome === "selected"
+                ? { outcome: "selected", optionId: decision.optionId }
+                : { outcome: "cancelled" },
           };
         });
         client.onNotification(acp.methods.client.session.update, (notification) => {
@@ -249,6 +276,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     text: string,
     onText: (text: string) => void,
     onActivity?: (activity: Activity) => void,
+    onPermission?: (request: PermissionRequest) => Promise<string | undefined>,
   ): Promise<acp.PromptResponse & { permissionDenied?: boolean }> {
     const current = requireConnection(sessionId);
     if (turn) throw new Error("ACP prompt in progress");
@@ -256,6 +284,9 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       sessionId,
       onText,
       onActivity,
+      onPermission,
+      hold: { count: 0 },
+      released: Promise.withResolvers<undefined>(),
       denied: false,
       cancelled: false,
       settled: false,
@@ -271,6 +302,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         }),
       promptTimeout,
       "prompt",
+      active.hold,
     );
     try {
       const response = await active.completion;
@@ -291,6 +323,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     const active = turn;
     if (active.cancellation) return active.cancellation;
     active.cancelled = true;
+    active.released.resolve(undefined);
     active.cancellation = bounded(
       async () => {
         await current.agent.notify(acp.methods.agent.session.cancel, { sessionId });

@@ -89,6 +89,7 @@ launcher still use Linux-specific tooling.
 
 ```text
 opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
+                     [--permissions <reject|ask>]
 opencode-a2a-lite --help | --version
 ```
 
@@ -134,10 +135,21 @@ reusing the ACP session for that context.
   commands or workspace data, so enable it only for clients you trust. The Agent Card then
   declares the `urn:opencode-a2a-lite:activity:v1` extension. Reasoning appears only for models
   and effort settings that emit it (for example Claude Haiku 5.5 with `effort=high`).
-- The gateway never approves permission requests. A turn stopped by a rejection ends `canceled`
-  with the message "Permission request rejected" and `opencode.permissionDenied: "true"` in the
-  task metadata; a client cancellation carries neither. Permissions that OpenCode's own configuration
-  allows are never asked, so they are never rejected.
+- By default the gateway rejects every permission request. A turn stopped by a rejection ends
+  `canceled` with the message "Permission request rejected" and `opencode.permissionDenied: "true"`
+  in the task metadata; a client cancellation carries neither. Permissions that OpenCode's own
+  configuration allows are never asked, so they are never rejected.
+- `--permissions ask` lets a client decide. The task pauses as `input-required` with a text
+  question and a data part `{"permission": {requestId, title, kind, options}}`; metadata shows
+  `opencode.permissionPending: "true"` and the request id. Answer on the **same task**
+  (`a2a send -a <url> --task-id <id> --context-id <ctx> allow`, or `reject`, or a data part
+  `{"permissionResponse": {"requestId", "optionId"}}`). A wrong id or option leaves the request
+  open; only `allow_once` and the reject options are offered, never `allow_always`. No answer
+  within 120 seconds rejects once. While waiting, the single prompt slot stays held (other tasks
+  get "busy") and the prompt deadline is suspended; canceling the task cancels the request without
+  marking a denial. **Anyone who can reach the unauthenticated port can approve tool runs in this
+  mode**, so keep it on loopback and for trusted clients only. The Agent Card declares the
+  `urn:opencode-a2a-lite:permissions:v1` extension.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are

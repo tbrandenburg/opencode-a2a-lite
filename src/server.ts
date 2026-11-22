@@ -12,6 +12,7 @@ import {
   ACTIVITY_EXTENSION,
   createAgentExecutor,
   EXPLICIT_CONTEXT,
+  PERMISSIONS_EXTENSION,
   type ExecutorOptions,
 } from "./executor.js";
 import { createRequestHandler } from "./request-handler.js";
@@ -111,17 +112,30 @@ export function createGateway(options: ServerOptions) {
             streaming: true,
             pushNotifications: false,
             extendedAgentCard: false,
-            extensions: options.executor?.activity
-              ? [
-                  {
-                    uri: ACTIVITY_EXTENSION,
-                    description:
-                      "Adds an optional 'activity' artifact of tool call ids, titles, kinds, statuses and reasoning text.",
-                    required: false,
-                    params: undefined,
-                  },
-                ]
-              : [],
+            extensions: [
+              ...(options.executor?.activity
+                ? [
+                    {
+                      uri: ACTIVITY_EXTENSION,
+                      description:
+                        "Adds an optional 'activity' artifact of tool call ids, titles, kinds, statuses and reasoning text.",
+                      required: false,
+                      params: undefined,
+                    },
+                  ]
+                : []),
+              ...(options.executor?.permissions === "ask"
+                ? [
+                    {
+                      uri: PERMISSIONS_EXTENSION,
+                      description:
+                        "A permission request pauses the task as input-required; answer on the same task with 'allow' or 'reject', or a data part {permissionResponse:{requestId,optionId}}.",
+                      required: false,
+                      params: undefined,
+                    },
+                  ]
+                : []),
+            ],
           },
           securitySchemes: {},
           securityRequirements: [],
@@ -215,6 +229,8 @@ export async function launchGateway(options: ServerOptions) {
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
     status("ready", `gateway · ${ready.url}`);
     status("workspace", options.workspace);
+    if (options.executor?.permissions === "ask")
+      status("permissions", "ask · any client that can reach this port can approve tool runs");
     if (options.executor?.activity)
       status(
         "activity",

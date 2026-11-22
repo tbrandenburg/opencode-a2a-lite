@@ -101,6 +101,78 @@ test("A2: permission denial selects reject when present and cancels when only al
   expect(canceled).toEqual(['{"outcome":"cancelled"}']);
 });
 
+test("A2b: an operator answer is honored for offered options only and never allow_always", async () => {
+  const instance = bridge();
+  await instance.start();
+  const session = await instance.newSession();
+  const run = async (prompt: string, choose: (offered: string[]) => string | undefined) => {
+    const out: string[] = [];
+    const offers: string[][] = [];
+    const response = await instance.prompt(
+      session.sessionId,
+      prompt,
+      (text) => out.push(text),
+      undefined,
+      async (asked) => {
+        offers.push(asked.options.map((option) => option.optionId));
+        expect(asked.title).toBe("Untrusted tool");
+        return choose(offers.at(-1) ?? []);
+      },
+    );
+    return { out, offers, response };
+  };
+  const allowed = await run("permission-reject", () => "allow");
+  expect(allowed.offers).toEqual([["allow", "deny"]]);
+  expect(allowed.out).toEqual(['{"outcome":"selected","optionId":"allow"}']);
+  expect(allowed.response.permissionDenied).toBeUndefined();
+  const denied = await run("permission-reject", () => "deny");
+  expect(denied.out).toEqual(['{"outcome":"selected","optionId":"deny"}']);
+  expect(denied.response.permissionDenied).toBe(true);
+  const sneaky = await run("permission-reject", () => "always");
+  expect(sneaky.out).toEqual(['{"outcome":"selected","optionId":"deny"}']);
+  expect(sneaky.response.permissionDenied).toBe(true);
+  const silent = await run("permission-cancel", () => undefined);
+  expect(silent.offers).toEqual([["allow"]]);
+  expect(silent.out).toEqual(['{"outcome":"cancelled"}']);
+  expect(silent.response.permissionDenied).toBe(true);
+});
+
+test("A2c: waiting for a human does not trip the prompt deadline, but cancellation still ends it", async () => {
+  const instance = bridge("normal", { promptTimeoutMs: 300 });
+  await instance.start();
+  const session = await instance.newSession();
+  const out: string[] = [];
+  const slow = await instance.prompt(
+    session.sessionId,
+    "permission-reject",
+    (text) => out.push(text),
+    undefined,
+    async () => {
+      await Bun.sleep(900);
+      return "allow";
+    },
+  );
+  expect(out).toEqual(['{"outcome":"selected","optionId":"allow"}']);
+  expect(slow.stopReason).toBe("refusal");
+  const pending = Promise.withResolvers<void>();
+  const cancelled: string[] = [];
+  const waiting = instance.prompt(
+    session.sessionId,
+    "permission-reject",
+    (text) => cancelled.push(text),
+    undefined,
+    async () => {
+      pending.resolve();
+      return new Promise<string>(() => undefined);
+    },
+  );
+  await pending.promise;
+  await instance.cancel(session.sessionId);
+  const response = await waiting;
+  expect(cancelled[0]).toBe('{"outcome":"cancelled"}');
+  expect(response.permissionDenied).toBeUndefined();
+});
+
 test("A3: shutdown cancels active work before EOF, preserves final chunks and stops admission", async () => {
   const instance = bridge();
   await instance.start();

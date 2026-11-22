@@ -82,3 +82,24 @@ test("C4: --publish-activity is a valueless, non-repeatable opt-in", () => {
   );
   expect(() => parseOptions(["--publish-activity=1"], env)).toThrow(StartupError);
 });
+
+test("C5: --permissions takes exactly reject or ask and combines with --publish-activity", () => {
+  const env = { A2A_WORKSPACE: "/trusted" };
+  const base = { workspace: "/trusted", port: 41241 };
+  expect(parseOptions(["--permissions", "ask"], env)).toEqual({
+    action: "run",
+    server: { ...base, executor: { permissions: "ask" } },
+  });
+  expect(parseOptions(["--permissions", "reject"], env)).toEqual({ action: "run", server: base });
+  expect(parseOptions(["--publish-activity", "--permissions", "ask"], env)).toEqual({
+    action: "run",
+    server: { ...base, executor: { activity: true, permissions: "ask" } },
+  });
+  for (const bad of [
+    ["--permissions"],
+    ["--permissions", "allow"],
+    ["--permissions", "ASK"],
+    ["--permissions", "ask", "--permissions", "ask"],
+  ])
+    expect(() => parseOptions(bad, env)).toThrow(StartupError);
+});

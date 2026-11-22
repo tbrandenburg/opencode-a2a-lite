@@ -30,6 +30,7 @@ Keep v1 scope narrow: map each A2A context to one ACP session in memory, reuse i
 - `server.ts` composes the SDK, gates readiness on ACP, preserves explicit context intent through public SDK methods, and owns HTTP shutdown.
 - `executor.ts` holds the bounded context map and single admission slot, publishes task/working/artifact/terminal events, and uses the prompt response as its outcome.
 - `acp-client.ts` owns the pinned subprocess, persistent stable-v1 connection, update filtering, permission denial, deadlines and process cleanup. It never retries an uncertain prompt.
+- `permission.ts` and `permission-desk.ts` hold the permission-answer rules and the single pending request per task. With `--permissions ask` the first `execute()` stays running while the task is `input-required`; the answer arrives as a second `execute()` that hands it over and waits for the first to finish, after publishing the task snapshot so streams stay valid.
 - `request-handler.ts` keeps the SDK's `InMemoryTaskStore` but synchronizes cancellation with its original event consumer; this avoids SDK 1.3 duplicate artifact persistence. This narrow workaround is regression-tested, not a second task database.
 
 The cancellation adapter depends on the original SDK persistence consumer staying
@@ -58,4 +59,4 @@ adapter or the transport's stream-consumption lifecycle.
 
 ## Deliberately unsupported
 
-OpenCode HTTP adapters, ACP v2, rich file/image inputs, tool inputs/outputs and reasoning by default (the opt-in `--publish-activity` publishes tool call ids, titles, kinds, statuses and reasoning text), interactive permission/forms, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.
+OpenCode HTTP adapters, ACP v2, rich file/image inputs, tool inputs/outputs and reasoning by default (the opt-in `--publish-activity` publishes tool call ids, titles, kinds, statuses and reasoning text), interactive forms and any permission handling beyond the opt-in single `allow_once`/reject question, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.

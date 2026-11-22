@@ -21,10 +21,21 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
     server: {
       workspace,
       port: parsePort(flags.get("--port") ?? env.A2A_PORT),
-      ...(flags.has("--publish-activity") ? { executor: { activity: true } } : {}),
+      ...executorOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
   };
+}
+
+function executorOptions(flags: Map<string, string>): Pick<ServerOptions, "executor"> {
+  const permissions = flags.get("--permissions");
+  if (permissions !== undefined && permissions !== "reject" && permissions !== "ask")
+    throw new StartupError("arguments");
+  const executor = {
+    ...(flags.has("--publish-activity") ? { activity: true } : {}),
+    ...(permissions === "ask" ? { permissions: "ask" as const } : {}),
+  };
+  return Object.keys(executor).length ? { executor } : {};
 }
 
 const VALUELESS = new Set(["--help", "--version", "--publish-activity"]);
@@ -39,7 +50,8 @@ function parseFlags(args: readonly string[]) {
       flags.set(flag, "");
       continue;
     }
-    if (flag !== "--workspace" && flag !== "--port") throw new StartupError("arguments");
+    if (flag !== "--workspace" && flag !== "--port" && flag !== "--permissions")
+      throw new StartupError("arguments");
     flags.set(flag, flagValue(flag, args[index + 1]));
     index += 1;
   }
