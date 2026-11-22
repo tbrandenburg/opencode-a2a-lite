@@ -79,3 +79,20 @@ test("passthrough rejects missing, duplicate and injection-sensitive names witho
   expect(() => createRuntimeEnvironment([], { PATH: "/usr/bin::/bin" })).toThrow("PATH");
   expect(() => createRuntimeEnvironment([], { PATH: "relative" })).toThrow("PATH");
 });
+
+test("loader and locale search paths are rejected even when present", () => {
+  for (const name of [
+    "GCONV_PATH",
+    "gconv_path",
+    "LOCPATH",
+    "NLSPATH",
+    "GETCONF_DIR",
+    "HOSTALIASES",
+    "RES_OPTIONS",
+    "LOCALDOMAIN",
+  ]) {
+    const source = { [name]: "sensitive-value" };
+    expect(() => validatePassEnv([name], source)).toThrow();
+    expect(() => validatePassEnv([name], source)).not.toThrow("sensitive-value");
+  }
+});
