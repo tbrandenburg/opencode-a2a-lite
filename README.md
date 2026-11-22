@@ -24,8 +24,9 @@ existing OpenCode sessions and replaying their history; see [Advanced features](
 
 > [!WARNING]
 > The gateway has no authentication (it binds to `127.0.0.1`) and must **never** be
-> exposed through a public proxy. Trusted workspace configuration can enable tools, plugins and MCP. Rejecting ACP
-> permission requests is **not** an OS sandbox, and cancellation does not roll back work.
+> exposed through a public proxy. The default `read-only` [capability profile](#capability-profiles)
+> limits OpenCode's tools but is **not** an OS sandbox: nothing confines files, network or processes.
+> Rejecting ACP permission requests is not a sandbox either, and cancellation does not roll back work.
 
 The operator must trust the OpenCode executable selected on `PATH`: a version
 string does not verify provenance. Preflight probes use the same resolved
@@ -99,6 +100,7 @@ macOS demo results predate this change.
 ```text
 opencode-a2a-lite --workspace <path> [--port <0..65535>]
                   [--publish-activity] [--permissions <reject|ask>] [--allow-resume] [--pass-env NAME]...
+                  [--policy <read-only|edit|full-access>] [--dangerously-skip-permissions]
 opencode-a2a-lite --help | --version
 ```
 
@@ -109,6 +111,8 @@ opencode-a2a-lite --help | --version
 | `--pass-env NAME`                                                               | Pass a named, existing provider variable to OpenCode; repeat for additional variables. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |
 | `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                                              |
 | `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                                                   |
+| `--policy <read-only\|edit\|full-access>`                                       | Startup-only [capability profile](#capability-profiles); default `read-only`. `supervised` is rejected as not available.                                                         |
+| `--dangerously-skip-permissions`                                                | Valueless acknowledgement required by, and only accepted with, `--policy full-access`.                                                                                           |
 | `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                                           |
 | `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                                        |
 
@@ -135,10 +139,10 @@ Preflight rejects managed Linux `/etc/opencode`, configuration in workspace ance
 and unexpected configuration sources; choose a trusted standalone workspace. It checks
 private paths and uses a standalone config probe before starting ACP. The private CLI
 runtime currently fails closed on macOS pending verification of managed preferences.
-Project-local configuration and instructions may still load plugins, MCP and tools and
-can access files and network as the invoking OS user. Library callers explicitly supplying
-`acp.env` retain their environment override and are responsible for isolation.
-Combining that override with `passEnv` is rejected.
+Project-local configuration cannot lift the [capability profile](#capability-profiles)'s
+hard denials, but project instructions remain trusted. Library callers explicitly supplying
+`acp.env` retain their environment override, receive **no** gateway policy and are responsible
+for isolation and tool controls. Combining that override with `passEnv` or `policy` is rejected.
 
 Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
 use `make dev` for development.
@@ -239,6 +243,51 @@ Or send a data part `{"permissionResponse": {"requestId": "â€¦", "optionId": "â€
 - **Anyone who can reach the port can approve tool runs in this mode.** The Agent Card declares
   `urn:opencode-a2a-lite:permissions:v1`.
 
+## Capability profiles
+
+`--policy` selects a startup-only profile for the private CLI runtime; it is never request-scoped
+and no A2A message, task metadata or workspace file can change it. The gateway writes it into the
+private global OpenCode config (`0600`, ephemeral HOME) as ordered V2 `policies` (hard denials) plus
+matching agent `permissions`. Launch prints a sanitized summary before readiness: profile, ACP
+approvals, shell behavior, blocked integration classes and `OS isolation: none`.
+
+| Capability                            | `read-only` (default) | `edit`   | `full-access`                       |
+| ------------------------------------- | --------------------- | -------- | ----------------------------------- |
+| read, glob, grep project files        | allow                 | allow    | allow                               |
+| edit, write, patch                    | deny                  | allow\*  | allow                               |
+| shell, Git, tests, builds             | deny                  | deny     | **auto-allow, host-user authority** |
+| webfetch / websearch                  | deny                  | deny     | allow                               |
+| subagents, Code Mode (`execute`)      | deny                  | deny     | allow                               |
+| MCP, plugins, skills                  | deny                  | deny     | deny (not inherited or enabled)     |
+| OS sandbox, filesystem/network limits | **none**              | **none** | **none**                            |
+
+\* `edit` also hard-denies edits to `opencode.json(c)`, `.opencode/`, `.agents/` and `.claude/`
+(best effort; see limits). Reads and edits outside the workspace are denied through
+`external_directory`. Use `--permissions reject|ask` only for requests that reach the ACP
+callback; a hard denial is never approvable.
+
+- **`full-access`** needs both `--policy full-access` and `--dangerously-skip-permissions`;
+  `--permissions ask` is rejected, as is the acknowledgement with any other profile, all before
+  readiness. A prominent stderr warning is printed before readiness. Shell, edits and web tools run
+  without any ACP prompt and with the invoking user's filesystem, process and network authority; any
+  local client that can reach the unauthenticated port can trigger them. Use only on a disposable
+  user, host or workspace. Credentials passed with `--pass-env` are available to every command. An
+  unexpected ACP permission request is still rejected, never auto-answered.
+- **`supervised` is not available.** OpenCode V2 policies are binary denials and cannot force an
+  `ask`; the per-agent `shell: ask` works (verified), but a project agent rule is appended after the
+  gateway's and turns it into an unprompted run (verified, see
+  [acceptance](docs/acceptance.md)). One-time approval therefore cannot be guaranteed from the private
+  global config alone, so the release gate is not met and `--policy supervised` is rejected.
+- **Fail closed:** startup compares the private config OpenCode reports with what was written
+  (OpenCode silently drops invalid statements) and evaluates every effective agent's rules. A project
+  agent that re-enables Code Mode (`execute`), which hard policies do not gate and which exposes
+  worktree and session utilities, aborts startup with a sanitized error. Changes to workspace
+  configuration made after launch are not re-evaluated until the next launch.
+- **Known limits (not claims of isolation):** path checks are lexical, so a symlink inside the
+  workspace can expose an outside file to `read`; `grep` rules match the regex, not a search path;
+  provider traffic and file contents sent to the model are outside any boundary; `read-only` does not
+  prevent reading secrets in the workspace.
+
 ## Behavior and limitations
 
 The official A2A SDK owns HTTP JSON-RPC, Agent Cards, task persistence and SSE.
@@ -280,6 +329,7 @@ bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 | `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build      |
 | `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider   |
 | `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt |
+| `make policy-smoke`                                                    | Capability profiles against real OpenCode and a scripted local model  |
 | `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance           |
 | `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)         |
 | `make e2e`                                                             | Production live-model acceptance (**live, billable**)                 |

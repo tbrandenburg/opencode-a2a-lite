@@ -123,6 +123,15 @@ try {
   reject([], /trusted absolute workspace/);
   reject(["--unknown-private-input"], /Use --help/);
   reject(["--unknown-private-input", "--help"], /Use --help/);
+  reject(
+    ["--workspace", ".", "--port", "0", "--policy", "full-access"],
+    /requires --dangerously-skip-permissions/,
+  );
+  reject(
+    ["--workspace", ".", "--port", "0", "--dangerously-skip-permissions"],
+    /only with --policy full-access/,
+  );
+  reject(["--workspace", ".", "--port", "0", "--policy", "supervised"], /not available/);
   reject(["--workspace", "--version"], /Use --help/);
   reject(["--workspace"], /Use --help/);
   reject(["--workspace", ".", "--port"], /Use --help/);
@@ -165,9 +174,17 @@ if (process.argv[2] === "debug" && process.argv[3] === "paths") {
   process.exit(0);
 }
 if (process.argv[2] === "--standalone" && process.argv[3] === "debug" && process.argv[4] === "config") {
+  const file = process.env.HOME + "/.config/opencode/opencode.json";
+  const document = existsSync(file) ? [{type:"document",path:file,info:JSON.parse(readFileSync(file, "utf8"))}] : [];
   console.log(JSON.stringify(probeMode === "bad-config"
     ? [{type:"remote",path:"https://example.invalid"}]
-    : [{type:"directory",path:process.env.HOME}]));
+    : [...document,{type:"directory",path:process.env.HOME}]));
+  process.exit(0);
+}
+if (process.argv[2] === "--standalone" && process.argv[3] === "debug" && process.argv[4] === "agents") {
+  const file = process.env.HOME + "/.config/opencode/opencode.json";
+  const rules = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")).permissions : [];
+  console.log(JSON.stringify([{id:"build",permissions:[{action:"*",resource:"*",effect:"allow"},...rules]}]));
   process.exit(0);
 }
 if (process.argv[2] !== "--version") {
@@ -182,6 +199,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
     reject(["--workspace", ".", "--port", "0"], /Invalid worker identity/, metadata);
     assert.equal(existsSync(record), false, "invalid identity must not start ACP");
   }
+  assert.equal(existsSync(record), false, "rejected policy flags must not start ACP");
   const direct = join(modules, manifest.name, "dist/src/server.js");
   const invalidDirect = run([process.execPath, direct], consumer, {
     ...isolated,
@@ -365,12 +383,15 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         if (privateHome) assert.equal(existsSync(privateHome), false);
         await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
         const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
+        const summary = status.splice(0, 5);
+        assert(summary.every((line) => line.startsWith("  policy ")));
+        assert.match(summary.join("\n"), /read-only[\s\S]*shell: denied[\s\S]*OS isolation: none/);
         assert.equal(status[0], `  ready      gateway · ${ready.url}`);
         assert.match(status[1]!, /^  workspace  \//);
         assert.ok(status[1]!.endsWith("consumer workspace"));
         assert.equal(
           status[2],
-          "  trust      workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
+          "  trust      workspace instructions are trusted; the policy limits tools but this is not a sandbox",
         );
         assert.equal(
           status[3],

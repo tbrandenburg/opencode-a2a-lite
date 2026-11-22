@@ -7,7 +7,8 @@ async function main() {
   const options = parseOptions(process.argv.slice(2), process.env);
   if (options.action === "help") {
     console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
-                         [--permissions <reject|ask>] [--allow-resume] [--pass-env NAME]...
+                         [--permissions <reject|ask>] [--policy <read-only|edit|full-access>]
+                         [--dangerously-skip-permissions] [--allow-resume] [--pass-env NAME]...
 
 Start the foreground, unauthenticated A2A gateway.
 Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
@@ -24,6 +25,15 @@ The private CLI runtime currently fails closed on macOS.
                       reject (default) rejects every OpenCode permission request. ask pauses the
                       task as input-required until a client answers allow or reject; anyone who
                       can reach this unauthenticated port can then approve tool runs.
+  --policy <read-only|edit|full-access>
+                      Startup-only capability profile, never request-scoped. read-only (default)
+                      reads and searches; edit also edits project files; neither runs shell, web
+                      tools, MCP, plugins, skills or subagents. full-access auto-approves shell,
+                      edits and web tools with host-user authority, needs
+                      --dangerously-skip-permissions and cannot combine with --permissions ask.
+                      supervised is not available. There is no OS isolation in any profile.
+  --dangerously-skip-permissions
+                      Acknowledge full-access; rejected with any other policy.
   --allow-resume      Let clients continue an existing OpenCode session of this workspace by sending
                       message metadata opencode.sessionId; add opencode.replay: true to also receive the
                       earlier messages. Sessions hold earlier conversation

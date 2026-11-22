@@ -20,6 +20,47 @@ other macOS architectures, versions, providers, cancellation, or optional guarde
 MCP/team workflows. The current CLI private runtime and live demo are Linux-only;
 macOS library use remains experimental.
 
+## Capability profiles (issue #88)
+
+On **2026-11-22**, Linux x64, Bun 1.4.4, OpenCode 2.3.2, official A2A CLI 0.3.1 and
+`openai/gpt-6-luna`. Results apply to this configuration only; `full-access` and `supervised`
+were **not** live-tested (`full-access` awaits a separate disposable-host decision; `supervised`
+is not shipped).
+
+**Provider-free, real OpenCode (`make policy-smoke`, scripted local model):** the executable ran
+scripted tool calls and the results were observed as tool outcomes and filesystem sentinels.
+`read-only`: read/grep/glob work; edit, write, shell, webfetch, websearch and subagent are
+unavailable or "Blocked by configuration policy"; a project `opencode.json` that allows everything
+(policies, permissions, agents, an MCP server that would `touch` a sentinel) changes none of it,
+and the MCP sentinel is never created. `edit`: edit/write work; edits of `opencode.json` and
+`.opencode/` and a `../` write are denied; shell and webfetch are denied. `full-access`: shell,
+write and `execute` complete without any prompt. Evidence and findings behind the design:
+
+- Global `policies` outrank project `policies`; agent `permissions` order is defaults, global,
+  project, global agent, project agent, so a project agent rule beats the gateway's.
+- With a hostile project agent allowing `*`, Code Mode (`execute`) is reachable even under
+  `tool.use * deny` (an explicit `execute:*` deny did not remove it) and exposes
+  `opencode.worktree_create`, which created a git worktree in the workspace repository. Nested
+  `fetch` and shell remain blocked. Startup preflight now evaluates every effective agent and
+  rejects this before readiness (`make policy-smoke`, `tests/runtime-policy.test.ts`).
+- A policy statement OpenCode drops (invalid action) disappears from `debug config`; preflight
+  compares the reported private document with the written one.
+- A workspace symlink to an outside file is readable by `read` (lexical path check): a known gap.
+
+**`supervised` release gate: not met, not shipped.** Verified with real OpenCode: agent-level
+`shell: ask` with a policy allow makes the first command request permission, and a non-interactive
+rejection leaves no side effect. But a project agent `shell: allow`, appended after the global
+agent rules, runs the same command with no prompt (the probe `supervised-withheld`). Preflight can
+refuse such a configuration at launch, yet configuration an approved command or edit rewrites is only
+re-evaluated at the next launch, and the ACP one-time approve/reject/re-prompt flow was not
+demonstrated against real OpenCode. Releasing it needs trusted approval routing or OS sandboxing and
+those real-runtime tests; tracked as a follow-up in the PR.
+
+**Live (authorized, billable), read-only and edit:** see the sanitized receipt in the pull
+request. Both profiles completed streamed tasks and a same-context follow-up; denied actions had no
+filesystem effect and the SQLite tool records showed the denials; SIGINT removed the listener, the
+OpenCode child and the private runtime.
+
 ## Runtime upgrade verification (issues #60 and #61)
 
 On **2026-11-10**, the Linux x64 live acceptance run used standalone Bun 1.4.4,

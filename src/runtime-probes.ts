@@ -3,6 +3,8 @@ import { accessSync, constants, lstatSync, realpathSync, statSync } from "node:f
 import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
+import { validateAgentPermissions, validatePolicyDocument } from "./runtime-policy-check.js";
+import type { PolicyProfile } from "./runtime-policy.js";
 import {
   RuntimeSourceError,
   validateRuntimePaths,
@@ -130,6 +132,7 @@ export async function verifyRuntime(options: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   root: string;
+  policy?: PolicyProfile;
   signal: AbortSignal;
   onSpawn?: () => void;
 }) {
@@ -142,13 +145,19 @@ export async function verifyRuntime(options: {
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
     validateRuntimePaths(await run(["debug", "paths"]), options.root);
-    validateRuntimeSources(
-      await run(["--standalone", "debug", "config"]),
-      options.root,
-      options.cwd,
-    );
+    const sources = await run(["--standalone", "debug", "config"]);
+    validateRuntimeSources(sources, options.root, options.cwd);
+    if (options.policy) {
+      validatePolicyDocument(sources, options.root, options.policy);
+      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), options.policy);
+    }
   } catch (error) {
-    if (error instanceof ProbeCleanupError || error instanceof RuntimeSourceError) throw error;
+    if (
+      error instanceof ProbeCleanupError ||
+      error instanceof RuntimeSourceError ||
+      error instanceof StartupError
+    )
+      throw error;
     throw new StartupError("runtime");
   }
 }

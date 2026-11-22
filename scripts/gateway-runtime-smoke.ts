@@ -16,13 +16,14 @@ try {
   const workspace = await prepare({ providerFree: true });
   try {
     stage = "private-runtime-preflight";
-    const runtime = createRuntimeEnvironment([], process.env);
+    const runtime = createRuntimeEnvironment([], process.env, "read-only");
     try {
       await verifyRuntime({
         executable: resolveOpenCode(runtime.env.PATH!),
         cwd: workspace.cwd,
         env: runtime.env,
         root: runtime.root,
+        policy: "read-only",
         signal: new AbortController().signal,
       });
     } catch (error) {

@@ -24,11 +24,19 @@ import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
 import { createRuntimeEnvironment } from "./runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
 import { removeUnusedRuntime } from "./runtime-processes.js";
+import {
+  FULL_ACCESS_WARNING,
+  policySummary,
+  validatePolicyFlags,
+  type PolicyProfile,
+} from "./runtime-policy.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
   workspace: string;
   passEnv?: readonly string[];
+  policy?: PolicyProfile;
+  dangerouslySkipPermissions?: boolean;
   host?: string;
   port?: number;
   identity?: WorkerIdentity;
@@ -225,13 +233,17 @@ export function createGateway(options: ServerOptions) {
 
 export async function launchGateway(options: ServerOptions) {
   if (options.acp?.env && options.passEnv?.length) throw new StartupError("passEnvConflict");
+  if (options.acp?.env && options.policy) throw new StartupError("policyConflict");
+  const policy = options.policy ?? "read-only";
+  const approvals = options.executor?.permissions ?? "reject";
+  validatePolicyFlags(policy, options.dangerouslySkipPermissions === true, approvals);
   const workspace = await stat(options.workspace).catch(() => undefined);
   if (!workspace?.isDirectory()) throw new StartupError("directory");
   validateIdentity(options.identity);
   if (!options.acp?.env && process.platform !== "linux") throw new StartupError("runtimePlatform");
   const runtime = options.acp?.env
     ? undefined
-    : createRuntimeEnvironment(options.passEnv ?? [], process.env);
+    : createRuntimeEnvironment(options.passEnv ?? [], process.env, policy);
   const probeEnv = runtime ? { ...runtime.env } : undefined;
   if (probeEnv) for (const name of options.passEnv ?? []) delete probeEnv[name];
   let gateway: ReturnType<typeof createGateway>;
@@ -296,11 +308,16 @@ export async function launchGateway(options: ServerOptions) {
         cwd: options.workspace,
         env: probeEnv!,
         root: runtime.root,
+        policy,
         signal: abort.signal,
       });
       await preparation;
     }
     if (abort.signal.aborted) throw new Error("Gateway closed");
+    if (runtime) {
+      if (policy === "full-access") status("WARNING", FULL_ACCESS_WARNING);
+      for (const line of policySummary(policy, approvals)) status("policy", line);
+    }
     const ready = await gateway.start();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
@@ -309,7 +326,7 @@ export async function launchGateway(options: ServerOptions) {
     if (runtime)
       status(
         "trust",
-        "workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
+        "workspace instructions are trusted; the policy limits tools but this is not a sandbox",
       );
     if (options.executor?.resume)
       status("resume", "enabled · clients can continue existing sessions of this workspace");

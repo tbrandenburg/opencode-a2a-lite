@@ -15,6 +15,14 @@ const messages = {
   passEnv: "Invalid, duplicate, reserved or missing --pass-env variable; use --help for details.",
   passEnvConflict: "Cannot combine --pass-env with a caller-supplied ACP environment.",
   runtime: "Private runtime preflight failed; review trusted workspace and OpenCode configuration.",
+  policy:
+    "Private runtime preflight failed: the capability policy was dropped, overridden or weakened by configuration; review trusted workspace and OpenCode configuration.",
+  supervised:
+    "--policy supervised is not available: one-time shell approval cannot yet be guaranteed against project agent configuration; use read-only, edit or full-access.",
+  policyAcknowledgement:
+    "--policy full-access requires --dangerously-skip-permissions, and that flag is accepted only with --policy full-access.",
+  policyConflict:
+    "--policy full-access cannot combine with --permissions ask or a caller-supplied ACP environment.",
   runtimePlatform:
     "Private runtime preflight failed: CLI private runtime is Linux-only for now; library callers can supply acp.env and manage isolation.",
 } as const;
