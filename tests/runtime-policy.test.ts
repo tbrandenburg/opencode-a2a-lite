@@ -165,32 +165,131 @@ test("preflight: dropped, altered or missing policy statements fail closed", () 
   }
 });
 
-test("preflight: effective agent rules must deny Code Mode; last matching rule wins", () => {
-  const agents = (...rules: [string, string, string][]) =>
-    JSON.stringify([
-      {
-        id: "build",
-        permissions: rules.map(([action, resource, effect]) => ({ action, resource, effect })),
-      },
-    ]);
-  const base: [string, string, string] = ["*", "*", "allow"];
-  expect(() =>
-    validateAgentPermissions(agents(base, ["execute", "*", "deny"]), "read-only"),
-  ).not.toThrow();
-  expect(() => validateAgentPermissions(agents(base, ["*", "*", "deny"]), "edit")).not.toThrow();
-  for (const bad of [
-    agents(base),
-    agents(["execute", "*", "deny"], ["*", "*", "allow"]),
-    agents(["execute", "*", "deny"], ["exec*", "*", "ask"]),
-    agents(),
-    "[]",
-    JSON.stringify([{ id: "x" }]),
-  ])
+const agentList = (rules: [string, string, string][], extra: object = {}) =>
+  JSON.stringify([
+    {
+      id: "build",
+      mode: "primary",
+      permissions: rules.map(([action, resource, effect]) => ({ action, resource, effect })),
+      ...extra,
+    },
+  ]);
+type Rule = [string, string, string];
+const base: Rule = ["*", "*", "allow"];
+const denyAll: Rule[] = [base, ["*", "*", "deny"]];
+
+test("preflight: execute and external_directory must stay denied for non-full profiles", () => {
+  for (const profile of ["read-only", "edit"] as const) {
+    expect(() => validateAgentPermissions(agentList(denyAll), profile)).not.toThrow();
+    expect(() =>
+      validateAgentPermissions(agentList([...denyAll, ["execute", "*", "deny"]]), profile),
+    ).not.toThrow();
+    for (const bad of [
+      [base],
+      [...denyAll, ["execute", "*", "allow"]],
+      [...denyAll, ["execute", "code", "allow"]],
+      [...denyAll, ["execute", "x", "ask"]],
+      [...denyAll, ["external_directory", "*", "allow"]],
+      [...denyAll, ["external_directory", "/tmp/*", "allow"]],
+      [...denyAll, ["ext*", "*", "ask"]],
+      [...denyAll, ["*", "*", "allow"]],
+      [
+        ["*", "*", "deny"],
+        ["execute", "*", "deny"],
+        ["execute", "*", "allow"],
+      ],
+      [
+        ["execute", "*", "deny"],
+        ["*", "*", "allow"],
+      ],
+    ] as Rule[][])
+      expect(() => validateAgentPermissions(agentList(bad), profile)).toThrow(/capability policy/);
+  }
+  for (const bad of ["[]", JSON.stringify([{ id: "x" }]), agentList([])])
     expect(() => validateAgentPermissions(bad, "read-only")).toThrow(/capability policy/);
-  expect(() => validateAgentPermissions(agents(base), "full-access")).not.toThrow();
+  // A later non-matching action does not count against the requirement.
   expect(() =>
-    validateAgentPermissions(agents(["*", "*", "deny"], ["shell", "*", "allow"]), "supervised"),
+    validateAgentPermissions(agentList([...denyAll, ["read", "*", "allow"]]), "read-only"),
+  ).not.toThrow();
+});
+
+test("preflight: supervised needs a final shell ask", () => {
+  const rules: Rule[] = [...denyAll, ["shell", "*", "ask"]];
+  expect(() => validateAgentPermissions(agentList(rules), "supervised")).not.toThrow();
+  expect(() =>
+    validateAgentPermissions(agentList([...rules, ["shell", "git *", "allow"]]), "supervised"),
   ).toThrow(/capability policy/);
+});
+
+test("preflight: full-access keeps its allows on visible primary agents only", () => {
+  expect(() => validateAgentPermissions(agentList([base]), "full-access")).not.toThrow();
+  for (const bad of [
+    [base, ["shell", "*", "deny"]],
+    [base, ["webfetch", "*", "ask"]],
+    [base, ["edit", "src/*", "deny"]],
+    [base, ["external_directory", "*", "ask"]],
+    [base, ["sub*", "*", "deny"]],
+  ] as Rule[][])
+    expect(() => validateAgentPermissions(agentList(bad), "full-access")).toThrow(
+      /capability policy/,
+    );
+  // Hidden and subagent-mode agents carry their own restrictions.
+  expect(() =>
+    validateAgentPermissions(
+      agentList([base, ["*", "*", "deny"]], { hidden: true }),
+      "full-access",
+    ),
+  ).not.toThrow();
+  expect(() =>
+    validateAgentPermissions(
+      agentList([base, ["subagent", "*", "deny"]], { mode: "subagent" }),
+      "full-access",
+    ),
+  ).not.toThrow();
+});
+
+test("preflight: policy documents compare independent of key order", () => {
+  const runtime = createRuntimeEnvironment([], { PATH: "/usr/bin" }, "edit");
+  try {
+    const path = join(runtime.root, "home", ".config", "opencode", "opencode.json");
+    const config = policyConfig("edit");
+    const shuffled = JSON.parse(JSON.stringify(config)) as typeof config;
+    const reordered = {
+      agents: {
+        build: {
+          permissions: shuffled.agents.build.permissions.map((r) => ({
+            effect: r.effect,
+            resource: r.resource,
+            action: r.action,
+          })),
+        },
+      },
+      model: "x",
+      permissions: shuffled.permissions.map((r) => ({
+        resource: r.resource,
+        effect: r.effect,
+        action: r.action,
+      })),
+      policies: shuffled.policies.map((r) => ({
+        effect: r.effect,
+        action: r.action,
+        resource: r.resource,
+      })),
+    };
+    const listing = (info: unknown) => JSON.stringify([{ type: "document", path, info }]);
+    expect(() => validatePolicyDocument(listing(reordered), runtime.root, "edit")).not.toThrow();
+    const changed = { ...reordered, policies: [...reordered.policies].reverse() };
+    expect(() => validatePolicyDocument(listing(changed), runtime.root, "edit")).toThrow(
+      /capability policy/,
+    );
+  } finally {
+    runtime.remove();
+  }
+});
+
+test("full-access summary names shell and web; others do not claim them", () => {
+  expect(policySummary("full-access", "reject")[0]).toMatch(/shell and web/);
+  expect(policySummary("read-only", "reject")[0]).not.toMatch(/shell/);
 });
 
 test("launchGateway rejects contradictory policy options before any runtime exists", async () => {

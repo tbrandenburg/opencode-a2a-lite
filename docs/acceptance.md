@@ -47,6 +47,18 @@ write and `execute` complete without any prompt. Evidence and findings behind th
   compares the reported private document with the written one.
 - A workspace symlink to an outside file is readable by `read` (lexical path check): a known gap.
 
+**Review follow-up (same day):** `make policy-smoke` now asserts denial reasons or side effects
+(tool removed vs "Blocked by configuration policy", a local listener that must see zero webfetch
+requests and one in `full-access` as positive control) and also passed against OpenCode **2.2.7**
+(release asset `opencode-linux-x64.tar.gz`, sha256 `89a6cee2...ca7`, tag v2.2.7, provider-free only).
+Observed: a project agent rule `execute` for any resource (even `code`) re-opens Code Mode, so
+preflight rejects any later rule matching the action rather than evaluating one resource; the old
+single-resource check accepted `execute code` and `external_directory *` (compared directly against
+the previous commit). With only `external_directory allow` the outside read/write stayed blocked by
+the hard policy on 2.2.7 and 2.3.2. Under `edit`, `write` through a workspace symlink overwrote an
+outside file (documented risk). `doom_loop` is not a V2 permission action and is not checked.
+Policy documents are compared with a key-order-independent deep equality.
+
 **`supervised` release gate: not met, not shipped.** Verified with real OpenCode: agent-level
 `shell: ask` with a policy allow makes the first command request permission, and a non-interactive
 rejection leaves no side effect. But a project agent `shell: allow`, appended after the global

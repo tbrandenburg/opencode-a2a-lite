@@ -81,7 +81,8 @@ plain when redirected. Startup JSON stays on stdout; human-readable status is on
 
 - Linux, **Bun 1.4.4**, and stable
   **`opencode` v2.2.7 or newer** on `PATH` (full live acceptance recorded on
-  Linux with 2.2.7; a two-turn macOS live demo passed with 2.3.0).
+  Linux with 2.2.7; a two-turn macOS live demo passed with 2.3.0). Capability profiles: provider-free
+  `make policy-smoke` passed on 2.2.7 and 2.3.2; their live acceptance ran on 2.3.2 only.
 - An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
   plugins, MCP servers and configuration.
 - The separate [official A2A CLI](https://github.com/a2aproject/a2a-cli)
@@ -283,10 +284,23 @@ callback; a hard denial is never approvable.
   agent that re-enables Code Mode (`execute`), which hard policies do not gate and which exposes
   worktree and session utilities, aborts startup with a sanitized error. Changes to workspace
   configuration made after launch are not re-evaluated until the next launch.
-- **Known limits (not claims of isolation):** path checks are lexical, so a symlink inside the
-  workspace can expose an outside file to `read`; `grep` rules match the regex, not a search path;
-  provider traffic and file contents sent to the model are outside any boundary; `read-only` does not
-  prevent reading secrets in the workspace.
+- **Known limits (not claims of isolation):**
+  - Path checks are lexical: a symlink inside the workspace that points outside lets `read` expose
+    that file and, under `edit`, `write` **overwrite** it (verified). Startup does not scan for
+    escaping symlinks (a tree walk is racy and costly); do not trust workspaces containing them.
+  - `edit` can write files that run later outside the gateway: `.git/hooks/*`, `Makefile`,
+    `package.json` scripts, `.envrc`, test or build files. Review diffs before running anything,
+    and treat `edit` output as untrusted code.
+  - `grep` rules match the regex, not a search path; provider traffic and file contents sent to the
+    model are outside any boundary; `read-only` does not prevent reading secrets in the workspace.
+  - `.env` files are read-protected by an `ask` rule. Under `--permissions ask` any client of the
+    unauthenticated port can approve such a read; with the default `reject` the read fails.
+  - Preflight evaluates the configuration present at launch. For non-full profiles every agent must
+    deny `execute` and `external_directory` (any later project rule for them, for any resource,
+    aborts startup); for `full-access` every visible primary agent must keep its allows. Edits made
+    after launch are re-evaluated at the next launch. On the tested versions the hard policy alone
+    already blocks outside paths even when a project agent allows `external_directory`; the agent
+    check is defence in depth.
 
 ## Behavior and limitations
 

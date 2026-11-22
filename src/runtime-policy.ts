@@ -91,11 +91,18 @@ export function policySummary(profile: PolicyProfile, permissions: "reject" | "a
     "full-access": "auto-approved with host-user authority",
   }[profile];
   return [
-    `profile: ${profile} · ${profile === "read-only" ? "read/search only" : "read/search and edit"}`,
+    `profile: ${profile} · ${
+      {
+        "read-only": "read/search only",
+        edit: "read/search and edit",
+        supervised: "read/search and edit",
+        "full-access": "read, edit, shell and web",
+      }[profile]
+    }`,
     `ACP approvals: ${permissions === "ask" ? "ask (any client of this port may approve)" : "reject"}`,
     `shell: ${shell}`,
     profile === "full-access"
-      ? "web tools: allowed · MCP, plugins and skills: blocked"
+      ? "web tools and subagents: allowed · MCP, plugins and skills: blocked"
       : "web tools, MCP, plugins, skills and subagents: blocked",
     "OS isolation: none",
   ];
@@ -104,12 +111,31 @@ export function policySummary(profile: PolicyProfile, permissions: "reject" | "a
 export const FULL_ACCESS_WARNING =
   "full-access | auto-approved commands | no OS isolation | any local A2A client may execute host-user commands";
 
-// Effective agent effects that hard policies cannot enforce: Code Mode exposes OpenCode utilities
-// (worktrees, session moves) without a policy-checked permission, so it must stay denied.
-export function requiredAgentEffects(profile: PolicyProfile): readonly Statement[] {
+// Effective agent effects that hard policies cannot enforce on their own. Code Mode `execute`
+// exposes OpenCode utilities (worktrees, session moves) without a policy-checked permission, and
+// `external_directory` is an agent-level boundary the project could re-open. Every agent must deny
+// them; `supervised` additionally needs `shell: ask`. `full-access` must keep its allows on every
+// visible primary agent.
+export type AgentRequirement = { action: string; effect: Effect };
+
+export function requiredAgentEffects(profile: PolicyProfile): readonly AgentRequirement[] {
   if (profile === "full-access") return [];
   return [
-    rule("execute", "*", "deny"),
-    ...(profile === "supervised" ? [rule("shell", "*", "ask")] : []),
+    { action: "execute", effect: "deny" },
+    { action: "external_directory", effect: "deny" },
+    ...(profile === "supervised" ? [{ action: "shell", effect: "ask" as const }] : []),
   ];
 }
+
+export const FULL_ACCESS_ALLOWED = [
+  "read",
+  "glob",
+  "grep",
+  "edit",
+  "shell",
+  "webfetch",
+  "websearch",
+  "subagent",
+  "execute",
+  "external_directory",
+];
