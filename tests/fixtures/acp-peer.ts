@@ -60,6 +60,55 @@ agent.onRequest(acp.methods.agent.session.resume, async (request) => {
   return {};
 });
 
+agent.onRequest(acp.methods.agent.session.load, async (request) => {
+  if (request.params.cwd !== process.cwd() || request.params.sessionId.startsWith("ses_unknown"))
+    throw acp.RequestError.invalidParams({ sessionId: request.params.sessionId });
+  const ctx = request.client;
+  const id = request.params.sessionId;
+  const send = (update: Record<string, unknown>) =>
+    ctx.notify(acp.methods.client.session.update, { sessionId: id, update: update as never });
+  const text = (kind: string, messageId: string, value: string, meta?: object) =>
+    send({
+      sessionUpdate: kind,
+      messageId,
+      content: { type: "text", text: value, ...(meta ? { _meta: meta } : {}) },
+    });
+  if (id.startsWith("ses_longhistory")) {
+    for (let index = 0; index < 105; index += 1)
+      await text("user_message_chunk", `m${index}`, `q${index}`);
+    await text("agent_message_chunk", "big", "x".repeat(25_000));
+    return {};
+  }
+  await send({
+    sessionUpdate: "user_message_chunk",
+    messageId: "image",
+    content: { type: "image", data: "", mimeType: "image/png" },
+  });
+  await text("user_message_chunk", "m1", "remember KUMQUAT");
+  await send({
+    sessionUpdate: "tool_call",
+    toolCallId: "t1",
+    title: "read",
+    rawInput: { secret: "tool-input" },
+  });
+  await send({
+    sessionUpdate: "tool_call_update",
+    toolCallId: "t1",
+    status: "completed",
+    content: [{ type: "content", content: { type: "text", text: "tool-output" } }],
+  });
+  await send({
+    sessionUpdate: "agent_thought_chunk",
+    content: { type: "text", text: "replayed-thought" },
+  });
+  await text("agent_message_chunk", "m2", "no", undefined);
+  await text("agent_message_chunk", "m2", "ted");
+  await text("agent_message_chunk", "child", "child-reply", { "opencode/child-session": true });
+  await text("user_message_chunk", "m3", "what was it?");
+  await text("agent_message_chunk", "m4", "KUMQUAT");
+  return {};
+});
+
 async function chunk(
   ctx: AgentContext,
   sessionId: string,

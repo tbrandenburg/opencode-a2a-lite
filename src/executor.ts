@@ -12,13 +12,14 @@ import type { createAcpBridge } from "./acp-client.js";
 import { BridgeError } from "./bridge-error.js";
 import { createPermissionDesk } from "./permission-desk.js";
 import { parseAnswer, type PermissionRequest } from "./permission.js";
-import { resumeRefusal, wantedSession } from "./resume.js";
+import { conversationEvent } from "./conversation.js";
+import { resumeRefusal, wantedReplay, wantedSession } from "./resume.js";
 
 export type ExecutorBridge = Pick<
   ReturnType<typeof createAcpBridge>,
   "newSession" | "prompt" | "cancel"
 > &
-  Partial<Pick<ReturnType<typeof createAcpBridge>, "resumeSession">>;
+  Partial<Pick<ReturnType<typeof createAcpBridge>, "resumeSession" | "loadSession">>;
 
 export const EXPLICIT_CONTEXT = "opencode.explicitContext";
 
@@ -76,11 +77,6 @@ export function createAgentExecutor(
     cancellation?: Promise<void>;
   };
   let active: Active | undefined;
-
-  async function resumeSession(sessionId: string): Promise<string> {
-    if (!bridge.resumeSession) throw new Error("Session resume unavailable");
-    return bridge.resumeSession(sessionId);
-  }
 
   // Handles a message that answers a pending permission request; true when it was consumed.
   async function resume(
@@ -185,6 +181,19 @@ export function createAgentExecutor(
       activityEmitted = true;
     }
 
+    async function attachSession(id: string, replay: boolean): Promise<string> {
+      if (!replay) {
+        if (!bridge.resumeSession) throw new Error("Session resume unavailable");
+        return bridge.resumeSession(id);
+      }
+      if (!bridge.loadSession) throw new Error("Session replay unavailable");
+      const earlier = await bridge.loadSession(id);
+      meta["opencode.replayed"] = String(earlier.messages.length);
+      if (earlier.truncated) meta["opencode.replayTruncated"] = "true";
+      if (earlier.messages.length) bus.publish(conversationEvent(taskId, contextId, earlier));
+      return id;
+    }
+
     function clearPending() {
       if (meta["opencode.permissionPending"] !== "true") return;
       meta["opencode.permissionPending"] = "false";
@@ -253,9 +262,14 @@ export function createAgentExecutor(
       finish(TaskState.TASK_STATE_FAILED, "Gateway busy; retry after the active turn finishes");
       return;
     }
-    const wanted = wantedSession(message.metadata) ?? wantedSession(ctx.request.metadata);
+    const ask = {
+      wanted: wantedSession(message.metadata) ?? wantedSession(ctx.request.metadata),
+      replay: wantedReplay(message.metadata) ?? wantedReplay(ctx.request.metadata),
+    };
+    const wanted = ask.wanted;
     const refusal =
-      wanted && resumeRefusal(wanted, options.resume === true, existing, sessions.values());
+      (wanted || ask.replay !== undefined) &&
+      resumeRefusal(ask, options.resume === true, existing, sessions.values());
     if (refusal) {
       finish(TaskState.TASK_STATE_FAILED, refusal);
       return;
@@ -283,7 +297,9 @@ export function createAgentExecutor(
       const resuming = wanted && "id" in wanted && !existing ? wanted.id : undefined;
       const sessionId =
         existing ??
-        (resuming ? await resumeSession(resuming) : (await bridge.newSession()).sessionId);
+        (resuming
+          ? await attachSession(resuming, ask.replay === true)
+          : (await bridge.newSession()).sessionId);
       if (resuming) meta["opencode.resumed"] = "true";
       record.sessionId = sessionId;
       meta["opencode.sessionId"] = sessionId;

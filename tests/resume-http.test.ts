@@ -33,7 +33,7 @@ interface TaskJson {
   contextId: string;
   status: { state: string; message?: { parts: { text?: string }[] } };
   metadata: Record<string, string>;
-  artifacts?: { parts: { text?: string }[] }[];
+  artifacts?: { name: string; parts: { text?: string; data?: unknown }[] }[];
 }
 async function send(url: string, text: string, extra: object = {}) {
   const response = await fetch(url, {
@@ -97,4 +97,32 @@ test("T3: without --allow-resume the metadata is refused, never silently ignored
   expect(refused.status.state).toBe("TASK_STATE_FAILED");
   expect(failed(refused)).toContain("--allow-resume");
   expect(answer(refused)).toBe("");
+});
+
+test("T4: replay delivers the earlier conversation as an artifact, then the new answer", async () => {
+  const ready = await gateway(true).start();
+  const sent = await send(ready.url, "whoami", {
+    metadata: { "opencode.sessionId": "ses_replayed0001", "opencode.replay": true },
+  });
+  expect(sent.status.state).toBe("TASK_STATE_COMPLETED");
+  expect(sent.metadata["opencode.replayed"]).toBe("4");
+  const byName = (name: string) =>
+    (sent.artifacts ?? []).find((artifact) => artifact.name === name);
+  const conversation = byName("conversation")?.parts.map((part) => part.data);
+  expect(conversation).toEqual([
+    { role: "user", text: "remember KUMQUAT" },
+    { role: "assistant", text: "noted" },
+    { role: "user", text: "what was it?" },
+    { role: "assistant", text: "KUMQUAT" },
+  ]);
+  expect(JSON.stringify(sent)).not.toMatch(/tool-input|tool-output|replayed-thought|child-reply/);
+  expect(answer(sent)).toBe("ses_replayed0001");
+  const next = await send(ready.url, "whoami", { contextId: sent.contextId });
+  expect((next.artifacts ?? []).map((artifact) => artifact.name)).toEqual(["response"]);
+  expect(next.metadata["opencode.replayed"]).toBeUndefined();
+  const rejected = await send(ready.url, "x", {
+    metadata: { "opencode.sessionId": "ses_unknown0003", "opencode.replay": true },
+  });
+  expect(failed(rejected)).toBe("ACP session load rejected");
+  expect((await send(ready.url, "hello")).status.state).toBe("TASK_STATE_COMPLETED");
 });

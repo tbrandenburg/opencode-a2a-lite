@@ -26,6 +26,17 @@ function rig(options: ExecutorOptions = { resume: true }, withResume = true) {
     async cancel() {},
     ...(withResume
       ? {
+          async loadSession(id: string) {
+            calls.push(`load:${id}`);
+            if (id.startsWith("ses_unknown")) throw new BridgeError("ACP session load rejected");
+            return {
+              truncated: id.startsWith("ses_longhistory"),
+              messages: [
+                { role: "user" as const, text: "q" },
+                { role: "assistant" as const, text: "a" },
+              ],
+            };
+          },
           async resumeSession(id: string) {
             calls.push(`resume:${id}`);
             if (id.startsWith("ses_unknown")) throw new BridgeError("ACP session resume rejected");
@@ -162,4 +173,75 @@ test("S7: the id may also come as request metadata, which is what a2a --metadata
     both.bus,
   );
   expect(both.calls[0]).toBe("resume:ses_msgmsgmsg1");
+});
+
+const replayMeta = { ...meta, "opencode.replay": true };
+const artifacts = (events: AgentExecutionEvent[]) =>
+  events.flatMap((event) => (event.kind === "artifactUpdate" ? [event.data] : []));
+
+test("S8: replay loads the session and publishes one conversation artifact before the answer", async () => {
+  const run = rig();
+  await run.executor.execute(context("go", "ctx", replayMeta), run.bus);
+  expect(run.calls).toEqual([`load:${known}`, `prompt:${known}:go`]);
+  const all = artifacts(run.events);
+  expect(all[0]).toMatchObject({
+    append: false,
+    lastChunk: true,
+    artifact: { name: "conversation" },
+  });
+  expect(all[0]?.artifact?.parts.map((part) => part.content)).toEqual([
+    { $case: "data", value: { role: "user", text: "q" } },
+    { $case: "data", value: { role: "assistant", text: "a" } },
+  ]);
+  expect(all.slice(1).every((entry) => entry.artifact?.name === "response")).toBe(true);
+  expect(last(run.events)).toMatchObject({
+    data: {
+      status: { state: TaskState.TASK_STATE_COMPLETED },
+      metadata: { "opencode.resumed": "true", "opencode.replayed": "2" },
+    },
+  });
+  expect(JSON.stringify(last(run.events))).not.toContain("replayTruncated");
+});
+
+test("S9: replay false or absent never loads; truncation is flagged; misuse fails visibly", async () => {
+  const plain = rig();
+  await plain.executor.execute(
+    context("go", "ctx", { ...meta, "opencode.replay": false }),
+    plain.bus,
+  );
+  expect(plain.calls[0]).toBe(`resume:${known}`);
+  expect(artifacts(plain.events).every((entry) => entry.artifact?.name === "response")).toBe(true);
+  const long = rig();
+  await long.executor.execute(
+    context("go", "ctx", { "opencode.sessionId": "ses_longhistory1", "opencode.replay": true }),
+    long.bus,
+  );
+  expect(last(long.events)).toMatchObject({
+    data: { metadata: { "opencode.replayTruncated": "true" } },
+  });
+  for (const [metadata, text] of [
+    [{ "opencode.replay": true }, "first message"],
+    [{ ...meta, "opencode.replay": "yes" }, "true or false"],
+  ] as const) {
+    const run = rig();
+    await run.executor.execute(context("go", "ctx", metadata), run.bus);
+    expect(failure(run.events).text).toContain(text);
+    expect(run.calls).toEqual([]);
+  }
+  const off = rig({});
+  await off.executor.execute(context("go", "ctx", { "opencode.replay": true }), off.bus);
+  expect(failure(off.events).text).toContain("--allow-resume");
+  const missing = rig({ resume: true }, false);
+  await missing.executor.execute(context("go", "ctx", replayMeta), missing.bus);
+  expect(failure(missing.events).text).toBe("ACP execution failed");
+});
+
+test("S10: a rejected replay fails the task with its phase and leaves no context", async () => {
+  const run = rig();
+  await run.executor.execute(
+    context("go", "ctx", { "opencode.sessionId": "ses_unknown0001", "opencode.replay": true }),
+    run.bus,
+  );
+  expect(failure(run.events).text).toBe("ACP session load rejected");
+  expect(artifacts(run.events)).toEqual([]);
 });

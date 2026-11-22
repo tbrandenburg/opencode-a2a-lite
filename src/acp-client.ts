@@ -6,6 +6,7 @@ import manifest from "../package.json" with { type: "json" };
 import { activityOf, type Activity } from "./activity.js";
 import { BridgeError } from "./bridge-error.js";
 import { askOperator, decide, type PermissionRequest } from "./permission.js";
+import { createReplayCollector, type Replay } from "./replay.js";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 
@@ -53,6 +54,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   let closing: Promise<void> | undefined;
   let ready = false;
   let stopping = false;
+  let replaying: { sessionId: string; collect: (update: acp.SessionUpdate) => void } | undefined;
   let turn:
     | {
         sessionId: string;
@@ -200,6 +202,10 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         });
         client.onNotification(acp.methods.client.session.update, (notification) => {
           const update = notification.params.update;
+          if (replaying && notification.params.sessionId === replaying.sessionId) {
+            replaying.collect(update);
+            return;
+          }
           if (
             !turn ||
             turn.settled ||
@@ -275,12 +281,12 @@ export function createAcpBridge(options: AcpBridgeOptions) {
 
   // An id OpenCode refuses (unknown or another workspace) rejects only this request; it must
   // not retire the shared bridge, so only that exact JSON-RPC error is converted.
-  async function resumeSession(sessionId: string): Promise<string> {
+  async function attach(method: "resume" | "load", sessionId: string): Promise<void> {
     const current = requireConnection();
     const accepted = await bounded(
       () =>
         current.agent
-          .request(acp.methods.agent.session.resume, { sessionId, cwd, mcpServers: [] })
+          .request(acp.methods.agent.session[method], { sessionId, cwd, mcpServers: [] })
           .then(
             () => true,
             (error: unknown) => {
@@ -289,11 +295,27 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             },
           ),
       startup,
-      "session resume",
+      `session ${method}`,
     );
-    if (!accepted) throw new BridgeError("ACP session resume rejected");
+    if (!accepted) throw new BridgeError(`ACP session ${method} rejected`);
     sessions.add(sessionId);
+  }
+
+  async function resumeSession(sessionId: string): Promise<string> {
+    await attach("resume", sessionId);
     return sessionId;
+  }
+
+  // Like resume, but OpenCode also replays the earlier conversation, which is collected here.
+  async function loadSession(sessionId: string): Promise<Replay> {
+    const collector = createReplayCollector();
+    replaying = { sessionId, collect: collector.collect };
+    try {
+      await attach("load", sessionId);
+    } finally {
+      replaying = undefined;
+    }
+    return collector.result();
   }
 
   async function prompt(
@@ -411,5 +433,5 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     return closing;
   }
 
-  return { start, newSession, resumeSession, prompt, cancel, close };
+  return { start, newSession, resumeSession, loadSession, prompt, cancel, close };
 }

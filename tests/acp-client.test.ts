@@ -189,6 +189,32 @@ test("A2d: resuming binds an existing session, rejects bad ids without retiring 
   expect((await instance.newSession()).sessionId).toBeTruthy();
 });
 
+test("A2f: loading replays only plain root text, newest bounded, and binds the session", async () => {
+  const instance = bridge();
+  await instance.start();
+  const replay = await instance.loadSession("ses_replayed0001");
+  expect(replay).toEqual({
+    truncated: false,
+    messages: [
+      { role: "user", text: "remember KUMQUAT" },
+      { role: "assistant", text: "noted" },
+      { role: "user", text: "what was it?" },
+      { role: "assistant", text: "KUMQUAT" },
+    ],
+  });
+  expect(JSON.stringify(replay)).not.toMatch(/tool-input|tool-output|replayed-thought|child-reply/);
+  const out: string[] = [];
+  await instance.prompt("ses_replayed0001", "whoami", (text) => out.push(text));
+  expect(out).toEqual(["ses_replayed0001"]);
+  const long = await instance.loadSession("ses_longhistory1");
+  expect(long.truncated).toBe(true);
+  expect(long.messages).toHaveLength(100);
+  expect(long.messages[0]).toEqual({ role: "user", text: "q6" });
+  expect(long.messages.at(-1)?.text).toHaveLength(20_000);
+  await expect(instance.loadSession("ses_unknown0002")).rejects.toThrow("load rejected");
+  expect((await instance.newSession()).sessionId).toBeTruthy();
+});
+
 test("A2e: an unexpected resume failure is sanitized and retires the bridge", async () => {
   const instance = bridge("resume-internal-error");
   await instance.start();

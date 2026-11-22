@@ -137,8 +137,13 @@ reusing the ACP session for that context.
   `contextId` as usual. After a restart a client may also re-bind its old `contextId` by sending it
   together with the session id. OpenCode itself refuses ids that are unknown or belong to another
   workspace (`ACP session resume rejected`), which fails only that task. A session can be bound to one
-  context at a time, and without the flag the metadata is refused, never ignored. The conversation
-  history is not replayed into A2A, and only one writer should use a session at a time (stop an
+  context at a time, and without the flag the metadata is refused, never ignored. Add `"opencode.replay": true` (`--metadata '{"opencode.sessionId":"ses_…","opencode.replay":true}'`)
+  to also receive the earlier conversation in a `conversation` artifact: data parts
+  `{"role": "user"|"assistant", "text": "…"}`, oldest first, before the new answer, with
+  `opencode.replayed` (count) in the task metadata. Only plain user and assistant text is replayed, the
+  newest 100 messages of at most 20,000 characters each (`opencode.replayTruncated: "true"` when anything
+  was cut); tool calls, tool output and reasoning are never replayed, and `opencode.replay` is
+  refused unless it is `true`/`false` on the first message that resumes a session. Only one writer should use a session at a time (stop an
   open OpenCode TUI on it first). **Sessions hold earlier conversation content that any client able
   to reach the unauthenticated port can then read**; enable it for trusted clients only. The Agent
   Card declares the `urn:opencode-a2a-lite:resume:v1` extension.

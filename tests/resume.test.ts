@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { resumeRefusal, wantedSession } from "../src/resume.js";
+import { resumeRefusal, wantedReplay, wantedSession } from "../src/resume.js";
 
 const id = "ses_dfc114de7ffecIV2y1jJ0U0akj";
 
@@ -23,13 +23,33 @@ test("R1: only well-formed opencode session ids are accepted from metadata", () 
     });
 });
 
-test("R2: refusals cover disabled, invalid, rebinding and shared sessions", () => {
+test("R2: refusals cover disabled, invalid, rebinding, shared sessions and replay misuse", () => {
   const wanted = { id };
-  expect(resumeRefusal(wanted, false, undefined, [])).toContain("--allow-resume");
-  expect(resumeRefusal({ error: "Invalid" }, true, undefined, [])).toBe("Invalid");
-  expect(resumeRefusal({ error: "Invalid" }, false, undefined, [])).toContain("--allow-resume");
-  expect(resumeRefusal(wanted, true, "ses_otherother1", [])).toContain("different session");
-  expect(resumeRefusal(wanted, true, undefined, ["ses_x0000000", id])).toContain("another context");
-  expect(resumeRefusal(wanted, true, id, [id])).toBeUndefined();
-  expect(resumeRefusal(wanted, true, undefined, ["ses_x0000000"])).toBeUndefined();
+  const ask = (
+    replay?: boolean | "invalid",
+    w: { id: string } | { error: string } | null = wanted,
+  ) => ({ wanted: w ?? undefined, replay });
+  expect(resumeRefusal(ask(), false, undefined, [])).toContain("--allow-resume");
+  expect(resumeRefusal(ask(undefined, { error: "Invalid" }), true, undefined, [])).toBe("Invalid");
+  expect(resumeRefusal(ask(undefined, { error: "Invalid" }), false, undefined, [])).toContain(
+    "--allow-resume",
+  );
+  expect(resumeRefusal(ask(), true, "ses_otherother1", [])).toContain("different session");
+  expect(resumeRefusal(ask(), true, undefined, ["ses_x0000000", id])).toContain("another context");
+  expect(resumeRefusal(ask(), true, id, [id])).toBeUndefined();
+  expect(resumeRefusal(ask(), true, undefined, ["ses_x0000000"])).toBeUndefined();
+  expect(resumeRefusal(ask(true), true, undefined, [])).toBeUndefined();
+  expect(resumeRefusal(ask(false), true, undefined, [])).toBeUndefined();
+  expect(resumeRefusal(ask(true, null), true, undefined, [])).toContain("first message");
+  expect(resumeRefusal(ask(true), true, id, [id])).toContain("first message");
+  expect(resumeRefusal(ask("invalid"), true, undefined, [])).toContain("true or false");
+  expect(resumeRefusal(ask(true), false, undefined, [])).toContain("--allow-resume");
+});
+
+test("R3: replay must be a boolean in metadata", () => {
+  expect(wantedReplay({})).toBeUndefined();
+  expect(wantedReplay({ "opencode.replay": true })).toBe(true);
+  expect(wantedReplay({ "opencode.replay": false })).toBe(false);
+  for (const bad of ["true", 1, null, {}])
+    expect(wantedReplay({ "opencode.replay": bad })).toBe("invalid");
 });

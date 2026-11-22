@@ -22,7 +22,8 @@ Linux or macOS (experimental), Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH
                       task as input-required until a client answers allow or reject; anyone who
                       can reach this unauthenticated port can then approve tool runs.
   --allow-resume      Let clients continue an existing OpenCode session of this workspace by sending
-                      message metadata opencode.sessionId. Sessions hold earlier conversation
+                      message metadata opencode.sessionId; add opencode.replay: true to also receive the
+                      earlier messages. Sessions hold earlier conversation
                       content, which any client that can reach this unauthenticated port can then read.
   --help, -h         Show help without starting OpenCode.
   --version, -v      Print package version without starting OpenCode.
