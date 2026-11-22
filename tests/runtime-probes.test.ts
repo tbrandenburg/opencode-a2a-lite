@@ -4,6 +4,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -30,6 +32,84 @@ test("launchGateway preflights the caller-selected executable without an explici
     // This fixture is a shell with no descendants; its owned root is safe to remove.
     rmSync(join(home, ".."), { recursive: true });
   } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("detached process can reopen a runtime absent from its cwd, fds and environment", async () => {
+  if (process.platform !== "linux" || existsSync("/etc/opencode")) return;
+  const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-reopen-test-"));
+  const executable = join(workspace, "selected");
+  const locator = join(workspace, "locator");
+  const marker = join(workspace, "marker");
+  const fixture = join(workspace, "child.cjs");
+  writeFileSync(
+    fixture,
+    `const fs = require("node:fs");
+const net = require("node:net");
+const home = fs.readFileSync(${JSON.stringify(locator)}, "utf8");
+process.chdir("/");
+const start = fs.readFileSync("/proc/self/stat", "utf8").split(" ")[21];
+net.createServer((socket) => {
+  fs.writeFileSync(home + "/reopened", "reopened");
+  socket.end("HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\n\\r\\nOK");
+}).listen(0, "127.0.0.1", function () {
+  fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({home, pid: process.pid, start, port: this.address().port}));
+});
+`,
+  );
+  writeFileSync(
+    executable,
+    `#!/bin/sh
+printf "%s" "$HOME" > "${locator}"
+setsid env -i PATH=/usr/bin:/bin "${process.execPath}" "${fixture}" </dev/null >/dev/null 2>&1 &
+i=0
+while [ ! -f "${marker}" ] && [ "$i" -lt 250 ]; do sleep 0.02; i=$((i+1)); done
+printf '1.0.0\\n'
+`,
+    { mode: 0o700 },
+  );
+  let child: { home: string; pid: number; start: string; port: number } | undefined;
+  const cleanup = async () => {
+    if (!child && existsSync(marker)) child = JSON.parse(readFileSync(marker, "utf8"));
+    if (!child) return;
+    const proc = `/proc/${child.pid}/stat`;
+    const stat = readFileSync(proc, "utf8").split(" ");
+    if (stat[21] !== child.start) throw new Error("Owned child identity changed");
+    process.kill(child.pid, "SIGKILL");
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      const current = await Bun.file(proc)
+        .text()
+        .catch(() => "");
+      if (!current || current.split(" ")[2] === "Z") break;
+      await Bun.sleep(10);
+    }
+    const current = await Bun.file(proc)
+      .text()
+      .catch(() => "");
+    if (current && current.split(" ")[2] !== "Z")
+      throw new Error("Owned detached child did not stop; runtime retained");
+    rmSync(join(child.home, ".."), { recursive: true });
+  };
+  try {
+    await expect(launchGateway({ workspace, acp: { executable } })).rejects.toThrow(
+      "Unsupported OpenCode version",
+    );
+    child = JSON.parse(readFileSync(marker, "utf8"));
+    if (!child) throw new Error("Missing child marker");
+    const root = join(child.home, "..");
+    const proc = `/proc/${child.pid}`;
+    expect(readlinkSync(`${proc}/cwd`)).toBe("/");
+    expect(readFileSync(`${proc}/environ`, "utf8")).not.toContain(root);
+    const descriptors = readdirSync(`${proc}/fd`).map((fd) => readlinkSync(`${proc}/fd/${fd}`));
+    expect(descriptors.some((path) => path === root || path.startsWith(root + "/"))).toBe(false);
+    expect(existsSync(root)).toBe(true);
+    const response = await fetch(`http://127.0.0.1:${child.port}/`);
+    expect(response.status).toBe(200);
+    expect(readFileSync(join(child.home, "reopened"), "utf8")).toBe("reopened");
+  } finally {
+    await cleanup();
     rmSync(workspace, { recursive: true, force: true });
   }
 });

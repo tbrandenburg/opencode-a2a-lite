@@ -77,6 +77,13 @@ and evidence for failure and abnormal termination paths. The experiment did not
 establish those properties. A subreaper can adopt orphaned descendants, but it is
 not inherited by children and does not by itself contain or stop a live process tree.
 
+The provider-free `tests/runtime-probes.test.ts` detached-child regression demonstrates
+why scanning `/proc` is insufficient: a child changes its cwd to `/`, has no open
+runtime file or runtime path in its initial environment, and then reopens and writes
+the retained runtime on a later request. Process inspection can also fail or race with
+changes. These checks are evidence of references at an instant, not proof of owned
+descendant termination or that the runtime cannot be reopened.
+
 Bun 1.4.4 exposes `Bun.spawn` with a cgroup option that places a child before
 execution, but the existing implementation uses Node-compatible `child_process`
 streams and the package also supports Node. A delegated cgroup, compatible spawn
