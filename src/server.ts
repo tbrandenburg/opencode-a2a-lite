@@ -281,13 +281,15 @@ export async function launchGateway(options: ServerOptions) {
   process.once("SIGTERM", stop);
   try {
     if (runtime && executable) {
-      spawned = true;
       preparation = verifyRuntime({
         executable,
         cwd: options.workspace,
         env: runtime.env,
         root: runtime.root,
         signal: abort.signal,
+        onSpawn: () => {
+          spawned = true;
+        },
       });
       await preparation;
     }

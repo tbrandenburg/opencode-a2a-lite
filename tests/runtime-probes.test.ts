@@ -95,6 +95,7 @@ test("an interrupted preflight kills its owned process before returning", async 
     mode: 0o700,
   });
   const controller = new AbortController();
+  let spawned = false;
   try {
     if (process.platform !== "linux" || existsSync("/etc/opencode")) {
       await expect(
@@ -115,11 +116,15 @@ test("an interrupted preflight kills its owned process before returning", async 
       env: runtime.env,
       root: runtime.root,
       signal: controller.signal,
+      onSpawn: () => {
+        spawned = true;
+      },
     });
     const file = join(runtime.env.HOME!, "pid");
     const deadline = Date.now() + 5_000;
     while (!existsSync(file) && Date.now() < deadline) await Bun.sleep(10);
     expect(existsSync(file)).toBe(true);
+    expect(spawned).toBe(true);
     const pid = Number(readFileSync(file, "utf8"));
     controller.abort();
     await expect(operation).rejects.toThrow();
@@ -136,6 +141,7 @@ test("ancestor configuration fails before launching an executable", async () => 
   mkdirSync(workspace);
   writeFileSync(join(parent, "opencode.json"), "{}");
   const runtime = createRuntimeEnvironment([], { PATH: "/usr/bin:/bin" });
+  let spawned = false;
   try {
     await expect(
       verifyRuntime({
@@ -144,9 +150,17 @@ test("ancestor configuration fails before launching an executable", async () => 
         env: runtime.env,
         root: runtime.root,
         signal: new AbortController().signal,
+        onSpawn: () => {
+          spawned = true;
+        },
       }),
     ).rejects.toThrow("Private runtime preflight failed");
     expect(existsSync(join(runtime.env.HOME!, ".config"))).toBe(false);
+    expect(spawned).toBe(false);
+    if (process.platform === "linux" && !existsSync("/etc/opencode"))
+      await expect(
+        launchGateway({ workspace, acp: { executable: process.execPath } }),
+      ).rejects.toThrow("Private runtime preflight failed");
   } finally {
     runtime.remove();
     rmSync(parent, { recursive: true, force: true });

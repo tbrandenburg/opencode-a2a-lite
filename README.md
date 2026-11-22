@@ -120,8 +120,8 @@ fallback to the host login. Review and configure the provider and model in the t
 workspace as needed. Persistent login/state is not supported by this CLI mode.
 
 **Cleanup limitation:** process groups do not contain detached descendants. Until
-owned descendant containment is available, any private-runtime preflight retains
-its runtime directory and reports cleanup as unconfirmed, even on normal shutdown.
+owned descendant containment is available, a private-runtime preflight that spawns a
+process retains its runtime directory and reports cleanup as unconfirmed, even on normal shutdown.
 An operator must inspect owned processes and remove that directory only after
 confirming they have exited. No process outside the owned group is signaled.
 

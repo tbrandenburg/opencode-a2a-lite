@@ -58,6 +58,32 @@ the historical runs above predate it. `make runtime-smoke` checks standalone run
 paths and config sources without prompting a provider. It does not establish live
 provider authentication, continuity, or cleanup of every possible detached descendant.
 
+### Private runtime containment investigation
+
+Issue #87 is not mergeable with the current fail-closed cleanup: after a preflight
+process starts, normal shutdown retains the private runtime and reports cleanup as
+unconfirmed. `make package-smoke` fails its runtime-removal assertion. A process-group
+probe cannot detect a child that starts a new session, and the smoke cwd scan cannot
+detect a process that changes directory while retaining an open runtime file.
+
+On the investigated Linux host, `/proc/self/cgroup` identified a root-owned session
+cgroup whose `cgroup.procs` was not writable by the invoking user. An unprivileged
+`unshare --user --map-root-user --pid --fork /bin/true` failed with `Operation not
+permitted` while writing `uid_map`. A user systemd manager was available, and
+`systemd-run --user --scope --quiet --collect /bin/true` succeeded; its transient
+scope was user-owned. This is not a portable ownership proof: it adds a user-systemd
+dependency and requires a supervised unit lifecycle, permissions and escape analysis,
+and evidence for failure and abnormal termination paths. The experiment did not
+establish those properties. A subreaper can adopt orphaned descendants, but it is
+not inherited by children and does not by itself contain or stop a live process tree.
+
+Bun 1.4.4 exposes `Bun.spawn` with a cgroup option that places a child before
+execution, but the existing implementation uses Node-compatible `child_process`
+streams and the package also supports Node. A delegated cgroup, compatible spawn
+implementation, containment permissions, and cleanup proof are not established.
+Do not replace the fail-closed behavior with process or cwd snapshots. Do not infer
+private-root cleanup from `make runtime-smoke`'s process-cleanup summary.
+
 The [isolation verifier](../scripts/acp-smoke-config.ts) creates private HOME,
 XDG and workspace state, verifies configuration, disables tools/plugins and
 excludes inherited overrides. It refuses managed `/etc/opencode`; private service

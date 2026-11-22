@@ -72,6 +72,7 @@ async function probe(
   cwd: string,
   env: NodeJS.ProcessEnv,
   abort: AbortSignal,
+  onSpawn?: () => void,
 ) {
   if (abort.aborted) throw new StartupError("runtime");
   const child = spawn(executable, args, {
@@ -80,6 +81,7 @@ async function probe(
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  if (child.pid) onSpawn?.();
   child.stderr.resume();
   let output = "";
   let invalid = false;
@@ -125,12 +127,13 @@ export async function verifyRuntime(options: {
   env: NodeJS.ProcessEnv;
   root: string;
   signal: AbortSignal;
+  onSpawn?: () => void;
 }) {
   if (process.platform !== "linux") throw new StartupError("runtime");
   rejectIfPresent("/etc/opencode");
   rejectAncestorConfiguration(options.cwd);
   const run = (args: string[]) =>
-    probe(options.executable, args, options.cwd, options.env, options.signal);
+    probe(options.executable, args, options.cwd, options.env, options.signal, options.onSpawn);
   const version = await run(["--version"]);
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
