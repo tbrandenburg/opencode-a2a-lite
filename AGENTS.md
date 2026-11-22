@@ -8,6 +8,10 @@ single-turn admission, stream/context continuity, cancellation, accurate task
 outcomes and owned-resource cleanup. Model reasoning quality is separate from
 adapter correctness. Do not add production schedulers, roles, scorers, model
 profiles, retries or new dependencies to restore the retired managed lab.
+Capability profiles (`--policy`, `src/runtime-policy.ts` is the single source) are startup-only:
+`read-only` default, `edit`, and `full-access` only with `--dangerously-skip-permissions`;
+`supervised` is rejected until one-time shell approval is proven against project agent config.
+Never auto-answer permissions in the adapter, and keep policy on the CLI private-runtime path only.
 Extras (`--publish-activity`, `--permissions ask`, `--allow-resume`/replay) stay opt-in:
 off by default, own flag and Agent Card extension, README warning, on and off tests.
 
@@ -35,7 +39,7 @@ findings; retirement does **not** mean failures have been fixed.
   guarded MCP/team workflows use Linux-specific process and listener inspection.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics
   or private network reports in logs, issues or pull requests.
-- Run `make check` and relevant focused tests. CI also executes
+- Run `make check` and relevant focused tests; after policy changes also run provider-free `make policy-smoke`. CI also executes
   `make package-smoke` and verified, provider-free `make interop-test`.
   Never silently substitute these for live-model evidence.
 - `make demo`, `make e2e`, `bun scripts/acp-smoke.ts` and the
@@ -117,3 +121,4 @@ chronological incident diary.
 - 2026-11-15: Pitfall: On macOS a post-kill process-group probe can return `EPERM` while the leader is a zombie awaiting reaping. Prevention: treat probe-only `EPERM` as inconclusive within the deadline, never as confirmed cleanup; fail on denied signals and require macOS validation before release.
 - 2026-11-22: Pitfall: A client-supplied session id could retire the shared bridge, and a fixture ending a cancelled permission as `refusal` hid a cancel bug. Prevention: convert only the peer's invalid-params error per request, and mirror the real peer's stop reasons in fixtures.
 - 2026-11-22: Pitfall: Replayed history looked like task `history`, but the SDK appends status messages after the current prompt. Prevention: publish replay as a dedicated artifact.
+- 2026-11-22: Pitfall: OpenCode V2 agent permissions append project-after-global (project wins) while policies are the reverse, Code Mode `execute` is not policy-gated yet exposes worktree/session utilities, and invalid policy statements are dropped silently. Prevention: treat hard policies as the boundary, compare the reported private config and evaluate every effective agent in preflight, and prove profiles with `make policy-smoke` (real OpenCode, scripted local model: observe tool results and side effects).

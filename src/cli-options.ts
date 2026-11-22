@@ -3,6 +3,7 @@ import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
 import { parseIdentity } from "./identity.js";
 import { validatePassEnv } from "./runtime-environment.js";
+import { parsePolicy, validatePolicyFlags } from "./runtime-policy.js";
 
 type Options =
   | { action: "help" }
@@ -30,6 +31,7 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
       port: parsePort(flags.get("--port") ?? env.A2A_PORT),
       ...(names.length ? { passEnv: names } : {}),
       ...executorOptions(flags),
+      ...policyOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
   };
@@ -47,7 +49,29 @@ function executorOptions(flags: Map<string, string>): Pick<ServerOptions, "execu
   return Object.keys(executor).length ? { executor } : {};
 }
 
-const VALUELESS = new Set(["--help", "--version", "--publish-activity", "--allow-resume"]);
+function policyOptions(
+  flags: Map<string, string>,
+): Pick<ServerOptions, "policy" | "dangerouslySkipPermissions"> {
+  const acknowledged = flags.has("--dangerously-skip-permissions");
+  const policy = parsePolicy(flags.get("--policy"));
+  validatePolicyFlags(
+    policy,
+    acknowledged,
+    flags.get("--permissions") === "ask" ? "ask" : "reject",
+  );
+  return {
+    ...(flags.has("--policy") ? { policy } : {}),
+    ...(acknowledged ? { dangerouslySkipPermissions: true } : {}),
+  };
+}
+
+const VALUELESS = new Set([
+  "--help",
+  "--version",
+  "--publish-activity",
+  "--allow-resume",
+  "--dangerously-skip-permissions",
+]);
 
 function parseFlags(args: readonly string[]) {
   const flags = new Map<string, string>();
@@ -64,6 +88,7 @@ function parseFlags(args: readonly string[]) {
       flag !== "--workspace" &&
       flag !== "--port" &&
       flag !== "--permissions" &&
+      flag !== "--policy" &&
       flag !== "--pass-env"
     )
       throw new StartupError("arguments");

@@ -1,6 +1,7 @@
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { policyConfig, type PolicyProfile } from "./runtime-policy.js";
 
 // Names affecting process startup, executable discovery, configuration, trust or
 // network routing cannot be delegated through the credential passthrough.
@@ -28,7 +29,11 @@ export function validatePassEnv(names: readonly string[], source: NodeJS.Process
   return values;
 }
 
-export function createRuntimeEnvironment(names: readonly string[], source: NodeJS.ProcessEnv) {
+export function createRuntimeEnvironment(
+  names: readonly string[],
+  source: NodeJS.ProcessEnv,
+  policy?: PolicyProfile,
+) {
   const passed = validatePassEnv(names, source);
   const path = source.PATH;
   if (!path || path.split(":").some((entry) => !entry || !isAbsolute(entry)))
@@ -40,6 +45,13 @@ export function createRuntimeEnvironment(names: readonly string[], source: NodeJ
     const temporary = join(root, "tmp");
     mkdirSync(home, { mode: 0o700 });
     mkdirSync(temporary, { mode: 0o700 });
+    if (policy) {
+      const config = join(home, ".config", "opencode");
+      mkdirSync(config, { recursive: true, mode: 0o700 });
+      writeFileSync(join(config, "opencode.json"), JSON.stringify(policyConfig(policy)), {
+        mode: 0o600,
+      });
+    }
     const env: NodeJS.ProcessEnv = {
       PATH: path,
       LANG: "C",
