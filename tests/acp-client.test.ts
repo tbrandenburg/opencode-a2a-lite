@@ -58,24 +58,27 @@ test("A1: persistent ACP filters exact root assistant text across sessions and l
   expect(chunks).toHaveLength(4);
 });
 
-test("A1b: tool activity exposes only identifying fields and only when requested", async () => {
+test("A1b: activity exposes tool identifiers and root thoughts only, and only when requested", async () => {
   const instance = bridge();
   await instance.start();
   const session = await instance.newSession();
   const seen: unknown[] = [];
-  await instance.prompt(
+  const plain = await instance.prompt(
     session.sessionId,
     "hello",
     () => undefined,
     (entry) => seen.push(entry),
   );
+  expect(plain.permissionDenied).toBeUndefined();
   expect(seen).toEqual([
+    { thought: "private" },
     { toolCallId: "private-tool", title: "private tool" },
     { toolCallId: "private-tool", status: "completed" },
   ]);
   expect(JSON.stringify(seen)).not.toContain("secret-tool-output");
+  expect(JSON.stringify(seen)).not.toContain("child-thought");
   await instance.prompt(session.sessionId, "again", () => undefined);
-  expect(seen).toHaveLength(2);
+  expect(seen).toHaveLength(3);
 });
 
 test("A2: permission denial selects reject when present and cancels when only allow exists", async () => {
@@ -87,12 +90,14 @@ test("A2: permission denial selects reject when present and cancels when only al
     rejected.push(text),
   );
   expect(rejection.stopReason).toBe("refusal");
+  expect(rejection.permissionDenied).toBe(true);
   expect(rejected).toEqual(['{"outcome":"selected","optionId":"deny"}']);
   const canceled: string[] = [];
   const cancellation = await instance.prompt(session.sessionId, "permission-cancel", (text) =>
     canceled.push(text),
   );
   expect(cancellation.stopReason).toBe("refusal");
+  expect(cancellation.permissionDenied).toBe(true);
   expect(canceled).toEqual(['{"outcome":"cancelled"}']);
 });
 

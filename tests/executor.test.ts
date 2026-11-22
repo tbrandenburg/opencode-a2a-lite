@@ -28,7 +28,12 @@ function context(
   );
 }
 
-function setup(stopReason = "end_turn", failure?: "prompt", activity = false) {
+function setup(
+  stopReason = "end_turn",
+  failure?: "prompt",
+  activity = false,
+  permissionDenied = false,
+) {
   const calls: string[] = [];
   const bridge: ExecutorBridge = {
     async newSession() {
@@ -37,6 +42,7 @@ function setup(stopReason = "end_turn", failure?: "prompt", activity = false) {
     },
     async prompt(session, text, onText, onActivity) {
       calls.push(`${session}:${text}`);
+      onActivity?.({ thought: "considering" });
       onActivity?.({ toolCallId: "call-1", title: "read package.json", kind: "read" });
       onActivity?.({ toolCallId: "call-1", status: "completed" });
       onText("first");
@@ -44,7 +50,7 @@ function setup(stopReason = "end_turn", failure?: "prompt", activity = false) {
       onText(" second");
       if (failure === "prompt") throw new Error("sensitive provider diagnostics");
       // Exercise unknown runtime stop reasons as well as the SDK's known values.
-      return { stopReason } as PromptResponse;
+      return { stopReason, ...(permissionDenied ? { permissionDenied } : {}) } as PromptResponse;
     },
     async cancel(session) {
       calls.push(`cancel:${session}`);
@@ -117,9 +123,11 @@ test("E1b: activity is published only on request, in its own artifact, finalized
   expect(entries.map((entry) => [entry.append, entry.lastChunk])).toEqual([
     [false, false],
     [true, false],
+    [true, false],
     [true, true],
   ]);
   expect(entries.map((entry) => entry.artifact?.parts[0]?.content)).toEqual([
+    { $case: "data", value: { thought: "considering" } },
     { $case: "data", value: { toolCallId: "call-1", title: "read package.json", kind: "read" } },
     { $case: "data", value: { toolCallId: "call-1", status: "completed" } },
     { $case: "text", value: "" },
@@ -143,6 +151,28 @@ test("E1c: terminal status carries the ACP session binding and stop reason", asy
   const rejected = setup();
   await rejected.executor.execute(context([{ text: "hi" }], { contextId: "x" }), rejected.bus);
   expect(rejected.events.at(-1)).toMatchObject({ data: { metadata: undefined } });
+});
+
+test("E1d: a permission rejection is distinguishable from a client cancellation", async () => {
+  const denied = setup("cancelled", undefined, false, true);
+  await denied.executor.execute(context(), denied.bus);
+  expect(denied.events.at(-1)).toMatchObject({
+    data: {
+      status: {
+        state: TaskState.TASK_STATE_CANCELED,
+        message: {
+          parts: [{ content: { value: expect.stringContaining("Permission request rejected") } }],
+        },
+      },
+      metadata: { "opencode.stopReason": "cancelled", "opencode.permissionDenied": "true" },
+    },
+  });
+  const plain = setup("cancelled");
+  await plain.executor.execute(context(), plain.bus);
+  const last = plain.events.at(-1);
+  expect(last).toMatchObject({ data: { status: { state: TaskState.TASK_STATE_CANCELED } } });
+  expect(JSON.stringify(last)).not.toContain("Permission");
+  expect(JSON.stringify(last)).not.toContain("permissionDenied");
 });
 
 test("E2: an unknown stop reason flushes before failure and invalidates continuation", async () => {

@@ -7,7 +7,8 @@ import {
   type ExecutionEventBus,
   type RequestContext,
 } from "@a2a-js/sdk/server";
-import type { createAcpBridge, ToolActivity } from "./acp-client.js";
+import type { Activity } from "./activity.js";
+import type { createAcpBridge } from "./acp-client.js";
 import { BridgeError } from "./bridge-error.js";
 
 export type ExecutorBridge = Pick<
@@ -24,7 +25,7 @@ export interface ExecutorOptions {
 
 export const ACTIVITY_EXTENSION = "urn:opencode-a2a-lite:activity:v1";
 
-function dataPart(value: ToolActivity): Part {
+function dataPart(value: Activity): Part {
   return {
     content: { $case: "data", value },
     mediaType: "application/json",
@@ -114,7 +115,7 @@ export function createAgentExecutor(
       emitted = true;
     }
 
-    function activity(entry?: ToolActivity) {
+    function activity(entry?: Activity) {
       const lastChunk = entry === undefined;
       bus.publish(
         AgentEvent.artifactUpdate({
@@ -123,7 +124,7 @@ export function createAgentExecutor(
           artifact: {
             artifactId: activityId,
             name: "activity",
-            description: "Tool activity summary",
+            description: "Tool call summaries and reasoning text",
             parts: [entry ? dataPart(entry) : textPart("")],
             metadata: undefined,
             extensions: [ACTIVITY_EXTENSION],
@@ -232,12 +233,18 @@ export function createAgentExecutor(
           : undefined,
       );
       meta["opencode.stopReason"] = response.stopReason;
+      if (response.permissionDenied) meta["opencode.permissionDenied"] = "true";
       if (response.stopReason === "end_turn") {
         finish(TaskState.TASK_STATE_COMPLETED);
         return;
       }
       if (response.stopReason === "cancelled") {
-        finish(TaskState.TASK_STATE_CANCELED);
+        finish(
+          TaskState.TASK_STATE_CANCELED,
+          response.permissionDenied && !record.cancellation
+            ? "Permission request rejected; the gateway never approves tool permissions"
+            : undefined,
+        );
         return;
       }
       sessions.delete(contextId);

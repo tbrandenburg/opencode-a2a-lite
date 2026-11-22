@@ -118,7 +118,7 @@ test("H02 HTTP rejects mixed text/data input and persists truthful failure", asy
   expect(JSON.stringify(body)).not.toMatch(/wrong-session|child|private/);
 });
 
-test("H02b opt-in activity and session metadata flow over HTTP without tool output", async () => {
+test("H02b opt-in activity (tools and thoughts) and session metadata flow over HTTP without tool output", async () => {
   const send = async (activity: boolean) => {
     const instance = gateway("normal", activity ? { executor: { activity: true } } : {});
     const ready = await instance.start();
@@ -142,6 +142,7 @@ test("H02b opt-in activity and session metadata flow over HTTP without tool outp
     (artifact: { name: string }) => artifact.name === "activity",
   );
   expect(activity.parts.map((part: { data?: unknown }) => part.data).filter(Boolean)).toEqual([
+    { thought: "private" },
     { toolCallId: "private-tool", title: "private tool" },
     { toolCallId: "private-tool", status: "completed" },
   ]);
@@ -149,6 +150,7 @@ test("H02b opt-in activity and session metadata flow over HTTP without tool outp
     expect(task.metadata["opencode.sessionId"]).toMatch(/^session-/);
     expect(task.metadata["opencode.stopReason"]).toBe("end_turn");
     expect(JSON.stringify(task)).not.toContain("secret-tool-output");
+    expect(JSON.stringify(task)).not.toContain("child-thought");
   }
 });
 

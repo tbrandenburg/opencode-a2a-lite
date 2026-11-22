@@ -14,7 +14,8 @@ Linux or macOS (experimental), Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH
   --workspace <path>  Explicitly trust this directory; relative paths are resolved.
   --port <0..65535>   Port (default 41241; 0 selects a free port).
   --publish-activity  Also publish an "activity" artifact with tool call ids, titles, kinds and
-                      statuses (no inputs or outputs). Titles may reveal paths or commands.
+                      statuses (no inputs or outputs) and the model's reasoning text.
+                      May reveal paths, commands or workspace data.
   --help, -h         Show help without starting OpenCode.
   --version, -v      Print package version without starting OpenCode.
 

@@ -128,10 +128,16 @@ reusing the ACP session for that context.
   underlying OpenCode diagnostic is never published. A bridge failure is permanent until restart.
 - Every task's metadata carries `opencode.sessionId` and `opencode.stopReason` (after a session
   exists). The session id is the key for finding the full transcript in OpenCode itself.
-- `--publish-activity` (off by default) adds an `activity` artifact of data parts with only tool
-  call id, title, kind and status; tool inputs, outputs and reasoning are never published. Titles
-  may reveal paths or commands, so enable it only for clients you trust. The Agent Card then
-  declares the `urn:opencode-a2a-lite:activity:v1` extension.
+- `--publish-activity` (off by default) adds an `activity` artifact of data parts: tool call id,
+  title, kind and status, plus the model's reasoning text as `{"thought": "..."}` when OpenCode
+  emits it. Tool inputs and outputs are never published. Titles and reasoning may reveal paths,
+  commands or workspace data, so enable it only for clients you trust. The Agent Card then
+  declares the `urn:opencode-a2a-lite:activity:v1` extension. Reasoning appears only for models
+  and effort settings that emit it (for example Claude Haiku 5.5 with `effort=high`).
+- The gateway never approves permission requests. A turn stopped by a rejection ends `canceled`
+  with the message "Permission request rejected" and `opencode.permissionDenied: "true"` in the
+  task metadata; a client cancellation carries neither. Permissions that OpenCode's own configuration
+  allows are never asked, so they are never rejected.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are

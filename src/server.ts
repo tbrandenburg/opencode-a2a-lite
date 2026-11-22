@@ -116,7 +116,7 @@ export function createGateway(options: ServerOptions) {
                   {
                     uri: ACTIVITY_EXTENSION,
                     description:
-                      "Adds an optional 'activity' artifact of tool call ids, titles, kinds and statuses.",
+                      "Adds an optional 'activity' artifact of tool call ids, titles, kinds, statuses and reasoning text.",
                     required: false,
                     params: undefined,
                   },
@@ -216,7 +216,10 @@ export async function launchGateway(options: ServerOptions) {
     status("ready", `gateway · ${ready.url}`);
     status("workspace", options.workspace);
     if (options.executor?.activity)
-      status("activity", "tool call titles are published; they may reveal paths or commands");
+      status(
+        "activity",
+        "tool calls and reasoning text are published; they may reveal paths, commands or workspace data",
+      );
     status("agent card", cardUrl);
     status("connect", `a2a send -a ${ready.url} "Reply with a short greeting." --stream`);
     status("stop", "press Ctrl-C to stop the gateway");

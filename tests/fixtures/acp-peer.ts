@@ -125,6 +125,13 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   });
   await ctx.notify(acp.methods.client.session.update, {
     sessionId: activeSession,
+    update: {
+      sessionUpdate: "agent_thought_chunk",
+      content: { type: "text", text: "child-thought", _meta: { "opencode/child-session": true } },
+    },
+  });
+  await ctx.notify(acp.methods.client.session.update, {
+    sessionId: activeSession,
     update: { sessionUpdate: "tool_call", toolCallId: "private-tool", title: "private tool" },
   });
   await ctx.notify(acp.methods.client.session.update, {

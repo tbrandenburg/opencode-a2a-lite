@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import manifest from "../package.json" with { type: "json" };
+import { activityOf, type Activity } from "./activity.js";
 import { BridgeError } from "./bridge-error.js";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
@@ -17,24 +18,6 @@ export interface AcpBridgeOptions {
   promptTimeoutMs?: number;
   cancelTimeoutMs?: number;
   closeTimeoutMs?: number;
-}
-
-export interface ToolActivity {
-  toolCallId: string;
-  title?: string;
-  kind?: string;
-  status?: string;
-}
-
-// Only identifying fields are forwarded; tool inputs and outputs never leave the bridge.
-function toolActivity(update: acp.SessionUpdate): ToolActivity | undefined {
-  if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") return;
-  return {
-    toolCallId: update.toolCallId,
-    ...(update.title ? { title: update.title } : {}),
-    ...(update.kind ? { kind: update.kind } : {}),
-    ...(update.status ? { status: update.status } : {}),
-  };
 }
 
 export function createAcpBridge(options: AcpBridgeOptions) {
@@ -66,7 +49,8 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     | {
         sessionId: string;
         onText: (text: string) => void;
-        onActivity: ((activity: ToolActivity) => void) | undefined;
+        onActivity: ((activity: Activity) => void) | undefined;
+        denied: boolean;
         cancelled: boolean;
         settled: boolean;
         cancellation: Promise<void> | undefined;
@@ -175,6 +159,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             request.params.sessionId !== turn.sessionId
           )
             return { outcome: { outcome: "cancelled" } };
+          turn.denied = true;
           const reject = request.params.options.find(
             (option) => option.kind === "reject_once" || option.kind === "reject_always",
           );
@@ -198,7 +183,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             update._meta?.["opencode/child-session"] !== undefined
           )
             return;
-          const activity = toolActivity(update);
+          const activity = activityOf(update);
           if (activity) {
             try {
               turn.onActivity?.(activity);
@@ -263,14 +248,15 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     sessionId: string,
     text: string,
     onText: (text: string) => void,
-    onActivity?: (activity: ToolActivity) => void,
-  ): Promise<acp.PromptResponse> {
+    onActivity?: (activity: Activity) => void,
+  ): Promise<acp.PromptResponse & { permissionDenied?: boolean }> {
     const current = requireConnection(sessionId);
     if (turn) throw new Error("ACP prompt in progress");
     const active = {
       sessionId,
       onText,
       onActivity,
+      denied: false,
       cancelled: false,
       settled: false,
       cancellation: undefined as Promise<void> | undefined,
@@ -287,7 +273,8 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       "prompt",
     );
     try {
-      return await active.completion;
+      const response = await active.completion;
+      return active.denied ? { ...response, permissionDenied: true } : response;
     } finally {
       active.settled = true;
       // A late cancel write must settle before another prompt can acquire this session.
