@@ -118,6 +118,40 @@ test("H02 HTTP rejects mixed text/data input and persists truthful failure", asy
   expect(JSON.stringify(body)).not.toMatch(/wrong-session|child|private/);
 });
 
+test("H02b opt-in activity and session metadata flow over HTTP without tool output", async () => {
+  const send = async (activity: boolean) => {
+    const instance = gateway("normal", activity ? { executor: { activity: true } } : {});
+    const ready = await instance.start();
+    const card = await (await fetch(new URL(".well-known/agent-card.json", ready.url))).json();
+    const body = await rpc(ready.url, "SendMessage", {
+      message: { messageId: `m-${activity}`, role: "ROLE_USER", parts: [{ text: "hello" }] },
+    });
+    const stored = await rpc(ready.url, "GetTask", { id: body.result.task.id, historyLength: 10 });
+    await instance.close();
+    return { card, task: stored.result };
+  };
+  const off = await send(false);
+  expect(off.card.capabilities.extensions ?? []).toEqual([]);
+  expect(off.task.artifacts.map((artifact: { name: string }) => artifact.name)).toEqual([
+    "response",
+  ]);
+  const on = await send(true);
+  expect(on.card.capabilities.extensions[0].uri).toBe("urn:opencode-a2a-lite:activity:v1");
+  expect(on.task.status.state).toBe("TASK_STATE_COMPLETED");
+  const activity = on.task.artifacts.find(
+    (artifact: { name: string }) => artifact.name === "activity",
+  );
+  expect(activity.parts.map((part: { data?: unknown }) => part.data).filter(Boolean)).toEqual([
+    { toolCallId: "private-tool", title: "private tool" },
+    { toolCallId: "private-tool", status: "completed" },
+  ]);
+  for (const task of [off.task, on.task]) {
+    expect(task.metadata["opencode.sessionId"]).toMatch(/^session-/);
+    expect(task.metadata["opencode.stopReason"]).toBe("end_turn");
+    expect(JSON.stringify(task)).not.toContain("secret-tool-output");
+  }
+});
+
 test("H03 ACP startup timeout never opens HTTP or advertises early readiness", async () => {
   const port = await freePort();
   const directory = await mkdtemp(join(tmpdir(), "a2a-http-startup-"));

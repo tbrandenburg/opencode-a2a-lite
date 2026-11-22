@@ -21,10 +21,13 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
     server: {
       workspace,
       port: parsePort(flags.get("--port") ?? env.A2A_PORT),
+      ...(flags.has("--publish-activity") ? { executor: { activity: true } } : {}),
       ...(identity === undefined ? {} : { identity }),
     },
   };
 }
+
+const VALUELESS = new Set(["--help", "--version", "--publish-activity"]);
 
 function parseFlags(args: readonly string[]) {
   const flags = new Map<string, string>();
@@ -32,7 +35,7 @@ function parseFlags(args: readonly string[]) {
     const token = args[index];
     const flag = token === "-h" ? "--help" : token === "-v" ? "--version" : token;
     if (flag === undefined || flags.has(flag)) throw new StartupError("arguments");
-    if (flag === "--help" || flag === "--version") {
+    if (VALUELESS.has(flag)) {
       flags.set(flag, "");
       continue;
     }

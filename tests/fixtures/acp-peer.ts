@@ -130,6 +130,16 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   await ctx.notify(acp.methods.client.session.update, {
     sessionId: activeSession,
     update: {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "private-tool",
+      status: "completed",
+      content: [{ type: "content", content: { type: "text", text: "secret-tool-output" } }],
+      rawOutput: "secret-tool-output",
+    },
+  });
+  await ctx.notify(acp.methods.client.session.update, {
+    sessionId: activeSession,
+    update: {
       sessionUpdate: "agent_message_chunk",
       content: { type: "image", data: "", mimeType: "image/png" },
     },

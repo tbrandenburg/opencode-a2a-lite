@@ -67,3 +67,18 @@ test("C5: ports require decimal syntax and the TCP range", () => {
     server: { port: 65535 },
   });
 });
+
+test("C4: --publish-activity is a valueless, non-repeatable opt-in", () => {
+  const env = { A2A_WORKSPACE: "/trusted" };
+  expect(parseOptions(["--publish-activity"], env)).toEqual({
+    action: "run",
+    server: { workspace: "/trusted", port: 41241, executor: { activity: true } },
+  });
+  expect(parseOptions(["--port", "0", "--publish-activity"], env)).toMatchObject({
+    server: { port: 0, executor: { activity: true } },
+  });
+  expect(() => parseOptions(["--publish-activity", "--publish-activity"], env)).toThrow(
+    StartupError,
+  );
+  expect(() => parseOptions(["--publish-activity=1"], env)).toThrow(StartupError);
+});

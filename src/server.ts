@@ -8,7 +8,12 @@ import { A2A_PROTOCOL_VERSION, AGENT_CARD_PATH, type AgentCard } from "@a2a-js/s
 import type { AgentExecutor } from "@a2a-js/sdk/server";
 import { agentCardHandler, jsonRpcHandler, UserBuilder } from "@a2a-js/sdk/server/express";
 import { createAcpBridge, type AcpBridgeOptions } from "./acp-client.js";
-import { createAgentExecutor, EXPLICIT_CONTEXT, type ExecutorOptions } from "./executor.js";
+import {
+  ACTIVITY_EXTENSION,
+  createAgentExecutor,
+  EXPLICIT_CONTEXT,
+  type ExecutorOptions,
+} from "./executor.js";
 import { createRequestHandler } from "./request-handler.js";
 import { parseOptions } from "./cli-options.js";
 import { reportStartupError, StartupError } from "./startup-error.js";
@@ -106,7 +111,17 @@ export function createGateway(options: ServerOptions) {
             streaming: true,
             pushNotifications: false,
             extendedAgentCard: false,
-            extensions: [],
+            extensions: options.executor?.activity
+              ? [
+                  {
+                    uri: ACTIVITY_EXTENSION,
+                    description:
+                      "Adds an optional 'activity' artifact of tool call ids, titles, kinds and statuses.",
+                    required: false,
+                    params: undefined,
+                  },
+                ]
+              : [],
           },
           securitySchemes: {},
           securityRequirements: [],
@@ -200,6 +215,8 @@ export async function launchGateway(options: ServerOptions) {
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
     status("ready", `gateway · ${ready.url}`);
     status("workspace", options.workspace);
+    if (options.executor?.activity)
+      status("activity", "tool call titles are published; they may reveal paths or commands");
     status("agent card", cardUrl);
     status("connect", `a2a send -a ${ready.url} "Reply with a short greeting." --stream`);
     status("stop", "press Ctrl-C to stop the gateway");

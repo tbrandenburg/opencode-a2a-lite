@@ -19,6 +19,24 @@ export interface AcpBridgeOptions {
   closeTimeoutMs?: number;
 }
 
+export interface ToolActivity {
+  toolCallId: string;
+  title?: string;
+  kind?: string;
+  status?: string;
+}
+
+// Only identifying fields are forwarded; tool inputs and outputs never leave the bridge.
+function toolActivity(update: acp.SessionUpdate): ToolActivity | undefined {
+  if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") return;
+  return {
+    toolCallId: update.toolCallId,
+    ...(update.title ? { title: update.title } : {}),
+    ...(update.kind ? { kind: update.kind } : {}),
+    ...(update.status ? { status: update.status } : {}),
+  };
+}
+
 export function createAcpBridge(options: AcpBridgeOptions) {
   if (!isAbsolute(options.cwd)) throw new Error("ACP workspace must be absolute");
   const cwd = options.cwd;
@@ -48,6 +66,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     | {
         sessionId: string;
         onText: (text: string) => void;
+        onActivity: ((activity: ToolActivity) => void) | undefined;
         cancelled: boolean;
         settled: boolean;
         cancellation: Promise<void> | undefined;
@@ -179,6 +198,15 @@ export function createAcpBridge(options: AcpBridgeOptions) {
             update._meta?.["opencode/child-session"] !== undefined
           )
             return;
+          const activity = toolActivity(update);
+          if (activity) {
+            try {
+              turn.onActivity?.(activity);
+            } catch {
+              fail("ACP activity callback failed");
+            }
+            return;
+          }
           if (update.sessionUpdate !== "agent_message_chunk" || update.content.type !== "text")
             return;
           if (update.content._meta?.["opencode/child-session"] !== undefined) return;
@@ -235,12 +263,14 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     sessionId: string,
     text: string,
     onText: (text: string) => void,
+    onActivity?: (activity: ToolActivity) => void,
   ): Promise<acp.PromptResponse> {
     const current = requireConnection(sessionId);
     if (turn) throw new Error("ACP prompt in progress");
     const active = {
       sessionId,
       onText,
+      onActivity,
       cancelled: false,
       settled: false,
       cancellation: undefined as Promise<void> | undefined,

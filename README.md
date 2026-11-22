@@ -88,7 +88,7 @@ launcher still use Linux-specific tooling.
 ## Usage
 
 ```text
-opencode-a2a-lite --workspace <path> [--port <0..65535>]
+opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
 opencode-a2a-lite --help | --version
 ```
 
@@ -126,6 +126,12 @@ reusing the ACP session for that context.
 - Permission requests are rejected/canceled, not silently approved.
 - A failed task names the failing phase (for example `ACP session creation failed`); the
   underlying OpenCode diagnostic is never published. A bridge failure is permanent until restart.
+- Every task's metadata carries `opencode.sessionId` and `opencode.stopReason` (after a session
+  exists). The session id is the key for finding the full transcript in OpenCode itself.
+- `--publish-activity` (off by default) adds an `activity` artifact of data parts with only tool
+  call id, title, kind and status; tool inputs, outputs and reasoning are never published. Titles
+  may reveal paths or commands, so enable it only for clients you trust. The Agent Card then
+  declares the `urn:opencode-a2a-lite:activity:v1` extension.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are

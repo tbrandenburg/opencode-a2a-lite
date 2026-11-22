@@ -7,7 +7,7 @@ import {
   type ExecutionEventBus,
   type RequestContext,
 } from "@a2a-js/sdk/server";
-import type { createAcpBridge } from "./acp-client.js";
+import type { createAcpBridge, ToolActivity } from "./acp-client.js";
 import { BridgeError } from "./bridge-error.js";
 
 export type ExecutorBridge = Pick<
@@ -19,6 +19,18 @@ export const EXPLICIT_CONTEXT = "opencode.explicitContext";
 
 export interface ExecutorOptions {
   maxContexts?: number;
+  activity?: boolean;
+}
+
+export const ACTIVITY_EXTENSION = "urn:opencode-a2a-lite:activity:v1";
+
+function dataPart(value: ToolActivity): Part {
+  return {
+    content: { $case: "data", value },
+    mediaType: "application/json",
+    filename: "",
+    metadata: undefined,
+  };
 }
 
 function textPart(text: string): Part {
@@ -49,7 +61,10 @@ export function createAgentExecutor(
     const taskId = ctx.taskId;
     const contextId = ctx.contextId;
     const artifactId = randomUUID();
+    const activityId = randomUUID();
+    const meta: Record<string, string> = {};
     let emitted = false;
+    let activityEmitted = false;
     let terminal = false;
 
     function status(state: TaskState, text?: string) {
@@ -73,7 +88,7 @@ export function createAgentExecutor(
                 }
               : undefined,
           },
-          metadata: undefined,
+          metadata: Object.keys(meta).length ? { ...meta } : undefined,
         }),
       );
     }
@@ -99,9 +114,32 @@ export function createAgentExecutor(
       emitted = true;
     }
 
+    function activity(entry?: ToolActivity) {
+      const lastChunk = entry === undefined;
+      bus.publish(
+        AgentEvent.artifactUpdate({
+          taskId,
+          contextId,
+          artifact: {
+            artifactId: activityId,
+            name: "activity",
+            description: "Tool activity summary",
+            parts: [entry ? dataPart(entry) : textPart("")],
+            metadata: undefined,
+            extensions: [ACTIVITY_EXTENSION],
+          },
+          append: activityEmitted,
+          lastChunk,
+          metadata: undefined,
+        }),
+      );
+      activityEmitted = true;
+    }
+
     function finish(state: TaskState, text?: string) {
       terminal = true;
       if (emitted) chunk("", true);
+      if (activityEmitted) activity();
       status(state, text);
     }
 
@@ -179,10 +217,21 @@ export function createAgentExecutor(
     try {
       const sessionId = existing ?? (await bridge.newSession()).sessionId;
       record.sessionId = sessionId;
+      meta["opencode.sessionId"] = sessionId;
       sessions.set(contextId, sessionId);
-      const response = await bridge.prompt(sessionId, text, (value) => {
-        if (!terminal && value) chunk(value);
-      });
+      const response = await bridge.prompt(
+        sessionId,
+        text,
+        (value) => {
+          if (!terminal && value) chunk(value);
+        },
+        options.activity
+          ? (entry) => {
+              if (!terminal) activity(entry);
+            }
+          : undefined,
+      );
+      meta["opencode.stopReason"] = response.stopReason;
       if (response.stopReason === "end_turn") {
         finish(TaskState.TASK_STATE_COMPLETED);
         return;

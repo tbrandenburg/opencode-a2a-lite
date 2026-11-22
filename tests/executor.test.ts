@@ -28,15 +28,17 @@ function context(
   );
 }
 
-function setup(stopReason = "end_turn", failure?: "prompt") {
+function setup(stopReason = "end_turn", failure?: "prompt", activity = false) {
   const calls: string[] = [];
   const bridge: ExecutorBridge = {
     async newSession() {
       calls.push("session");
       return { sessionId: "session" };
     },
-    async prompt(session, text, onText) {
+    async prompt(session, text, onText, onActivity) {
       calls.push(`${session}:${text}`);
+      onActivity?.({ toolCallId: "call-1", title: "read package.json", kind: "read" });
+      onActivity?.({ toolCallId: "call-1", status: "completed" });
       onText("first");
       onText("");
       onText(" second");
@@ -48,7 +50,7 @@ function setup(stopReason = "end_turn", failure?: "prompt") {
       calls.push(`cancel:${session}`);
     },
   };
-  const executor = createAgentExecutor(bridge);
+  const executor = createAgentExecutor(bridge, { activity });
   const bus = new DefaultExecutionEventBus();
   const events: AgentExecutionEvent[] = [];
   bus.on("event", (event) => events.push(event));
@@ -94,6 +96,53 @@ test("E1: publishes snapshot, working, ordered stable chunks, empty final append
     { $case: "text", value: " second" },
     { $case: "text", value: "" },
   ]);
+});
+
+function artifacts(events: AgentExecutionEvent[], name: string) {
+  return events.flatMap((event) =>
+    event.kind === "artifactUpdate" && event.data.artifact?.name === name ? [event.data] : [],
+  );
+}
+
+test("E1b: activity is published only on request, in its own artifact, finalized once", async () => {
+  const off = setup();
+  await off.executor.execute(context(), off.bus);
+  expect(artifacts(off.events, "activity")).toEqual([]);
+  expect(artifacts(off.events, "response")).toHaveLength(3);
+
+  const on = setup("end_turn", undefined, true);
+  await on.executor.execute(context(), on.bus);
+  const entries = artifacts(on.events, "activity");
+  expect(new Set(entries.map((entry) => entry.artifact?.artifactId)).size).toBe(1);
+  expect(entries.map((entry) => [entry.append, entry.lastChunk])).toEqual([
+    [false, false],
+    [true, false],
+    [true, true],
+  ]);
+  expect(entries.map((entry) => entry.artifact?.parts[0]?.content)).toEqual([
+    { $case: "data", value: { toolCallId: "call-1", title: "read package.json", kind: "read" } },
+    { $case: "data", value: { toolCallId: "call-1", status: "completed" } },
+    { $case: "text", value: "" },
+  ]);
+  expect(artifacts(on.events, "response")).toHaveLength(3);
+  expect(statuses(on.events)).toEqual([
+    TaskState.TASK_STATE_WORKING,
+    TaskState.TASK_STATE_COMPLETED,
+  ]);
+});
+
+test("E1c: terminal status carries the ACP session binding and stop reason", async () => {
+  const run = setup("max_tokens");
+  await run.executor.execute(context(), run.bus);
+  expect(run.events.at(-1)).toMatchObject({
+    data: {
+      status: { state: TaskState.TASK_STATE_FAILED },
+      metadata: { "opencode.sessionId": "session", "opencode.stopReason": "max_tokens" },
+    },
+  });
+  const rejected = setup();
+  await rejected.executor.execute(context([{ text: "hi" }], { contextId: "x" }), rejected.bus);
+  expect(rejected.events.at(-1)).toMatchObject({ data: { metadata: undefined } });
 });
 
 test("E2: an unknown stop reason flushes before failure and invalidates continuation", async () => {

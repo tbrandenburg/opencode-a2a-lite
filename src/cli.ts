@@ -6,13 +6,15 @@ import { reportStartupError } from "./startup-error.js";
 async function main() {
   const options = parseOptions(process.argv.slice(2), process.env);
   if (options.action === "help") {
-    console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>]
+    console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
 
 Start the foreground, unauthenticated A2A gateway.
 Linux or macOS (experimental), Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
 
   --workspace <path>  Explicitly trust this directory; relative paths are resolved.
   --port <0..65535>   Port (default 41241; 0 selects a free port).
+  --publish-activity  Also publish an "activity" artifact with tool call ids, titles, kinds and
+                      statuses (no inputs or outputs). Titles may reveal paths or commands.
   --help, -h         Show help without starting OpenCode.
   --version, -v      Print package version without starting OpenCode.
 
