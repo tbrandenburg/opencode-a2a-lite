@@ -17,6 +17,9 @@ and context continuity.
 A2A client ──HTTP/SSE──▶ opencode-a2a-lite ──ACP (stdio)──▶ opencode ──▶ trusted workspace
 ```
 
+**Opt-in extras:** tool and reasoning activity, interactive permission approval, resuming
+existing OpenCode sessions and replaying their history; see [Advanced features](#advanced-features).
+
 **Not included:** HTTP OpenCode adapter, database, orchestrator, retries, sandbox.
 
 > [!WARNING]
@@ -35,6 +38,7 @@ HOME/configuration, but is not an OS sandbox.
 - [Quick start](#quick-start)
 - [Requirements](#requirements)
 - [Usage](#usage)
+- [Advanced features](#advanced-features)
 - [Behavior and limitations](#behavior-and-limitations)
 - [Development](#development)
 - [Multi-agent coordination](#multi-agent-coordination)
@@ -88,16 +92,23 @@ launcher still use Linux-specific tooling.
 ## Usage
 
 ```text
-opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
-                     [--permissions <reject|ask>] [--allow-resume]
+opencode-a2a-lite --workspace <path> [--port <0..65535>]
+                  [--publish-activity] [--permissions <reject|ask>] [--allow-resume]
 opencode-a2a-lite --help | --version
 ```
 
-| Option / variable                                                               | Meaning                                                                                                      |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust. |
-| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.     |
-| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                    |
+| Option / variable                                                               | Meaning                                                                                                                        |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                   |
+| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                       |
+| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).            |
+| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests). |
+| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).         |
+| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                      |
+
+The three opt-in flags are independent, off by default, and each adds an Agent Card extension
+when enabled. They widen what any client that can reach the **unauthenticated** port can see or
+do, so enable them only for trusted clients on loopback.
 
 Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
 use `make dev` for development.
@@ -110,6 +121,92 @@ newer to use `npx`, plus Bun 1.4.4 and OpenCode 2.2.7 or newer on `PATH`. `bunx`
 be used instead of `npx` where Bun is installed. Inside a checkout of this repository
 `npx` can fail with `opencode-a2a-lite: not found`; run it from another directory. See [distribution and release policy](docs/distribution.md) for
 verification scope and release details.
+
+## Advanced features
+
+Everything here is opt-in except the task metadata. Examples use the official
+[`a2a` CLI](https://github.com/a2aproject/a2a-cli).
+
+### Task metadata
+
+Every task carries these keys in its metadata (visible with `a2a send -o json` or `a2a task get -o json`):
+
+| Key                                                                                       | Meaning                                                                                                                                 |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `opencode.sessionId`                                                                      | The OpenCode session behind the task. Use it to find the full transcript in OpenCode (`opencode --session <id>`) or to resume it below. |
+| `opencode.stopReason`                                                                     | The ACP stop reason of the turn.                                                                                                        |
+| `opencode.resumed`                                                                        | `"true"` when the task resumed an existing session.                                                                                     |
+| `opencode.replayed`, `opencode.replayTruncated`                                           | Replay count, and `"true"` when anything was cut.                                                                                       |
+| `opencode.permissionPending`, `opencode.permissionRequestId`, `opencode.permissionDenied` | Permission state; see [Permission requests](#permission-requests).                                                                      |
+
+A failed task names the failing phase (for example `ACP session creation failed`); the underlying
+OpenCode diagnostic is never published.
+
+### Continue an existing session
+
+By default each new conversation gets a new OpenCode session, and a follow-up only works while the
+gateway keeps that context in memory. With `--allow-resume` a client can continue **any existing
+session of the gateway's workspace**, for example after a gateway restart:
+
+```sh
+a2a send -a <url> --metadata '{"opencode.sessionId":"ses_…"}' "Continue where we left off"
+a2a send -a <url> --context-id <returned-context-id> "Follow up"
+```
+
+- Get the id from earlier task metadata or `opencode session list`. It may be sent in message or
+  request metadata. Without the flag the metadata is refused, never silently ignored.
+- OpenCode itself rejects ids that are unknown or belong to another workspace
+  (`ACP session resume rejected`); that fails only the one task. A session can be bound to one
+  context at a time, and a context cannot be re-bound to another session. After a restart a client
+  may reuse its old `contextId` together with the session id.
+- Only one writer should use a session at a time; stop an open OpenCode TUI on it first.
+- Sessions hold earlier conversation content, which any client that can reach the port can then
+  read. The Agent Card declares `urn:opencode-a2a-lite:resume:v1`.
+
+**History replay.** Add `"opencode.replay": true` to receive the earlier conversation too:
+
+```sh
+a2a send -a <url> -o json --metadata '{"opencode.sessionId":"ses_…","opencode.replay":true}' "Continue"
+```
+
+The task gets a `conversation` artifact before the new answer: data parts
+`{"role": "user" | "assistant", "text": "…"}`, oldest first. Only plain user and assistant text is
+replayed, the newest 100 messages of at most 20,000 characters each (`opencode.replayTruncated`
+when anything was cut). Tool calls, tool output and reasoning are never replayed. The value must be
+a boolean and is only valid on the first message that resumes a session.
+
+### Tool and reasoning activity
+
+`--publish-activity` adds an `activity` artifact of data parts, in order: tool call entries
+`{toolCallId, title, kind, status}` and reasoning as `{"thought": "…"}`. Tool inputs and outputs
+are never published. Titles and reasoning may reveal paths, commands or workspace data. Reasoning
+appears only for models and effort settings that emit it (for example Claude Haiku 5.5 with
+`effort=high`). The Agent Card declares `urn:opencode-a2a-lite:activity:v1`.
+
+### Permission requests
+
+By default the gateway rejects every permission request. A turn stopped that way ends `canceled`
+with the message "Permission request rejected" and `opencode.permissionDenied: "true"`; a client
+cancellation carries neither. Permissions that OpenCode's own configuration allows are never
+asked, so they are never rejected, so review that configuration.
+
+With `--permissions ask` the client decides. The task pauses as `input-required` with a question
+and a data part `{"permission": {requestId, title, kind, options}}`; answer on the **same task**:
+
+```sh
+a2a send -a <url> "Run the tests"                  # → input-required: Allow "bun test (execute)"?
+a2a send -a <url> --task-id <id> allow             # or: reject
+```
+
+Or send a data part `{"permissionResponse": {"requestId": "…", "optionId": "…"}}`.
+
+- Only `allow_once` and the reject options are offered, never `allow_always`. A wrong request id,
+  an option that was not offered, or an unrecognised answer leaves the request open.
+- No answer within 120 seconds rejects once. While waiting, the single prompt slot stays held
+  (other tasks get "busy") and the prompt deadline is suspended. Canceling the task cancels the
+  request without marking a denial.
+- **Anyone who can reach the port can approve tool runs in this mode.** The Agent Card declares
+  `urn:opencode-a2a-lite:permissions:v1`.
 
 ## Behavior and limitations
 
@@ -124,50 +221,7 @@ reusing the ACP session for that context.
   them. No durable recovery, multi-tenancy or parallel model execution.
 - Only ACP `end_turn` means completed; confirmed `cancelled` means canceled.
   Errors and other stop reasons fail the task without publishing private diagnostics.
-- Permission requests are rejected/canceled, not silently approved.
-- A failed task names the failing phase (for example `ACP session creation failed`); the
-  underlying OpenCode diagnostic is never published. A bridge failure is permanent until restart.
-- Every task's metadata carries `opencode.sessionId` and `opencode.stopReason` (after a session
-  exists). The session id is the key for finding the full transcript in OpenCode itself.
-- `--allow-resume` (off by default) lets a client continue an **existing OpenCode session** of the
-  gateway's workspace, for example after a gateway restart or one started elsewhere. Send the
-  first message with metadata `opencode.sessionId` set to the session id (from earlier task
-  metadata or `opencode session list`): `a2a send -a <url> --metadata '{"opencode.sessionId":"ses_…"}' "Continue"`.
-  The task metadata then shows `opencode.resumed: "true"`; follow up with the returned
-  `contextId` as usual. After a restart a client may also re-bind its old `contextId` by sending it
-  together with the session id. OpenCode itself refuses ids that are unknown or belong to another
-  workspace (`ACP session resume rejected`), which fails only that task. A session can be bound to one
-  context at a time, and without the flag the metadata is refused, never ignored. Add `"opencode.replay": true` (`--metadata '{"opencode.sessionId":"ses_…","opencode.replay":true}'`)
-  to also receive the earlier conversation in a `conversation` artifact: data parts
-  `{"role": "user"|"assistant", "text": "…"}`, oldest first, before the new answer, with
-  `opencode.replayed` (count) in the task metadata. Only plain user and assistant text is replayed, the
-  newest 100 messages of at most 20,000 characters each (`opencode.replayTruncated: "true"` when anything
-  was cut); tool calls, tool output and reasoning are never replayed, and `opencode.replay` is
-  refused unless it is `true`/`false` on the first message that resumes a session. Only one writer should use a session at a time (stop an
-  open OpenCode TUI on it first). **Sessions hold earlier conversation content that any client able
-  to reach the unauthenticated port can then read**; enable it for trusted clients only. The Agent
-  Card declares the `urn:opencode-a2a-lite:resume:v1` extension.
-- `--publish-activity` (off by default) adds an `activity` artifact of data parts: tool call id,
-  title, kind and status, plus the model's reasoning text as `{"thought": "..."}` when OpenCode
-  emits it. Tool inputs and outputs are never published. Titles and reasoning may reveal paths,
-  commands or workspace data, so enable it only for clients you trust. The Agent Card then
-  declares the `urn:opencode-a2a-lite:activity:v1` extension. Reasoning appears only for models
-  and effort settings that emit it (for example Claude Haiku 5.5 with `effort=high`).
-- By default the gateway rejects every permission request. A turn stopped by a rejection ends
-  `canceled` with the message "Permission request rejected" and `opencode.permissionDenied: "true"`
-  in the task metadata; a client cancellation carries neither. Permissions that OpenCode's own
-  configuration allows are never asked, so they are never rejected.
-- `--permissions ask` lets a client decide. The task pauses as `input-required` with a text
-  question and a data part `{"permission": {requestId, title, kind, options}}`; metadata shows
-  `opencode.permissionPending: "true"` and the request id. Answer on the **same task**
-  (`a2a send -a <url> --task-id <id> --context-id <ctx> allow`, or `reject`, or a data part
-  `{"permissionResponse": {"requestId", "optionId"}}`). A wrong id or option leaves the request
-  open; only `allow_once` and the reject options are offered, never `allow_always`. No answer
-  within 120 seconds rejects once. While waiting, the single prompt slot stays held (other tasks
-  get "busy") and the prompt deadline is suspended; canceling the task cancels the request without
-  marking a denial. **Anyone who can reach the unauthenticated port can approve tool runs in this
-  mode**, so keep it on loopback and for trusted clients only. The Agent Card declares the
-  `urn:opencode-a2a-lite:permissions:v1` extension.
+- Permission requests are rejected unless `--permissions ask` is set and a client answers.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are
@@ -176,8 +230,9 @@ reusing the ACP session for that context.
 
 See [architecture and implementation pitfalls](docs/architecture.md) and
 [SDK cancellation removal criteria](docs/sdk-cancellation.md).
-Full A2A TCK certification, interactive approval, rich media, push notifications
-and runtime-selected workspaces are not claimed.
+Full A2A TCK certification, rich media, push notifications and runtime-selected workspaces
+are not claimed. Interactive approval, session resume and replay exist only as the opt-in
+features above.
 
 ## Development
 
