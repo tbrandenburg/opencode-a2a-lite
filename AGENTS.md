@@ -8,6 +8,8 @@ single-turn admission, stream/context continuity, cancellation, accurate task
 outcomes and owned-resource cleanup. Model reasoning quality is separate from
 adapter correctness. Do not add production schedulers, roles, scorers, model
 profiles, retries or new dependencies to restore the retired managed lab.
+Extras (`--publish-activity`, `--permissions ask`, `--allow-resume`/replay) stay opt-in:
+off by default, own flag and Agent Card extension, README warning, on and off tests.
 
 Start with [README](README.md), [architecture](docs/architecture.md),
 and [SDK cancellation constraints](docs/sdk-cancellation.md).
@@ -18,7 +20,10 @@ findings; retirement does **not** mean failures have been fixed.
 
 - **Never** expose the unauthenticated gateway through a public proxy.
   Workspaces must be explicitly trusted; production inherits OpenCode configuration,
-  provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox.
+  provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox, and the opt-in extras let any client
+  on the port approve tool runs or read earlier sessions; never make them defaults.
+- Real permission requests need a config override (`OPENCODE_CONFIG_CONTENT`, e.g. `bash: ask`);
+  the usual user config allows everything, so none appear.
 - For the full live acceptance suite and guarded MCP workflows, use Linux/Bun 1.4.4 with stable OpenCode 2.2.7 or newer (live acceptance recorded on 2.2.7). For MCP interop use the
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
@@ -78,8 +83,14 @@ ports. Do not infer that an unfinished task was canceled.
   then explicitly closing the listener; draining connections alone does not close it.
 - `prepack` must remove old compiled JS before building; wildcard runtime
   packaging must not include obsolete `dist/src` files.
-- A new context uses a new ACP session; continuation must reuse the actual ACP
-  session binding and reject stale context IDs rather than restarting silently.
+- A new context uses a new ACP session (or, with `--allow-resume`, a validated existing one);
+  continuation must reuse the actual ACP session binding and reject stale context IDs
+  rather than restarting silently.
+- `bounded()` retires the bridge on any failure: client-supplied input (a resume id) may only
+  reject its own task, so convert just OpenCode's invalid-params error. Suspend the prompt
+  deadline while a human answers and restart it on release.
+- An `INPUT_REQUIRED` task has no original SDK consumer: cancel via the stock path, publish the
+  task snapshot first on resume, and reset sticky shallow-merged metadata explicitly.
 - Timeout and cancellation are different operations: do not label a lost or
   uncertain completion as `canceled`.
 - Do not assume cold, standalone OpenCode has registered MCP tools. The manual
@@ -102,3 +113,5 @@ chronological incident diary.
 - 2026-11-10: Pitfall: Deadline handling misclassified callback and transport failures as timeouts or aborts. Prevention: classify errors at their originating operation and test misleading error causes.
 - 2026-11-11: Pitfall: A launcher reported cleanup after its root exited while a detached child still held a listener. Prevention: establish descendant ownership at launch and verify owned processes and listeners before deleting records.
 - 2026-11-15: Pitfall: On macOS a post-kill process-group probe can return `EPERM` while the leader is a zombie awaiting reaping. Prevention: treat probe-only `EPERM` as inconclusive within the deadline, never as confirmed cleanup; fail on denied signals and require macOS validation before release.
+- 2026-11-22: Pitfall: A client-supplied session id could retire the shared bridge, and a fixture ending a cancelled permission as `refusal` hid a cancel bug. Prevention: convert only the peer's invalid-params error per request, and mirror the real peer's stop reasons in fixtures.
+- 2026-11-22: Pitfall: Replayed history looked like task `history`, but the SDK appends status messages after the current prompt. Prevention: publish replay as a dedicated artifact.
