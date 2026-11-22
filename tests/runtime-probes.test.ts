@@ -17,6 +17,13 @@ import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import { verifyRuntime } from "../src/runtime-probes.js";
 import { launchGateway } from "../src/server.js";
 import { createAcpBridge } from "../src/acp-client.js";
+import { StartupError } from "../src/startup-error.js";
+
+test("unsupported private runtime explains the platform and library alternative", () => {
+  const error = new StartupError("runtimePlatform");
+  expect(error.message).toContain("CLI private runtime is Linux-only");
+  expect(error.message).toContain("library callers can supply acp.env");
+});
 
 test("explicit ACP environment conflicts with pass-env", async () => {
   await expect(

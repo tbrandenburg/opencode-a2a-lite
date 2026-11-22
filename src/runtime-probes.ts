@@ -133,7 +133,7 @@ export async function verifyRuntime(options: {
   signal: AbortSignal;
   onSpawn?: () => void;
 }) {
-  if (process.platform !== "linux") throw new StartupError("runtime");
+  if (process.platform !== "linux") throw new StartupError("runtimePlatform");
   rejectIfPresent("/etc/opencode", "managed", options.root);
   rejectAncestorConfiguration(options.cwd, options.root);
   const run = (args: string[]) =>

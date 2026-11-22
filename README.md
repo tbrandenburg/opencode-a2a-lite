@@ -275,23 +275,22 @@ make check               # format, lint, typecheck, deterministic tests, build
 bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
-| Command                                                                | Purpose                                                              |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build     |
-| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider  |
-| `make runtime-smoke`                                                   | Isolated gateway and real OpenCode startup, without a model prompt   |
-| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance          |
-| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)        |
-| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                |
-| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                   |
-| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release. |
-| `make clean`                                                           | Remove build, coverage and test results                              |
+| Command                                                                | Purpose                                                               |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build      |
+| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider   |
+| `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt |
+| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance           |
+| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)         |
+| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                 |
+| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                    |
+| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release.  |
+| `make clean`                                                           | Remove build, coverage and test results                               |
 
 CI is configured to check core deterministic tests and installed packaging on Linux and macOS;
 the provider-free team launcher fixtures and checksummed MCP bridge run on Linux.
-Live demo/E2E are explicit manual commands requiring a provider key,
+Live demo/E2E are Linux-only explicit manual commands requiring a provider key,
 OpenCode and the official A2A CLI; `make demo` also needs `jq` and GNU `timeout`.
-On macOS its isolated workspace cleanup additionally uses `/usr/sbin/lsof`.
 For the exact live evidence/limitations see [acceptance](docs/acceptance.md).
 `bun scripts/quality-report.ts` summarizes the latest local measurements;
 native line/function coverage is not branch coverage or a correctness guarantee.

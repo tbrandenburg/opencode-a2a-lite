@@ -17,7 +17,8 @@ port reclamation.
 
 This is one two-turn demo, not the full live acceptance matrix or evidence for
 other macOS architectures, versions, providers, cancellation, or optional guarded
-MCP/team workflows. macOS gateway use remains experimental.
+MCP/team workflows. The current CLI private runtime and live demo are Linux-only;
+macOS library use remains experimental.
 
 ## Runtime upgrade verification (issues #60 and #61)
 
@@ -47,7 +48,7 @@ remain in Git; see also [Bun security](bun-runtime-security.md) and
 ### Reproduction boundaries
 
 Run `make install`, `make check`, and `make package-smoke` for provider-free
-checks. `make runtime-smoke` starts the real OpenCode executable without a model
+checks. On Linux, `make runtime-smoke` starts the real OpenCode executable without a model
 prompt. On Linux, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make
 interop-test` verifies the separate guarded interop path. `make demo` and Linux
 `make e2e` require explicit live authorization, reviewed isolation, provider

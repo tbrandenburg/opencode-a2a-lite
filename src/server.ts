@@ -227,6 +227,8 @@ export async function launchGateway(options: ServerOptions) {
   if (options.acp?.env && options.passEnv?.length) throw new StartupError("passEnvConflict");
   const workspace = await stat(options.workspace).catch(() => undefined);
   if (!workspace?.isDirectory()) throw new StartupError("directory");
+  validateIdentity(options.identity);
+  if (!options.acp?.env && process.platform !== "linux") throw new StartupError("runtimePlatform");
   const runtime = options.acp?.env
     ? undefined
     : createRuntimeEnvironment(options.passEnv ?? [], process.env);

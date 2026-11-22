@@ -29,8 +29,8 @@ findings; retirement does **not** mean failures have been fixed.
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
 - Provider-free core gateway checks and package smoke also run on macOS with Bun
-  1.4.4. The isolated live demo can run on macOS after its effective config and
-  owned-process cleanup checks pass. macOS gateway use remains experimental: the
+  1.4.4; normal CLI private-runtime launch and the current live demo are Linux-only.
+  macOS gateway library use remains experimental: the
   recorded live evidence is limited to a two-turn demo; full acceptance and
   guarded MCP/team workflows use Linux-specific process and listener inspection.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics

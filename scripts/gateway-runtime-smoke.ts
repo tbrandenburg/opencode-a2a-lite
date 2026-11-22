@@ -9,6 +9,10 @@ import { removeUnusedRuntime } from "../src/runtime-processes.js";
 
 let stage = "isolation";
 try {
+  if (process.platform !== "linux") {
+    stage = "private-runtime-linux-only";
+    throw new Error("Private runtime smoke is Linux-only");
+  }
   const workspace = await prepare({ providerFree: true });
   try {
     stage = "private-runtime-preflight";

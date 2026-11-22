@@ -133,7 +133,8 @@ try {
   reject(["--workspace", ".", "--port", "-1"], /Invalid port/);
   reject(["--workspace", "missing", "--port", "0"], /existing directory/);
   reject(["--workspace", tarball, "--port", "0"], /existing directory/);
-  reject(["--workspace", ".", "--port", "0"], /OpenCode is unavailable/);
+  if (process.platform === "linux")
+    reject(["--workspace", ".", "--port", "0"], /OpenCode is unavailable/);
 
   const built = await Bun.build({
     entrypoints: [join(root, "tests/fixtures/acp-peer.ts")],
@@ -193,187 +194,216 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   assert.match(invalidDirect.stderr, /Invalid worker identity/);
   assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
   assert.equal(existsSync(record), false);
-  writeFileSync(probeMode, "executable-version");
-  reject(["--workspace", ".", "--port", "0"], /stable opencode v2.2.7 or newer/);
-  const versionSnapshot = JSON.parse(readFileSync(environment, "utf8").trim().split("\n").at(-1)!);
-  assert.equal(existsSync(versionSnapshot.home), false, "version failure must clean runtime");
-  writeFileSync(probeMode, "bad-config");
-  reject(["--workspace", ".", "--port", "0"], /Private runtime preflight failed/);
-  rmSync(probeMode);
-  const preflightSnapshot = JSON.parse(
-    readFileSync(environment, "utf8").trim().split("\n").at(-1)!,
-  );
-  assert.equal(existsSync(preflightSnapshot.home), false, "preflight failure must clean runtime");
-  reject(["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"], /Gateway startup failed/, {
-    PEER_MODE: "startup-exit",
-  });
-  assert.equal(alive(peerRecord(record)!.pid), false);
-
-  const occupied = createServer();
-  await new Promise<void>((done) => occupied.listen(0, "127.0.0.1", done));
-  try {
-    const address = occupied.address();
-    assert.ok(address && typeof address !== "string");
-    reject(["--workspace", ".", "--port", String(address.port)], /port is in use/i);
-    assert.equal(occupied.listening, true);
-    assert.equal(alive(peerRecord(record)!.pid), false);
-  } finally {
-    await new Promise<void>((done, fail) =>
-      occupied.close((error) => (error ? fail(error) : done())),
+  if (process.platform === "darwin") {
+    const runtimeParent = realpathSync("/tmp");
+    const roots = () =>
+      new Set(
+        readdirSync(runtimeParent).filter((name) => name.startsWith("opencode-a2a-runtime-")),
+      );
+    const before = roots();
+    reject(
+      ["--workspace", ".", "--port", "0"],
+      /CLI private runtime is Linux-only for now; library callers can supply acp\.env/,
     );
+    assert.deepEqual(
+      [...roots()].filter((name) => !before.has(name)),
+      [],
+    );
+    assert.equal(existsSync(record), false, "unsupported platform must not start ACP");
   }
+  if (process.platform === "linux") {
+    writeFileSync(probeMode, "executable-version");
+    reject(["--workspace", ".", "--port", "0"], /stable opencode v2.2.7 or newer/);
+    const versionSnapshot = JSON.parse(
+      readFileSync(environment, "utf8").trim().split("\n").at(-1)!,
+    );
+    assert.equal(existsSync(versionSnapshot.home), false, "version failure must clean runtime");
+    writeFileSync(probeMode, "bad-config");
+    reject(["--workspace", ".", "--port", "0"], /Private runtime preflight failed/);
+    rmSync(probeMode);
+    const preflightSnapshot = JSON.parse(
+      readFileSync(environment, "utf8").trim().split("\n").at(-1)!,
+    );
+    assert.equal(existsSync(preflightSnapshot.home), false, "preflight failure must clean runtime");
+    reject(
+      ["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"],
+      /Gateway startup failed/,
+      {
+        PEER_MODE: "startup-exit",
+      },
+    );
+    assert.equal(alive(peerRecord(record)!.pid), false);
 
-  const scenarios = [
-    {
-      termination: "SIGINT",
-      args: ["--workspace", ".", "--port", "0", "--pass-env", "FAKE_API_KEY"],
-      env: {
-        ...isolated,
-        FAKE_API_KEY: "approved-sentinel",
-        UNRELATED_TOKEN: "hidden-sentinel",
-        OPENCODE_CONFIG_CONTENT: "hidden-sentinel",
-        HTTPS_PROXY: "hidden-sentinel",
-      },
-      port: undefined,
-    },
-    {
-      termination: "SIGTERM",
-      args: [],
-      env: {
-        ...isolated,
-        A2A_WORKSPACE: consumer,
-        A2A_PORT: "0",
-        A2A_NAME: " planner ",
-        A2A_DESCRIPTION: " Plans work ",
-        A2A_TAGS: "planning,text,planning",
-      },
-      port: undefined,
-    },
-    {
-      termination: "SIGTERM",
-      args: ["--workspace", consumer, "--port", "0"],
-      env: { ...isolated, A2A_PORT: undefined },
-      port: undefined,
-    },
-    {
-      termination: "SIGTERM",
-      args: [],
-      env: {
-        ...isolated,
-        A2A_WORKSPACE: consumer,
-        A2A_PORT: "0",
-        A2A_NAME: " reviewer ",
-        A2A_TAGS: "review,text,review",
-      },
-      port: undefined,
-      entry: join(modules, manifest.name, "dist/src/server.js"),
-    },
-  ] as const;
-  for (const scenario of scenarios) {
-    const metadata: NodeJS.ProcessEnv = scenario.env;
-    const probe = createServer();
-    await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
-    await new Promise<void>((done, fail) => probe.close((error) => (error ? fail(error) : done())));
-    rmSync(record, { force: true });
-    rmSync(environment, { force: true });
-    const invocation =
-      "entry" in scenario ? [process.execPath, scenario.entry] : [...command, ...scenario.args];
-    const child = launch(invocation, consumer, scenario.env);
-    let privateHome: string | undefined;
+    const occupied = createServer();
+    await new Promise<void>((done) => occupied.listen(0, "127.0.0.1", done));
     try {
-      const ready = await until(() => {
-        const line = child.output.stdout.trim();
-        return line ? (JSON.parse(line) as { ready: boolean; url: string }) : undefined;
-      }, "installed gateway readiness");
-      assert.equal(ready.ready, true);
-      assert.match(ready.url, /^http:\/\/127\.0\.0\.1:[1-9]\d*\/$/);
-      if (scenario.port) assert.equal(new URL(ready.url).port, scenario.port);
-      const response = await fetch(new URL(".well-known/agent-card.json", ready.url), {
-        signal: AbortSignal.timeout(5_000),
-      });
-      assert.equal(response.status, 200);
-      const card = await response.json();
-      assert.equal(card.version, manifest.version);
-      assert.equal(card.name, metadata.A2A_NAME?.trim() ?? "OpenCode A2A Lite");
-      assert.equal(
-        card.description,
-        metadata.A2A_DESCRIPTION?.trim() ??
-          "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
-      );
-      assert.deepEqual(
-        card.skills[0].tags,
-        "entry" in scenario
-          ? ["text", "review"]
-          : metadata.A2A_NAME
-            ? ["text", "planning"]
-            : ["text"],
-      );
-      assert.equal(card.supportedInterfaces[0].url, ready.url);
-      const owned = peerRecord(record)!;
-      if (scenario.termination === "SIGINT") {
-        const snapshots = readFileSync(environment, "utf8")
-          .trim()
-          .split("\n")
-          .map((line) => JSON.parse(line));
-        assert.deepEqual(
-          snapshots.map((snapshot) => snapshot.phase),
-          ["--version", "--version", "acp"],
-        );
-        assert.deepEqual(
-          snapshots.map((snapshot) => snapshot.approved),
-          [false, false, true],
-        );
-        assert(snapshots.every((snapshot) => snapshot.clean));
-        assert.equal(new Set(snapshots.map((snapshot) => snapshot.home)).size, 1);
-        privateHome = snapshots[0].home;
-      }
-      assert.equal(owned.cwd, realpathSync(consumer));
-      // Signal the installed gateway, not npm's wrapper; OpenCode has its own group.
-      process.kill(owned.parent, scenario.termination);
-      await until(
-        () => (!alive(owned.pid) && !alive(owned.parent) ? true : undefined),
-        "owned-process shutdown",
-      );
-      assert.equal(await child.exited, 0);
-      if (privateHome) assert.equal(existsSync(privateHome), false);
-      await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
-      const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
-      assert.equal(status[0], `  ready      gateway · ${ready.url}`);
-      assert.match(status[1]!, /^  workspace  \//);
-      assert.ok(status[1]!.endsWith("consumer workspace"));
-      assert.equal(
-        status[2],
-        "  trust      workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
-      );
-      assert.equal(
-        status[3],
-        `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
-      );
-      assert.equal(
-        status[4],
-        `  connect    a2a send -a ${ready.url} "Reply with a short greeting." --stream`,
-      );
-      assert.equal(status[5], "  stop       press Ctrl-C to stop the gateway");
-      assert.equal(
-        status[6],
-        "  stopping   gateway · draining active work and closing the listener",
-      );
-      assert.equal(
-        status[7],
-        "  stopped    gateway · listener closed and OpenCode process released",
-      );
-      assert.equal(status.length, 8);
-      assert.equal(status.join("\n").includes("\u001b["), false);
+      const address = occupied.address();
+      assert.ok(address && typeof address !== "string");
+      reject(["--workspace", ".", "--port", String(address.port)], /port is in use/i);
+      assert.equal(occupied.listening, true);
+      assert.equal(alive(peerRecord(record)!.pid), false);
     } finally {
-      const owned = peerRecord(record);
-      if (owned && alive(owned.parent)) process.kill(owned.parent, "SIGTERM");
-      signal(child.child, "SIGTERM");
-      if (owned) await until(() => (!alive(owned.pid) ? true : undefined), "peer cleanup");
+      await new Promise<void>((done, fail) =>
+        occupied.close((error) => (error ? fail(error) : done())),
+      );
+    }
+
+    const scenarios = [
+      {
+        termination: "SIGINT",
+        args: ["--workspace", ".", "--port", "0", "--pass-env", "FAKE_API_KEY"],
+        env: {
+          ...isolated,
+          FAKE_API_KEY: "approved-sentinel",
+          UNRELATED_TOKEN: "hidden-sentinel",
+          OPENCODE_CONFIG_CONTENT: "hidden-sentinel",
+          HTTPS_PROXY: "hidden-sentinel",
+        },
+        port: undefined,
+      },
+      {
+        termination: "SIGTERM",
+        args: [],
+        env: {
+          ...isolated,
+          A2A_WORKSPACE: consumer,
+          A2A_PORT: "0",
+          A2A_NAME: " planner ",
+          A2A_DESCRIPTION: " Plans work ",
+          A2A_TAGS: "planning,text,planning",
+        },
+        port: undefined,
+      },
+      {
+        termination: "SIGTERM",
+        args: ["--workspace", consumer, "--port", "0"],
+        env: { ...isolated, A2A_PORT: undefined },
+        port: undefined,
+      },
+      {
+        termination: "SIGTERM",
+        args: [],
+        env: {
+          ...isolated,
+          A2A_WORKSPACE: consumer,
+          A2A_PORT: "0",
+          A2A_NAME: " reviewer ",
+          A2A_TAGS: "review,text,review",
+        },
+        port: undefined,
+        entry: join(modules, manifest.name, "dist/src/server.js"),
+      },
+    ] as const;
+    for (const scenario of scenarios) {
+      const metadata: NodeJS.ProcessEnv = scenario.env;
+      const probe = createServer();
+      await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
+      await new Promise<void>((done, fail) =>
+        probe.close((error) => (error ? fail(error) : done())),
+      );
+      rmSync(record, { force: true });
+      rmSync(environment, { force: true });
+      const invocation =
+        "entry" in scenario ? [process.execPath, scenario.entry] : [...command, ...scenario.args];
+      const child = launch(invocation, consumer, scenario.env);
+      let privateHome: string | undefined;
+      try {
+        const ready = await until(() => {
+          const line = child.output.stdout.trim();
+          return line ? (JSON.parse(line) as { ready: boolean; url: string }) : undefined;
+        }, "installed gateway readiness");
+        assert.equal(ready.ready, true);
+        assert.match(ready.url, /^http:\/\/127\.0\.0\.1:[1-9]\d*\/$/);
+        if (scenario.port) assert.equal(new URL(ready.url).port, scenario.port);
+        const response = await fetch(new URL(".well-known/agent-card.json", ready.url), {
+          signal: AbortSignal.timeout(5_000),
+        });
+        assert.equal(response.status, 200);
+        const card = await response.json();
+        assert.equal(card.version, manifest.version);
+        assert.equal(card.name, metadata.A2A_NAME?.trim() ?? "OpenCode A2A Lite");
+        assert.equal(
+          card.description,
+          metadata.A2A_DESCRIPTION?.trim() ??
+            "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
+        );
+        assert.deepEqual(
+          card.skills[0].tags,
+          "entry" in scenario
+            ? ["text", "review"]
+            : metadata.A2A_NAME
+              ? ["text", "planning"]
+              : ["text"],
+        );
+        assert.equal(card.supportedInterfaces[0].url, ready.url);
+        const owned = peerRecord(record)!;
+        if (scenario.termination === "SIGINT") {
+          const snapshots = readFileSync(environment, "utf8")
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+          assert.deepEqual(
+            snapshots.map((snapshot) => snapshot.phase),
+            ["--version", "--version", "acp"],
+          );
+          assert.deepEqual(
+            snapshots.map((snapshot) => snapshot.approved),
+            [false, false, true],
+          );
+          assert(snapshots.every((snapshot) => snapshot.clean));
+          assert.equal(new Set(snapshots.map((snapshot) => snapshot.home)).size, 1);
+          privateHome = snapshots[0].home;
+        }
+        assert.equal(owned.cwd, realpathSync(consumer));
+        // Signal the installed gateway, not npm's wrapper; OpenCode has its own group.
+        process.kill(owned.parent, scenario.termination);
+        await until(
+          () => (!alive(owned.pid) && !alive(owned.parent) ? true : undefined),
+          "owned-process shutdown",
+        );
+        assert.equal(await child.exited, 0);
+        if (privateHome) assert.equal(existsSync(privateHome), false);
+        await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
+        const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
+        assert.equal(status[0], `  ready      gateway · ${ready.url}`);
+        assert.match(status[1]!, /^  workspace  \//);
+        assert.ok(status[1]!.endsWith("consumer workspace"));
+        assert.equal(
+          status[2],
+          "  trust      workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
+        );
+        assert.equal(
+          status[3],
+          `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
+        );
+        assert.equal(
+          status[4],
+          `  connect    a2a send -a ${ready.url} "Reply with a short greeting." --stream`,
+        );
+        assert.equal(status[5], "  stop       press Ctrl-C to stop the gateway");
+        assert.equal(
+          status[6],
+          "  stopping   gateway · draining active work and closing the listener",
+        );
+        assert.equal(
+          status[7],
+          "  stopped    gateway · listener closed and OpenCode process released",
+        );
+        assert.equal(status.length, 8);
+        assert.equal(status.join("\n").includes("\u001b["), false);
+      } finally {
+        const owned = peerRecord(record);
+        if (owned && alive(owned.parent)) process.kill(owned.parent, "SIGTERM");
+        signal(child.child, "SIGTERM");
+        if (owned) await until(() => (!alive(owned.pid) ? true : undefined), "peer cleanup");
+      }
     }
   }
   assert.deepEqual(readdirSync(consumer), []);
   console.log(
-    `Package smoke passed: ${pack.files.length} allowlisted files; installed npm exec CLI and direct server, failures, card readiness, SIGINT/SIGTERM and owned-process cleanup.`,
+    process.platform === "linux"
+      ? `Package smoke passed: ${pack.files.length} allowlisted files; installed npm exec CLI and direct server, failures, card readiness, SIGINT/SIGTERM and owned-process cleanup.`
+      : `Package smoke passed: ${pack.files.length} allowlisted files; installed CLI validation and unsupported private runtime, direct server validation.`,
   );
 } finally {
   rmSync(temp, { recursive: true, force: true });

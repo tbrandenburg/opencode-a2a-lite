@@ -15,6 +15,8 @@ const messages = {
   passEnv: "Invalid, duplicate, reserved or missing --pass-env variable; use --help for details.",
   passEnvConflict: "Cannot combine --pass-env with a caller-supplied ACP environment.",
   runtime: "Private runtime preflight failed; review trusted workspace and OpenCode configuration.",
+  runtimePlatform:
+    "Private runtime preflight failed: CLI private runtime is Linux-only for now; library callers can supply acp.env and manage isolation.",
 } as const;
 
 export class StartupError extends Error {
