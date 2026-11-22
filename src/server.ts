@@ -23,6 +23,7 @@ import { validateIdentity, type WorkerIdentity } from "./identity.js";
 import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
 import { createRuntimeEnvironment } from "./runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
+import { awaitRuntimeUnused } from "./runtime-processes.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
@@ -244,7 +245,6 @@ export async function launchGateway(options: ServerOptions) {
   }
   const abort = new AbortController();
   let preparation: Promise<void> = Promise.resolve();
-  let spawned = false;
   let cleanup: Promise<void> | undefined;
   const close = () => {
     if (cleanup) return cleanup;
@@ -254,14 +254,15 @@ export async function launchGateway(options: ServerOptions) {
         () => undefined,
         (error: unknown) => error,
       );
-      if (runtime && spawned)
+      try {
+        await gateway.close();
+        if (result instanceof ProbeCleanupError) throw result;
+        if (runtime) await awaitRuntimeUnused(runtime.root, runtime.env.A2A_LITE_RUNTIME_ID!);
+      } catch (error) {
+        if (!runtime) throw error;
         console.error(`Private runtime cleanup unconfirmed; retained ${runtime.root}`);
-      await gateway.close();
-      if (result instanceof ProbeCleanupError) throw result;
-      if (runtime && spawned)
-        throw new ProbeCleanupError(
-          `Private runtime cleanup unconfirmed; retained ${runtime.root}`,
-        );
+        throw new ProbeCleanupError("Private runtime cleanup unconfirmed");
+      }
       runtime?.remove();
     })();
     return cleanup;
@@ -287,9 +288,6 @@ export async function launchGateway(options: ServerOptions) {
         env: runtime.env,
         root: runtime.root,
         signal: abort.signal,
-        onSpawn: () => {
-          spawned = true;
-        },
       });
       await preparation;
     }
@@ -319,12 +317,7 @@ export async function launchGateway(options: ServerOptions) {
   } catch (error) {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
-    try {
-      await close();
-    } catch (cleanupError) {
-      if (!(cleanupError instanceof ProbeCleanupError && error instanceof StartupError))
-        throw cleanupError;
-    }
+    await close();
     throw error;
   }
 }

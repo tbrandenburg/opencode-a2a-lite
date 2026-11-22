@@ -1,5 +1,6 @@
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { randomBytes } from "node:crypto";
 
 // Names affecting process startup, executable discovery, configuration, trust or
 // network routing cannot be delegated through the credential passthrough.
@@ -50,6 +51,7 @@ export function createRuntimeEnvironment(names: readonly string[], source: NodeJ
       XDG_RUNTIME_DIR: temporary,
       TMPDIR: temporary,
       ...passed,
+      A2A_LITE_RUNTIME_ID: randomBytes(32).toString("hex"),
     };
     return { root, env, remove: () => rmSync(root, { recursive: true }) };
   } catch (error) {

@@ -119,11 +119,11 @@ credential can cause a sanitized task failure: check provider setup rather than 
 fallback to the host login. Review and configure the provider and model in the trusted
 workspace as needed. Persistent login/state is not supported by this CLI mode.
 
-**Cleanup limitation:** process groups do not contain detached descendants. Until
-owned descendant containment is available, a private-runtime preflight that spawns a
-process retains its runtime directory and reports cleanup as unconfirmed, even on normal shutdown.
-An operator must inspect owned processes and remove that directory only after
-confirming they have exited. No process outside the owned group is signaled.
+**Cleanup limitation:** Linux cleanup checks process groups and readable `/proc`
+records for a per-launch marker and runtime references. This is not containment:
+unreadable or tag-scrubbing descendants can escape detection and reopen the runtime.
+If cleanup is unconfirmed, the runtime directory is retained for operator inspection.
+No process outside the owned group is signaled.
 
 Preflight rejects managed Linux `/etc/opencode`, configuration in workspace ancestors,
 and unexpected configuration sources; choose a trusted standalone workspace. It checks

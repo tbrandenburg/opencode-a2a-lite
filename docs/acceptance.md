@@ -60,11 +60,9 @@ provider authentication, continuity, or cleanup of every possible detached desce
 
 ### Private runtime containment investigation
 
-Issue #87 is not mergeable with the current fail-closed cleanup: after a preflight
-process starts, normal shutdown retains the private runtime and reports cleanup as
-unconfirmed. `make package-smoke` fails its runtime-removal assertion. A process-group
-probe cannot detect a child that starts a new session, and the smoke cwd scan cannot
-detect a process that changes directory while retaining an open runtime file.
+Linux cleanup combines process-group shutdown with a bounded `/proc` scan for an
+inherited per-launch marker and readable cwd/fd references inside the runtime.
+This is best-effort evidence, not proof of descendant termination or containment.
 
 On the investigated Linux host, `/proc/self/cgroup` identified a root-owned session
 cgroup whose `cgroup.procs` was not writable by the invoking user. An unprivileged
@@ -77,30 +75,21 @@ and evidence for failure and abnormal termination paths. The experiment did not
 establish those properties. A subreaper can adopt orphaned descendants, but it is
 not inherited by children and does not by itself contain or stop a live process tree.
 
-The provider-free `tests/runtime-probes.test.ts` detached-child regression demonstrates
-why scanning `/proc` is insufficient: a child changes its cwd to `/`, has no open
-runtime file or runtime path in its initial environment, and then reopens and writes
-the retained runtime on a later request. Process inspection can also fail or race with
-changes. These checks are evidence of references at an instant, not proof of owned
-descendant termination or that the runtime cannot be reopened.
-
-A proposed per-launch environment marker plus `/proc` cwd/fd scan also requires an
-explicit policy for unreadable processes. On the investigated shared Linux host, a
-read-only inspection found four live same-UID processes with `EACCES` reading
-`environ` or `cwd`, and three with `EACCES` reading `fd`. An experimental scanner
-that treated these entries as inconclusive reported a freshly created empty runtime
-as in use, although no child had received its marker. Thus the requested rule to
-fail closed on unreadable same-UID entries conflicts with successful cleanup on that
-host; no process was signaled or modified. The experimental scanner was not adopted.
-Using a marker would also not prove containment: an exec with a scrubbed environment
-can remove the marker, after which the descendant may reopen the runtime.
+An exec with a scrubbed environment can remove the marker, and a descendant with
+no currently visible runtime reference can reopen it after the scan. Linux `/proc`
+environment data may not reflect later environment changes. Entries returning
+`EACCES`, `EPERM`, `ENOENT`, or `ESRCH` are ignored; these can include owned
+descendants, such as non-dumpable processes. Unexpected scan errors retain the root.
+Snapshots race with process changes and cannot detect every listener or future access.
+The provider-free detached-child tests cover marker inheritance and tag scrubbing,
+but do not establish complete ownership.
 
 Bun 1.4.4 exposes `Bun.spawn` with a cgroup option that places a child before
 execution, but the existing implementation uses Node-compatible `child_process`
 streams and the package also supports Node. A delegated cgroup, compatible spawn
 implementation, containment permissions, and cleanup proof are not established.
-Do not replace the fail-closed behavior with process or cwd snapshots. Do not infer
-private-root cleanup from `make runtime-smoke`'s process-cleanup summary.
+Do not infer complete descendant ownership or private-root cleanup from
+`make runtime-smoke`'s process-cleanup summary.
 
 The [isolation verifier](../scripts/acp-smoke-config.ts) creates private HOME,
 XDG and workspace state, verifies configuration, disables tools/plugins and

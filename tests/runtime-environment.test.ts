@@ -15,6 +15,7 @@ test("private environment contains only runtime paths and named credentials", ()
     expect(realpathSync(runtime.root)).toBe(runtime.root);
     expect(runtime.env.OPENAI_API_KEY).toBe("test-key");
     expect(runtime.env.HOME).toBe(`${runtime.root}/home`);
+    expect(runtime.env.A2A_LITE_RUNTIME_ID).toMatch(/^[a-f0-9]{64}$/);
     expect(runtime.env.OPENCODE_CONFIG_CONTENT).toBeUndefined();
     expect(runtime.env.UNRELATED_TOKEN).toBeUndefined();
     expect(runtime.env.HTTPS_PROXY).toBeUndefined();
@@ -22,6 +23,19 @@ test("private environment contains only runtime paths and named credentials", ()
     runtime.remove();
   }
   expect(existsSync(runtime.root)).toBe(false);
+});
+
+test("runtime markers are newly generated rather than inherited", () => {
+  const source = { PATH: "/usr/bin:/bin", A2A_LITE_RUNTIME_ID: "ambient" };
+  const first = createRuntimeEnvironment([], source);
+  const second = createRuntimeEnvironment([], source);
+  try {
+    expect(first.env.A2A_LITE_RUNTIME_ID).not.toBe("ambient");
+    expect(first.env.A2A_LITE_RUNTIME_ID).not.toBe(second.env.A2A_LITE_RUNTIME_ID);
+  } finally {
+    first.remove();
+    second.remove();
+  }
 });
 
 test("routing overrides are rejected while provider credentials remain usable", () => {
@@ -54,6 +68,7 @@ test("passthrough rejects missing, duplicate and injection-sensitive names witho
     ["MISSING"],
     ["NODE_OPTIONS"],
     ["OPENCODE_CONFIG"],
+    ["A2A_LITE_RUNTIME_ID"],
     ["HTTPS_PROXY"],
     ["PATH"],
     ["bad-name"],
