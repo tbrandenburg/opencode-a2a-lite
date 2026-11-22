@@ -142,12 +142,31 @@ try {
   });
   assert.equal(built.success, true);
   const record = join(temp, "peer.json");
+  const environment = join(temp, "peer-env.jsonl");
   const peer = join(bin, "opencode");
   writeFileSync(
     peer,
     `#!${process.execPath}
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 console.error("PRIVATE_PEER_DIAGNOSTIC");
+if (process.argv[2] === "--version" || process.argv[2] === "acp")
+  appendFileSync(${JSON.stringify(environment)}, JSON.stringify({
+    phase:process.argv[2],
+    home:process.env.HOME,
+    approved:process.env.FAKE_API_KEY === "approved-sentinel",
+    clean:!process.env.UNRELATED_TOKEN && !process.env.OPENCODE_CONFIG_CONTENT && !process.env.HTTPS_PROXY
+  }) + "\\n");
+if (process.argv[2] === "debug" && process.argv[3] === "paths") {
+  for (const name of ["home", "data", "cache", "config", "state", "tmp", "db"])
+    console.log(name + " " + process.env.HOME + "/" + name);
+  process.exit(0);
+}
+if (process.argv[2] === "--standalone" && process.argv[3] === "debug" && process.argv[4] === "config") {
+  console.log(JSON.stringify(process.env.PEER_MODE === "bad-config"
+    ? [{type:"remote",path:"https://example.invalid"}]
+    : [{type:"directory",path:process.env.HOME}]));
+  process.exit(0);
+}
 if (process.argv[2] !== "--version") {
   writeFileSync(${JSON.stringify(record)}, JSON.stringify({pid:process.pid,parent:process.ppid,cwd:process.cwd()}));
 }
@@ -172,10 +191,27 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   assert.match(invalidDirect.stderr, /Invalid worker identity/);
   assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
   assert.equal(existsSync(record), false);
-  reject(["--workspace", ".", "--port", "0"], /stable opencode v2.2.7 or newer/, {
-    PEER_MODE: "executable-version",
-  });
-  reject(["--workspace", ".", "--port", "0"], /Gateway startup failed/, {
+  reject(
+    ["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"],
+    /stable opencode v2.2.7 or newer/,
+    {
+      PEER_MODE: "executable-version",
+    },
+  );
+  const versionSnapshot = JSON.parse(readFileSync(environment, "utf8").trim().split("\n").at(-1)!);
+  assert.equal(existsSync(versionSnapshot.home), false, "version failure must clean runtime");
+  reject(
+    ["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"],
+    /Private runtime preflight failed/,
+    {
+      PEER_MODE: "bad-config",
+    },
+  );
+  const preflightSnapshot = JSON.parse(
+    readFileSync(environment, "utf8").trim().split("\n").at(-1)!,
+  );
+  assert.equal(existsSync(preflightSnapshot.home), false, "preflight failure must clean runtime");
+  reject(["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"], /Gateway startup failed/, {
     PEER_MODE: "startup-exit",
   });
   assert.equal(alive(peerRecord(record)!.pid), false);
@@ -197,8 +233,14 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   const scenarios = [
     {
       termination: "SIGINT",
-      args: ["--workspace", ".", "--port", "0"],
-      env: isolated,
+      args: ["--workspace", ".", "--port", "0", "--pass-env", "FAKE_API_KEY"],
+      env: {
+        ...isolated,
+        FAKE_API_KEY: "approved-sentinel",
+        UNRELATED_TOKEN: "hidden-sentinel",
+        OPENCODE_CONFIG_CONTENT: "hidden-sentinel",
+        HTTPS_PROXY: "hidden-sentinel",
+      },
       port: undefined,
     },
     {
@@ -240,9 +282,11 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
     await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
     await new Promise<void>((done, fail) => probe.close((error) => (error ? fail(error) : done())));
     rmSync(record, { force: true });
+    rmSync(environment, { force: true });
     const invocation =
       "entry" in scenario ? [process.execPath, scenario.entry] : [...command, ...scenario.args];
     const child = launch(invocation, consumer, scenario.env);
+    let privateHome: string | undefined;
     try {
       const ready = await until(() => {
         const line = child.output.stdout.trim();
@@ -273,6 +317,19 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       );
       assert.equal(card.supportedInterfaces[0].url, ready.url);
       const owned = peerRecord(record)!;
+      if (scenario.termination === "SIGINT") {
+        const snapshots = readFileSync(environment, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        assert.deepEqual(
+          snapshots.map((snapshot) => snapshot.phase),
+          ["--version", "--version", "acp"],
+        );
+        assert(snapshots.every((snapshot) => snapshot.approved && snapshot.clean));
+        assert.equal(new Set(snapshots.map((snapshot) => snapshot.home)).size, 1);
+        privateHome = snapshots[0].home;
+      }
       assert.equal(owned.cwd, realpathSync(consumer));
       // Signal the installed gateway, not npm's wrapper; OpenCode has its own group.
       process.kill(owned.parent, scenario.termination);
@@ -281,6 +338,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         "owned-process shutdown",
       );
       assert.equal(await child.exited, 0);
+      if (privateHome) assert.equal(existsSync(privateHome), false);
       await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
       const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
       assert.equal(status[0], `  ready      gateway · ${ready.url}`);
@@ -288,22 +346,26 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
       assert.ok(status[1]!.endsWith("consumer workspace"));
       assert.equal(
         status[2],
-        `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
+        "  trust      workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
       );
       assert.equal(
         status[3],
+        `  agent card ${new URL(".well-known/agent-card.json", ready.url).href}`,
+      );
+      assert.equal(
+        status[4],
         `  connect    a2a send -a ${ready.url} "Reply with a short greeting." --stream`,
       );
-      assert.equal(status[4], "  stop       press Ctrl-C to stop the gateway");
+      assert.equal(status[5], "  stop       press Ctrl-C to stop the gateway");
       assert.equal(
-        status[5],
+        status[6],
         "  stopping   gateway · draining active work and closing the listener",
       );
       assert.equal(
-        status[6],
+        status[7],
         "  stopped    gateway · listener closed and OpenCode process released",
       );
-      assert.equal(status.length, 7);
+      assert.equal(status.length, 8);
       assert.equal(status.join("\n").includes("\u001b["), false);
     } finally {
       const owned = peerRecord(record);

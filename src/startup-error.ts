@@ -12,6 +12,8 @@ const messages = {
     "ACP startup failed: OpenCode is unavailable; install a stable OpenCode 2.2.7 or newer executable on PATH.",
   version:
     "ACP startup failed: Unsupported OpenCode version; PATH must provide stable opencode v2.2.7 or newer.",
+  passEnv: "Invalid, duplicate, reserved or missing --pass-env variable; use --help for details.",
+  runtime: "Private runtime preflight failed; review trusted workspace and OpenCode configuration.",
 } as const;
 
 export class StartupError extends Error {

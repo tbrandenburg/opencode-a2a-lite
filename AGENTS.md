@@ -19,8 +19,9 @@ findings; retirement does **not** mean failures have been fixed.
 ## Safety and test boundaries
 
 - **Never** expose the unauthenticated gateway through a public proxy.
-  Workspaces must be explicitly trusted; production inherits OpenCode configuration,
-  provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox, and the opt-in extras let any client
+  Workspaces must be explicitly trusted; workspace config can enable tools, plugins
+  and MCP. CLI launches use private runtime state and explicit provider passthrough;
+  explicit library `acp.env` overrides remain caller-owned. ACP permission rejection is not a sandbox, and the opt-in extras let any client
   on the port approve tool runs or read earlier sessions; never make them defaults.
 - Real permission requests need a config override (`OPENCODE_CONFIG_CONTENT`, e.g. `bash: ask`);
   the usual user config allows everything, so none appear.

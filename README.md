@@ -5,7 +5,7 @@
 [![CI](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/tbrandenburg/opencode-a2a-lite/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/tbrandenburg/opencode-a2a-lite)](https://github.com/tbrandenburg/opencode-a2a-lite/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Platform: Linux and experimental macOS](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20experimental-lightgrey)
+![Platform: Linux](https://img.shields.io/badge/platform-linux-lightgrey)
 ![Runtime: Bun](https://img.shields.io/badge/runtime-Bun%201.4.4-black)
 
 A small OpenCode ACP → A2A 1.0 gateway for trusted workspaces: point any A2A
@@ -24,7 +24,7 @@ existing OpenCode sessions and replaying their history; see [Advanced features](
 
 > [!WARNING]
 > The gateway has no authentication (it binds to `127.0.0.1`) and must **never** be
-> exposed through a public proxy. It inherits OpenCode configuration, tools, plugins and MCP. Rejecting ACP
+> exposed through a public proxy. Trusted workspace configuration can enable tools, plugins and MCP. Rejecting ACP
 > permission requests is **not** an OS sandbox, and cancellation does not roll back work.
 
 Choosing a workspace is an explicit trust decision, not a filesystem boundary:
@@ -49,7 +49,7 @@ HOME/configuration, but is not an OS sandbox.
 Run it from any directory outside a checkout of this repository:
 
 ```sh
-npx --yes @tbrandenburg/opencode-a2a-lite@latest --workspace /absolute/path/to/trusted/workspace --port 0
+npx --yes @tbrandenburg/opencode-a2a-lite@latest --workspace /absolute/path/to/trusted/workspace --port 0 --pass-env OPENAI_API_KEY
 ```
 
 This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
@@ -72,7 +72,7 @@ plain when redirected. Startup JSON stays on stdout; human-readable status is on
 
 ## Requirements
 
-- Linux, or macOS for experimental gateway use, **Bun 1.4.4**, and stable
+- Linux, **Bun 1.4.4**, and stable
   **`opencode` v2.2.7 or newer** on `PATH` (full live acceptance recorded on
   Linux with 2.2.7; a two-turn macOS live demo passed with 2.3.0).
 - An explicitly trusted workspace and reviewed OpenCode provider, model, tools,
@@ -84,31 +84,48 @@ Runtime security and compatibility evidence is tracked for
 [Bun](docs/bun-runtime-security.md) and [OpenCode](docs/opencode-runtime-upgrade.md).
 Standalone Bun and OpenCode's embedded runtime are separate upgrade boundaries;
 historical acceptance results do not establish compatibility of a new pair.
-macOS package installation requires a release containing the `darwin` package
-manifest entry; older published versions remain Linux-only. The isolated `make demo`
-also supports macOS, but the full live acceptance suite, guarded MCP and team
-launcher still use Linux-specific tooling.
+macOS library use remains experimental; the normal CLI fails closed until managed
+preferences and private-runtime cleanup are verified on that platform. Historical
+macOS demo results predate this change.
 
 ## Usage
 
 ```text
 opencode-a2a-lite --workspace <path> [--port <0..65535>]
-                  [--publish-activity] [--permissions <reject|ask>] [--allow-resume]
+                  [--publish-activity] [--permissions <reject|ask>] [--allow-resume] [--pass-env NAME]...
 opencode-a2a-lite --help | --version
 ```
 
-| Option / variable                                                               | Meaning                                                                                                                        |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                   |
-| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                       |
-| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).            |
-| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests). |
-| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).         |
-| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                      |
+| Option / variable                                                               | Meaning                                                                                                                                                   |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                                              |
+| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                                                  |
+| `--pass-env NAME`                                                               | Pass a named, existing provider variable to OpenCode; repeat for additional variables. Runtime, configuration and injection-sensitive names are rejected. |
+| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                       |
+| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                            |
+| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                    |
+| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                 |
 
 The three opt-in flags are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
 do, so enable them only for trusted clients on loopback.
+
+CLI launches use an ephemeral private HOME and XDG directories, a PATH consisting of
+absolute entries, `LANG=C`, and explicit `--pass-env` variables. Ambient OpenCode
+overrides, proxy variables, saved logins and unrelated provider keys are not copied.
+For example, export `OPENAI_API_KEY` in the invoking environment and name it with
+`--pass-env OPENAI_API_KEY`; values are not printed. An absent or invalid provider
+credential can cause a sanitized task failure: check provider setup rather than expecting
+fallback to the host login. Review and configure the provider and model in the trusted
+workspace as needed. Persistent login/state is not supported by this CLI mode.
+
+Preflight rejects managed Linux `/etc/opencode`, configuration in workspace ancestors,
+and unexpected configuration sources; choose a trusted standalone workspace. It checks
+private paths and uses a standalone config probe before starting ACP. The private CLI
+runtime currently fails closed on macOS pending verification of managed preferences.
+Project-local configuration and instructions may still load plugins, MCP and tools and
+can access files and network as the invoking OS user. Library callers explicitly supplying
+`acp.env` retain their environment override and are responsible for isolation.
 
 Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
 use `make dev` for development.
@@ -131,13 +148,13 @@ Everything here is opt-in except the task metadata. Examples use the official
 
 Every task carries these keys in its metadata (visible with `a2a send -o json` or `a2a task get -o json`):
 
-| Key                                                                                       | Meaning                                                                                                                                 |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `opencode.sessionId`                                                                      | The OpenCode session behind the task. Use it to find the full transcript in OpenCode (`opencode --session <id>`) or to resume it below. |
-| `opencode.stopReason`                                                                     | The ACP stop reason of the turn.                                                                                                        |
-| `opencode.resumed`                                                                        | `"true"` when the task resumed an existing session.                                                                                     |
-| `opencode.replayed`, `opencode.replayTruncated`                                           | Replay count, and `"true"` when anything was cut.                                                                                       |
-| `opencode.permissionPending`, `opencode.permissionRequestId`, `opencode.permissionDenied` | Permission state; see [Permission requests](#permission-requests).                                                                      |
+| Key                                                                                       | Meaning                                                                   |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `opencode.sessionId`                                                                      | The OpenCode session behind the task, within the gateway's runtime state. |
+| `opencode.stopReason`                                                                     | The ACP stop reason of the turn.                                          |
+| `opencode.resumed`                                                                        | `"true"` when the task resumed an existing session.                       |
+| `opencode.replayed`, `opencode.replayTruncated`                                           | Replay count, and `"true"` when anything was cut.                         |
+| `opencode.permissionPending`, `opencode.permissionRequestId`, `opencode.permissionDenied` | Permission state; see [Permission requests](#permission-requests).        |
 
 A failed task names the failing phase (for example `ACP session creation failed`); the underlying
 OpenCode diagnostic is never published.
@@ -146,19 +163,20 @@ OpenCode diagnostic is never published.
 
 By default each new conversation gets a new OpenCode session, and a follow-up only works while the
 gateway keeps that context in memory. With `--allow-resume` a client can continue **any existing
-session of the gateway's workspace**, for example after a gateway restart:
+session in the gateway's runtime state for that workspace**:
 
 ```sh
 a2a send -a <url> --metadata '{"opencode.sessionId":"ses_…"}' "Continue where we left off"
 a2a send -a <url> --context-id <returned-context-id> "Follow up"
 ```
 
-- Get the id from earlier task metadata or `opencode session list`. It may be sent in message or
+- Get the id from earlier task metadata. It may be sent in message or
   request metadata. Without the flag the metadata is refused, never silently ignored.
 - OpenCode itself rejects ids that are unknown or belong to another workspace
   (`ACP session resume rejected`); that fails only the one task. A session can be bound to one
-  context at a time, and a context cannot be re-bound to another session. After a restart a client
-  may reuse its old `contextId` together with the session id.
+  context at a time, and a context cannot be re-bound to another session. CLI runtime state is
+  ephemeral, so restart does not recover sessions. A library caller using persistent `acp.env`
+  state owns that separate risk.
 - Only one writer should use a session at a time; stop an open OpenCode TUI on it first.
 - Sessions hold earlier conversation content, which any client that can reach the port can then
   read. The Agent Card declares `urn:opencode-a2a-lite:resume:v1`.

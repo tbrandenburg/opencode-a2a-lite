@@ -21,10 +21,13 @@ import { parseOptions } from "./cli-options.js";
 import { reportStartupError, StartupError } from "./startup-error.js";
 import { validateIdentity, type WorkerIdentity } from "./identity.js";
 import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
+import { createRuntimeEnvironment } from "./runtime-environment.js";
+import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
   workspace: string;
+  passEnv?: readonly string[];
   host?: string;
   port?: number;
   identity?: WorkerIdentity;
@@ -220,13 +223,45 @@ export function createGateway(options: ServerOptions) {
 }
 
 export async function launchGateway(options: ServerOptions) {
-  const gateway = createGateway(options);
+  const workspace = await stat(options.workspace).catch(() => undefined);
+  if (!workspace?.isDirectory()) throw new StartupError("directory");
+  const runtime = options.acp?.env
+    ? undefined
+    : createRuntimeEnvironment(options.passEnv ?? [], process.env);
+  let gateway: ReturnType<typeof createGateway>;
+  let executable: string | undefined;
+  try {
+    executable = runtime ? resolveOpenCode(runtime.env.PATH!) : undefined;
+    gateway = createGateway({
+      ...options,
+      ...(runtime && executable ? { acp: { ...options.acp, env: runtime.env, executable } } : {}),
+    });
+  } catch (error) {
+    runtime?.remove();
+    throw error;
+  }
+  const abort = new AbortController();
+  let preparation: Promise<void> = Promise.resolve();
+  let cleanup: Promise<void> | undefined;
+  const close = () => {
+    if (cleanup) return cleanup;
+    abort.abort();
+    cleanup = (async () => {
+      const result = await preparation.then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await gateway.close();
+      if (result instanceof ProbeCleanupError) throw result;
+      runtime?.remove();
+    })();
+    return cleanup;
+  };
   const status = (label: string, detail: string) =>
     console.error(formatStatus(label, detail, supportsTerminalColor(process.stderr, process.env)));
   const stop = () => {
     status("stopping", "gateway · draining active work and closing the listener");
-    void gateway
-      .close()
+    void close()
       .then(() => status("stopped", "gateway · listener closed and OpenCode process released"))
       .catch(() => {
         status("error", "gateway shutdown failed · inspect the process before restarting");
@@ -236,11 +271,27 @@ export async function launchGateway(options: ServerOptions) {
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
+    if (runtime && executable) {
+      preparation = verifyRuntime({
+        executable,
+        cwd: options.workspace,
+        env: runtime.env,
+        root: runtime.root,
+        signal: abort.signal,
+      });
+      await preparation;
+    }
+    if (abort.signal.aborted) throw new Error("Gateway closed");
     const ready = await gateway.start();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
     status("ready", `gateway · ${ready.url}`);
     status("workspace", options.workspace);
+    if (runtime)
+      status(
+        "trust",
+        "workspace configuration, plugins, MCP and instructions may execute; not a sandbox",
+      );
     if (options.executor?.resume)
       status("resume", "enabled · clients can continue existing sessions of this workspace");
     if (options.executor?.permissions === "ask")
@@ -256,7 +307,7 @@ export async function launchGateway(options: ServerOptions) {
   } catch (error) {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
-    await gateway.close();
+    await close();
     throw error;
   }
 }

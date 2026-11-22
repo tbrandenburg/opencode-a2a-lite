@@ -53,6 +53,11 @@ interop-test` verifies the separate guarded interop path. `make demo` and Linux
 `make e2e` require explicit live authorization, reviewed isolation, provider
 access and the official A2A CLI; never silently substitute provider-free evidence.
 
+Issue #87's private CLI runtime requires a fresh authorized live acceptance receipt;
+the historical runs above predate it. `make runtime-smoke` checks standalone runtime
+paths and config sources without prompting a provider. It does not establish live
+provider authentication, continuity, or cleanup of every possible detached descendant.
+
 The [isolation verifier](../scripts/acp-smoke-config.ts) creates private HOME,
 XDG and workspace state, verifies configuration, disables tools/plugins and
 excludes inherited overrides. It refuses managed `/etc/opencode`; private service

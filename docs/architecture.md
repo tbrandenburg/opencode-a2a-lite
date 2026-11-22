@@ -30,6 +30,7 @@ Keep v1 scope narrow: map each A2A context to one ACP session in memory, reuse i
 - `server.ts` composes the SDK, gates readiness on ACP, preserves explicit context intent through public SDK methods, and owns HTTP shutdown.
 - `executor.ts` holds the bounded context map and single admission slot, publishes task/working/artifact/terminal events, and uses the prompt response as its outcome.
 - `acp-client.ts` owns the pinned subprocess, persistent stable-v1 connection, update filtering, permission denial, deadlines and process cleanup. It never retries an uncertain prompt.
+- CLI `launchGateway` owns a private ephemeral environment and standalone config/path preflight; the version probe and ACP child receive the same environment and resolved executable. A library caller supplying `acp.env` retains that override and owns its isolation. Cleanup failures retain the runtime rather than claiming a safe release.
 - `resume.ts` validates the client-supplied `opencode.sessionId` and decides refusals. The bridge's `resumeSession` calls ACP `session/resume`; OpenCode's invalid-params answer (unknown id or foreign workspace) rejects only that request, while any other failure retires the bridge like session creation does. Resume is opt-in because a session exposes its earlier conversation. With `opencode.replay: true` the bridge uses `session/load` instead and `replay.ts` keeps the newest bounded set of replayed root user/assistant text (grouped by message id); `conversation.ts` publishes it as one `conversation` artifact. It is an artifact, not task history, because A2A history is the messages of that task and the SDK would append replayed messages after the current prompt.
 - `permission.ts` and `permission-desk.ts` hold the permission-answer rules and the single pending request per task. With `--permissions ask` the first `execute()` stays running while the task is `input-required`; the answer arrives as a second `execute()` that hands it over and waits for the first to finish, after publishing the task snapshot so streams stay valid.
 - `request-handler.ts` keeps the SDK's `InMemoryTaskStore` but synchronizes cancellation with its original event consumer; this avoids SDK 1.3 duplicate artifact persistence. This narrow workaround is regression-tested, not a second task database.
@@ -43,7 +44,7 @@ adapter or the transport's stream-consumption lifecycle.
 ## Operational pitfalls
 
 - An explicitly selected workspace is not a sandbox. The gateway runs OpenCode
-  as the invoking user, inherits configuration, tools, plugins and MCP, and
+  as the invoking user, and workspace configuration can enable tools, plugins and MCP. It
   rejects only permission requests that actually reach its ACP callback. Review
   effective configuration; use OS isolation when the workspace or callers are untrusted.
 - The HTTP listener has no authentication. Keep it on loopback and never expose it
@@ -55,8 +56,9 @@ adapter or the transport's stream-consumption lifecycle.
 - Close owned subprocess groups and listeners without affecting unrelated services.
   OpenCode's private lease needs stdin EOF and a grace period before escalation.
   Process-group probe `EPERM` is inconclusive, not proof of cleanup.
-- Private HOME and workspace configuration alone do not prove isolation. Check
-  effective configuration and all inherited sources before a live prompt.
+- Private HOME and workspace configuration alone do not prove OS isolation. CLI
+  preflight rejects managed Linux configuration and ancestor config and inspects
+  effective sources, but project instructions and integrations remain trusted.
 
 ## Deliberately unsupported
 

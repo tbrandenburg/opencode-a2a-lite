@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from "node:path";
 import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
 import { parseIdentity } from "./identity.js";
+import { validatePassEnv } from "./runtime-environment.js";
 
 type Options =
   | { action: "help" }
@@ -16,11 +17,18 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
   const workspace = explicit === undefined ? env.A2A_WORKSPACE : resolve(explicit);
   if (!workspace || !isAbsolute(workspace)) throw new StartupError("workspace");
   const identity = parseIdentity(env);
+  const names = flags.get("--pass-env")?.split(",") ?? [];
+  try {
+    validatePassEnv(names, env);
+  } catch {
+    throw new StartupError("passEnv");
+  }
   return {
     action: "run",
     server: {
       workspace,
       port: parsePort(flags.get("--port") ?? env.A2A_PORT),
+      ...(names.length ? { passEnv: names } : {}),
       ...executorOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
@@ -46,14 +54,25 @@ function parseFlags(args: readonly string[]) {
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
     const flag = token === "-h" ? "--help" : token === "-v" ? "--version" : token;
-    if (flag === undefined || flags.has(flag)) throw new StartupError("arguments");
+    if (flag === undefined || (flag !== "--pass-env" && flags.has(flag)))
+      throw new StartupError("arguments");
     if (VALUELESS.has(flag)) {
       flags.set(flag, "");
       continue;
     }
-    if (flag !== "--workspace" && flag !== "--port" && flag !== "--permissions")
+    if (
+      flag !== "--workspace" &&
+      flag !== "--port" &&
+      flag !== "--permissions" &&
+      flag !== "--pass-env"
+    )
       throw new StartupError("arguments");
-    flags.set(flag, flagValue(flag, args[index + 1]));
+    const value = flagValue(flag, args[index + 1]);
+    if (flag === "--pass-env" && value.includes(",")) throw new StartupError("arguments");
+    flags.set(
+      flag,
+      flag === "--pass-env" && flags.has(flag) ? `${flags.get(flag)},${value}` : value,
+    );
     index += 1;
   }
   return flags;
