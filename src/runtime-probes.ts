@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 import { validateAgentPermissions, validatePolicyDocument } from "./runtime-policy-check.js";
+import type { Exception } from "./policy-file.js";
 import type { PolicyProfile } from "./runtime-policy.js";
 import {
   RuntimeSourceError,
@@ -127,12 +128,41 @@ async function probe(
   }
 }
 
+const AGENT_ATTEMPTS = 3;
+const POLICY_MESSAGE = new StartupError("policy").message;
+
+// OpenCode 2.3.2 intermittently reports `debug agents` without the private global config for one
+// process. Only this probe is retried, each time in a fresh process; a deterministic weakening
+// fails every attempt and keeps the sanitized policy error.
+async function verifyAgents(
+  run: (args: string[]) => Promise<string>,
+  policy: PolicyProfile,
+  exceptions: readonly Exception[] | undefined,
+) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), policy, exceptions);
+      if (attempt > 1)
+        console.error(
+          `Private runtime preflight: agent check passed on attempt ${attempt} of ${AGENT_ATTEMPTS}`,
+        );
+      return;
+    } catch (error) {
+      const weakened = error instanceof StartupError && error.message === POLICY_MESSAGE;
+      if (!weakened || attempt === AGENT_ATTEMPTS) throw error;
+      await new Promise((done) => setTimeout(done, 100 * attempt));
+    }
+  }
+}
+
 export async function verifyRuntime(options: {
   executable: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
   root: string;
   policy?: PolicyProfile;
+  exceptions?: readonly Exception[];
+  data?: string;
   signal: AbortSignal;
   onSpawn?: () => void;
 }) {
@@ -144,12 +174,12 @@ export async function verifyRuntime(options: {
   const version = await run(["--version"]);
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
-    validateRuntimePaths(await run(["debug", "paths"]), options.root);
+    validateRuntimePaths(await run(["debug", "paths"]), options.root, options.data);
     const sources = await run(["--standalone", "debug", "config"]);
     validateRuntimeSources(sources, options.root, options.cwd);
     if (options.policy) {
-      validatePolicyDocument(sources, options.root, options.policy);
-      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), options.policy);
+      validatePolicyDocument(sources, options.root, options.policy, options.exceptions);
+      await verifyAgents(run, options.policy, options.exceptions);
     }
   } catch (error) {
     if (

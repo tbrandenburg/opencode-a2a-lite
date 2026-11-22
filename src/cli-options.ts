@@ -32,6 +32,7 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
       ...(names.length ? { passEnv: names } : {}),
       ...executorOptions(flags),
       ...policyOptions(flags),
+      ...privateOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
   };
@@ -65,6 +66,23 @@ function policyOptions(
   };
 }
 
+function privateOptions(
+  flags: Map<string, string>,
+): Pick<ServerOptions, "policyFile" | "stateDir"> {
+  const policyFile = flags.get("--policy-file");
+  const stateDir = flags.get("--state-dir");
+  for (const [value, code] of [
+    [policyFile, "policyFile"],
+    [stateDir, "stateDir"],
+  ] as const)
+    if (value !== undefined && (!isAbsolute(value) || resolve(value) !== value))
+      throw new StartupError(code);
+  return {
+    ...(policyFile === undefined ? {} : { policyFile }),
+    ...(stateDir === undefined ? {} : { stateDir }),
+  };
+}
+
 const VALUELESS = new Set([
   "--help",
   "--version",
@@ -89,6 +107,8 @@ function parseFlags(args: readonly string[]) {
       flag !== "--port" &&
       flag !== "--permissions" &&
       flag !== "--policy" &&
+      flag !== "--policy-file" &&
+      flag !== "--state-dir" &&
       flag !== "--pass-env"
     )
       throw new StartupError("arguments");

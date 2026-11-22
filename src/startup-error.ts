@@ -23,6 +23,16 @@ const messages = {
     "--policy full-access requires --dangerously-skip-permissions, and that flag is accepted only with --policy full-access.",
   policyConflict:
     "--policy full-access cannot combine with --permissions ask or a caller-supplied ACP environment.",
+  policyFile:
+    "--policy-file rejected: it must be an absolute, non-symlinked JSON file outside the workspace, owned by you and not group/world-writable, with only reviewed exact version 1 allow statements (see docs/operator-policy-state.md).",
+  policyFileBase:
+    "--policy-file base must equal the --policy profile; a policy file never selects or upgrades a profile.",
+  stateDir:
+    "--state-dir rejected: it must be an absolute private directory (mode 0700, owned by you, no symlinks, no shared write access in its parents, outside the workspace), bound to this workspace only, and free of stored credentials.",
+  stateBusy:
+    "--state-dir is in use by another gateway or has an unreadable lock; stop the other gateway or inspect the lock before removing it.",
+  privateOptions:
+    "--policy-file and --state-dir apply to the CLI private runtime only and cannot combine with a caller-supplied ACP environment.",
   runtimePlatform:
     "Private runtime preflight failed: CLI private runtime is Linux-only for now; library callers can supply acp.env and manage isolation.",
 } as const;

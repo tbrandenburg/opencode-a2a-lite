@@ -79,7 +79,8 @@ export function validateRuntimeSources(output: string, root: string, workspace: 
   if (!privateDirectory) throw new Error("Missing private configuration source");
 }
 
-export function validateRuntimePaths(output: string, root: string) {
+// With persistent state only the data directory and database may live outside the private root.
+export function validateRuntimePaths(output: string, root: string, data?: string) {
   const privateRoot = realpathSync(root);
   const required = new Set(["home", "data", "cache", "config", "state", "tmp", "db"]);
   const seen = new Set<string>();
@@ -87,7 +88,10 @@ export function validateRuntimePaths(output: string, root: string) {
     const match = /^([a-z]+)\s+(.+)$/.exec(line);
     if (!match?.[1] || !match[2] || seen.has(match[1])) throw new Error("Invalid runtime paths");
     seen.add(match[1]);
-    if (!inside(privateRoot, physicalPath(match[2]))) throw new Error("External runtime path");
+    const target = physicalPath(match[2]);
+    const persistent = data !== undefined && ["data", "db", "log", "repos"].includes(match[1]);
+    if (!inside(privateRoot, target) && !(persistent && inside(realpathSync(data), target)))
+      throw new Error("External runtime path");
   }
   if ([...required].some((name) => !seen.has(name))) throw new Error("Incomplete runtime paths");
 }

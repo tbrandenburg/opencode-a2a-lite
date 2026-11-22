@@ -8,7 +8,8 @@ async function main() {
   if (options.action === "help") {
     console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
                          [--permissions <reject|ask>] [--policy <read-only|edit|full-access>]
-                         [--dangerously-skip-permissions] [--allow-resume] [--pass-env NAME]...
+                         [--dangerously-skip-permissions] [--policy-file <absolute path>]
+                         [--state-dir <absolute path>] [--allow-resume] [--pass-env NAME]...
 
 Start the foreground, unauthenticated A2A gateway.
 Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
@@ -34,6 +35,17 @@ The private CLI runtime currently fails closed on macOS.
                       supervised is not available. There is no OS isolation in any profile.
   --dangerously-skip-permissions
                       Acknowledge full-access; rejected with any other policy.
+  --policy-file <absolute path>
+                      Operator JSON {version:1, base, policies:[{action, resource, effect:"allow"}]}
+                      adding exact mcp.use, skill.use, plugin.use or MCP tool.use (<server>_<tool>:*)
+                      exceptions to the selected profile; base must equal --policy. The file must be
+                      outside the workspace, owned by you, not a symlink or group/world-writable.
+                      Allowlisted MCP servers and plugins run code with host-user authority.
+  --state-dir <absolute path>
+                      Keep OpenCode session history in this private directory (mode 0700, bound to
+                      this workspace, one gateway at a time) across restarts. Saved approvals,
+                      accounts and automations are cleared every launch; history may contain
+                      sensitive content. Restoring a session still needs --allow-resume.
   --allow-resume      Let clients continue an existing OpenCode session of this workspace by sending
                       message metadata opencode.sessionId; add opencode.replay: true to also receive the
                       earlier messages. Sessions hold earlier conversation

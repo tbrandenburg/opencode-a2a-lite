@@ -1,5 +1,10 @@
 // Explicit provider-free probes: the real OpenCode executable runs scripted tool calls from a local
 // OpenAI-compatible fixture, so denials are observed as real tool results and side effects.
+if (process.platform !== "linux") {
+  console.log(JSON.stringify({ skipped: "private runtime probes are Linux-only" }));
+  process.exit(0);
+}
+
 import assert from "node:assert/strict";
 import {
   existsSync,

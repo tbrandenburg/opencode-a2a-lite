@@ -1,7 +1,9 @@
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import type { Exception } from "./policy-file.js";
 import {
+  exceptionStatements,
   FULL_ACCESS_ALLOWED,
   policyConfig,
   requiredAgentEffects,
@@ -45,9 +47,28 @@ function holds(rules: readonly unknown[], action: string, wanted: string) {
   );
 }
 
+// Last matching rule decides; an agent-level deny after an exception therefore wins.
+function effective(rules: readonly unknown[], action: string, resource: string) {
+  const found = rules.filter(
+    (item) =>
+      record(item) &&
+      typeof item.action === "string" &&
+      typeof item.resource === "string" &&
+      matches(item.action, action) &&
+      matches(item.resource, resource),
+  );
+  const last: unknown = found.at(-1);
+  return record(last) ? last : undefined;
+}
+
 // OpenCode silently drops invalid statements, so the private document it reports must equal
 // what was written; any difference fails closed.
-export function validatePolicyDocument(output: string, root: string, profile: PolicyProfile) {
+export function validatePolicyDocument(
+  output: string,
+  root: string,
+  profile: PolicyProfile,
+  exceptions: readonly Exception[] = [],
+) {
   const path = join(realpathSync(root), "home", ".config", "opencode", "opencode.json");
   const entry = parse(output).find((item) => record(item) && item.path === path);
   if (!record(entry) || !record(entry.info)) throw new StartupError("policy");
@@ -57,11 +78,15 @@ export function validatePolicyDocument(output: string, root: string, profile: Po
     permissions: actual.permissions,
     agents: actual.agents,
   };
-  const expected: unknown = JSON.parse(JSON.stringify(policyConfig(profile)));
+  const expected: unknown = JSON.parse(JSON.stringify(policyConfig(profile, exceptions)));
   if (!isDeepStrictEqual(picked, expected)) throw new StartupError("policy");
 }
 
-export function validateAgentPermissions(output: string, profile: PolicyProfile) {
+export function validateAgentPermissions(
+  output: string,
+  profile: PolicyProfile,
+  exceptions: readonly Exception[] = [],
+) {
   const agents = parse(output);
   if (!agents.length) throw new StartupError("policy");
   for (const agent of agents) {
@@ -73,5 +98,9 @@ export function validateAgentPermissions(output: string, profile: PolicyProfile)
     if (profile === "full-access" && primary)
       for (const action of FULL_ACCESS_ALLOWED)
         if (!holds(rules, action, "allow")) throw new StartupError("policy");
+    if (primary)
+      for (const needed of exceptionStatements(exceptions).permissions)
+        if (effective(rules, needed.action, needed.resource)?.effect !== "allow")
+          throw new StartupError("policy");
   }
 }

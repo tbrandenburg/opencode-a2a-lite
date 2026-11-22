@@ -1,3 +1,4 @@
+import type { Exception } from "./policy-file.js";
 import { StartupError } from "./startup-error.js";
 
 export const POLICY_PROFILES = ["read-only", "edit", "supervised", "full-access"] as const;
@@ -57,12 +58,32 @@ function definition(profile: PolicyProfile) {
   };
 }
 
-export function policyConfig(profile: PolicyProfile) {
+// Operator exceptions are exact allows appended after the base. A policy allow only lifts a denial,
+// so each one also needs the tool.use allow and agent permission that make the capability usable
+// (observed on OpenCode 2.3.2): MCP tool `<server>_<tool>`, skill `<id>`. Plugins only load.
+export function exceptionStatements(exceptions: readonly Exception[]) {
+  const policies: Statement[] = [];
+  const permissions: Statement[] = [];
+  for (const item of exceptions) {
+    const name = item.resource.replace(/:\*$/, "");
+    policies.push(rule(item.action, item.resource, "allow"));
+    if (item.action === "tool.use") permissions.push(rule(name, "*", "allow"));
+    if (item.action === "skill.use") {
+      policies.push(rule("tool.use", `skill:${name}`, "allow"));
+      permissions.push(rule("skill", name, "allow"));
+    }
+  }
+  return { policies, permissions };
+}
+
+export function policyConfig(profile: PolicyProfile, exceptions: readonly Exception[] = []) {
   const policy = definition(profile);
+  const extra = exceptionStatements(exceptions);
+  const permissions = [...policy.permissions, ...extra.permissions];
   return {
-    policies: policy.policies,
-    permissions: policy.permissions,
-    agents: { build: { permissions: policy.permissions } },
+    policies: [...policy.policies, ...extra.policies],
+    permissions,
+    agents: { build: { permissions } },
   };
 }
 

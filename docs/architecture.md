@@ -63,6 +63,19 @@ adapter or the transport's stream-consumption lifecycle.
   preflight rejects managed Linux configuration and ancestor config and inspects
   effective sources, but project instructions and integrations remain trusted.
 
+## Operator policy file and persistent state
+
+Opt-in `--policy-file` and `--state-dir` (startup-only, private runtime only) are specified in [operator-policy-state.md](operator-policy-state.md): exact reviewed allow exceptions appended after the base, verified effective by preflight; one workspace-bound, single-owner state directory whose authority rows are cleared every launch. They add no scheduler, policy service, reload or A2A-visible control.
+
+### Known OpenCode flake
+
+OpenCode 2.3.2 intermittently (about 1 in 25 `debug agents` calls, also on `main`) omits the private
+global config for a single process. Preflight therefore retries only the `debug agents` probe up to
+three times in fresh processes (short backoff) and prints a sanitized note when a retry was needed; a
+deterministic project weakening fails all three. Preflight observes one process while the ACP child
+is another, so in such a window only the hard `policies` layer is guaranteed. A red `make
+policy-smoke` should be re-run once before investigating.
+
 ## Deliberately unsupported
 
 OpenCode HTTP adapters, ACP v2, rich file/image inputs, tool inputs/outputs and reasoning by default (the opt-in `--publish-activity` publishes tool call ids, titles, kinds, statuses and reasoning text), interactive forms and any permission handling beyond the opt-in single `allow_once`/reject question, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.
