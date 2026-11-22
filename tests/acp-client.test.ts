@@ -2,6 +2,7 @@ import { afterEach, expect, spyOn, test as bunTest } from "bun:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
+import { BridgeError } from "../src/bridge-error.js";
 import { createAcpBridge, type AcpBridgeOptions } from "../src/acp-client.js";
 import {
   fixtureStartupMs,
@@ -112,6 +113,16 @@ test("A4b: a newer stable executable is admitted", async () => {
   await instance.start();
   expect((await instance.newSession()).sessionId).toBeTruthy();
   await instance.close();
+});
+
+test("A4c: a rejected session allocation reports a sanitized phase and retires the bridge", async () => {
+  const instance = bridge("session-unavailable");
+  await instance.start();
+  const failure = await instance.newSession().catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(BridgeError);
+  expect((failure as Error).message).toBe("ACP session creation failed");
+  expect((failure as Error).message).not.toContain("secret");
+  await expect(instance.newSession()).rejects.toThrow("unavailable");
 });
 
 test("A5: subprocess death rejects pending work and permanently retires the bridge", async () => {

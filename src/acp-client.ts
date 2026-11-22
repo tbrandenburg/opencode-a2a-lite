@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import manifest from "../package.json" with { type: "json" };
+import { BridgeError } from "./bridge-error.js";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 
@@ -56,7 +57,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
 
   function fail(message: string | StartupError) {
     if (failure.signal.aborted) return;
-    failure.abort(message instanceof StartupError ? message : new Error(message));
+    failure.abort(message instanceof StartupError ? message : new BridgeError(message));
     ready = false;
     connection?.close();
     // Retain the cleanup result for close(); request errors never contain peer diagnostics.
@@ -97,14 +98,14 @@ export function createAcpBridge(options: AcpBridgeOptions) {
 
   function requireConnection(sessionId?: string) {
     if (!ready || !connection || failure.signal.aborted || stopping)
-      throw new Error("ACP bridge unavailable");
+      throw new BridgeError("ACP bridge unavailable");
     if (sessionId !== undefined && !sessions.has(sessionId)) throw new Error("Unknown ACP session");
     return connection;
   }
 
   function start(): Promise<void> {
     if (failure.signal.aborted || stopping)
-      return Promise.reject(new Error("ACP bridge unavailable"));
+      return Promise.reject(new BridgeError("ACP bridge unavailable"));
     if (starting) return starting;
     starting = bounded(
       async () => {

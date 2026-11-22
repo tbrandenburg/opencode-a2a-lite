@@ -124,6 +124,8 @@ reusing the ACP session for that context.
 - Only ACP `end_turn` means completed; confirmed `cancelled` means canceled.
   Errors and other stop reasons fail the task without publishing private diagnostics.
 - Permission requests are rejected/canceled, not silently approved.
+- A failed task names the failing phase (for example `ACP session creation failed`); the
+  underlying OpenCode diagnostic is never published. A bridge failure is permanent until restart.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are

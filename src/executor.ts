@@ -8,6 +8,7 @@ import {
   type RequestContext,
 } from "@a2a-js/sdk/server";
 import type { createAcpBridge } from "./acp-client.js";
+import { BridgeError } from "./bridge-error.js";
 
 export type ExecutorBridge = Pick<
   ReturnType<typeof createAcpBridge>,
@@ -192,9 +193,14 @@ export function createAgentExecutor(
       }
       sessions.delete(contextId);
       finish(TaskState.TASK_STATE_FAILED, "ACP did not complete the turn");
-    } catch {
+    } catch (error) {
       sessions.delete(contextId);
-      if (!terminal) finish(TaskState.TASK_STATE_FAILED, "ACP execution failed");
+      // Only gateway-authored phase messages are published; peer diagnostics never are.
+      if (!terminal)
+        finish(
+          TaskState.TASK_STATE_FAILED,
+          error instanceof BridgeError ? error.message : "ACP execution failed",
+        );
     } finally {
       record.terminal = true;
       await record.cancellation?.catch(() => undefined);

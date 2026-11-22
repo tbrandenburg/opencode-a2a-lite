@@ -45,6 +45,7 @@ agent.onRequest(acp.methods.agent.initialize, async (request) => {
 agent.onRequest(acp.methods.agent.session.new, async (request) => {
   if (request.params.cwd !== process.cwd() || request.params.mcpServers.length)
     throw new Error("bad workspace");
+  if (mode === "session-unavailable") throw new Error("secret provider diagnostics");
   // Session creation must not be counted against the completed startup phase.
   if (mode === "cancel-hang-slow-start") await Bun.sleep(4_000);
   if (current) await chunk(current, activeSession, "late-idle");

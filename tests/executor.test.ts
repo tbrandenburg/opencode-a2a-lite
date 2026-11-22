@@ -7,6 +7,7 @@ import {
   type AgentExecutionEvent,
 } from "@a2a-js/sdk/server";
 import type { PromptResponse } from "@agentclientprotocol/sdk";
+import { BridgeError } from "../src/bridge-error.js";
 import { createAgentExecutor, type ExecutorBridge } from "../src/executor.js";
 
 function context(
@@ -179,6 +180,28 @@ test("E7: explicit unknown and failed contexts never submit; provider failures s
       },
     },
   });
+});
+
+test("E7b: gateway-authored bridge phases are published; other errors stay generic", async () => {
+  const phases = [
+    [new BridgeError("ACP session creation failed"), "ACP session creation failed"],
+    [new Error("ACP session creation failed"), "ACP execution failed"],
+  ] as const;
+  for (const [error, published] of phases) {
+    const run = setup();
+    run.bridge.newSession = async () => {
+      throw error;
+    };
+    await run.executor.execute(context(), run.bus);
+    expect(run.events.at(-1)).toMatchObject({
+      data: {
+        status: {
+          state: TaskState.TASK_STATE_FAILED,
+          message: { parts: [{ content: { value: published } }] },
+        },
+      },
+    });
+  }
 });
 
 test("E8: reserves the global slot synchronously before allocation; allocation is not cancelable", async () => {
