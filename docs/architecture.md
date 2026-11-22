@@ -63,6 +63,10 @@ adapter or the transport's stream-consumption lifecycle.
   preflight rejects managed Linux configuration and ancestor config and inspects
   effective sources, but project instructions and integrations remain trusted.
 
+## Operator policy file and persistent state
+
+Opt-in `--policy-file` and `--state-dir` (startup-only, private runtime only) are specified in [operator-policy-state.md](operator-policy-state.md): exact reviewed allow exceptions appended after the base, verified effective by preflight; one workspace-bound, single-owner state directory whose authority rows are cleared every launch. They add no scheduler, policy service, reload or A2A-visible control.
+
 ## Deliberately unsupported
 
 OpenCode HTTP adapters, ACP v2, rich file/image inputs, tool inputs/outputs and reasoning by default (the opt-in `--publish-activity` publishes tool call ids, titles, kinds, statuses and reasoning text), interactive forms and any permission handling beyond the opt-in single `allow_once`/reject question, request-scoped models or workspaces, parallel prompts, authentication/multi-tenancy, push notifications, outbound A2A, durable task/session recovery, replay, databases and distributed scheduling. The existing Python fork is unchanged. The loopback listener is for an operator-controlled trusted workspace, not an untrusted public endpoint.

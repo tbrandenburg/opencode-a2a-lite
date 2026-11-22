@@ -12,6 +12,7 @@ Capability profiles (`--policy`, `src/runtime-policy.ts` is the single source) a
 `read-only` default, `edit`, and `full-access` only with `--dangerously-skip-permissions`;
 `supervised` is rejected until one-time shell approval is proven against project agent config.
 Never auto-answer permissions in the adapter, and keep policy on the CLI private-runtime path only.
+`--policy-file`/`--state-dir` (docs/operator-policy-state.md): exact allow exceptions only, no shell/edit lifting, file base must equal `--policy`; state is workspace-bound, single-owner, and authority tables (approvals, credentials, automations) are cleared every launch. Never persist credentials or signal a lock's pid.
 Extras (`--publish-activity`, `--permissions ask`, `--allow-resume`/replay) stay opt-in:
 off by default, own flag and Agent Card extension, README warning, on and off tests.
 

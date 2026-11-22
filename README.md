@@ -114,6 +114,8 @@ opencode-a2a-lite --help | --version
 | `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                                                   |
 | `--policy <read-only\|edit\|full-access>`                                       | Startup-only [capability profile](#capability-profiles); default `read-only`. `supervised` is rejected as not available.                                                         |
 | `--dangerously-skip-permissions`                                                | Valueless acknowledgement required by, and only accepted with, `--policy full-access`.                                                                                           |
+| `--policy-file ABSOLUTE_PATH`                                                   | Opt-in operator file adding exact MCP, skill or plugin allow exceptions to the profile; see [operator policy and state](docs/operator-policy-state.md).                          |
+| `--state-dir ABSOLUTE_PATH`                                                     | Opt-in private persistent OpenCode session data bound to this workspace; credentials and approvals are cleared every launch; resume still needs `--allow-resume`.                |
 | `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                                           |
 | `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                                        |
 
@@ -338,18 +340,18 @@ make check               # format, lint, typecheck, deterministic tests, build
 bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
-| Command                                                                | Purpose                                                               |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build      |
-| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider   |
-| `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt |
-| `make policy-smoke`                                                    | Capability profiles against real OpenCode and a scripted local model  |
-| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance           |
-| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)         |
-| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                 |
-| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                    |
-| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release.  |
-| `make clean`                                                           | Remove build, coverage and test results                               |
+| Command                                                                | Purpose                                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build                                              |
+| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider                                           |
+| `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt                                         |
+| `make policy-smoke`                                                    | Profiles, operator exceptions and persistent-state downgrade against real OpenCode and a scripted local model |
+| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance                                                   |
+| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)                                                 |
+| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                                                         |
+| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                                                            |
+| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release.                                          |
+| `make clean`                                                           | Remove build, coverage and test results                                                                       |
 
 CI is configured to check core deterministic tests and installed packaging on Linux and macOS;
 the provider-free team launcher fixtures and checksummed MCP bridge run on Linux.

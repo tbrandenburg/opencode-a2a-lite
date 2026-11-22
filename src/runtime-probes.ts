@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 import { validateAgentPermissions, validatePolicyDocument } from "./runtime-policy-check.js";
+import type { Exception } from "./policy-file.js";
 import type { PolicyProfile } from "./runtime-policy.js";
 import {
   RuntimeSourceError,
@@ -133,6 +134,8 @@ export async function verifyRuntime(options: {
   env: NodeJS.ProcessEnv;
   root: string;
   policy?: PolicyProfile;
+  exceptions?: readonly Exception[];
+  data?: string;
   signal: AbortSignal;
   onSpawn?: () => void;
 }) {
@@ -144,12 +147,16 @@ export async function verifyRuntime(options: {
   const version = await run(["--version"]);
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
-    validateRuntimePaths(await run(["debug", "paths"]), options.root);
+    validateRuntimePaths(await run(["debug", "paths"]), options.root, options.data);
     const sources = await run(["--standalone", "debug", "config"]);
     validateRuntimeSources(sources, options.root, options.cwd);
     if (options.policy) {
-      validatePolicyDocument(sources, options.root, options.policy);
-      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), options.policy);
+      validatePolicyDocument(sources, options.root, options.policy, options.exceptions);
+      validateAgentPermissions(
+        await run(["--standalone", "debug", "agents"]),
+        options.policy,
+        options.exceptions,
+      );
     }
   } catch (error) {
     if (

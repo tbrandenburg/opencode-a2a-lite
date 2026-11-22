@@ -39,8 +39,9 @@ package-smoke: ## Pack and test the installed tarball outside the checkout (npm 
 runtime-smoke: ## Check the gateway with isolated real OpenCode (no provider)
 	bun scripts/gateway-runtime-smoke.ts
 
-policy-smoke: ## Probe capability profiles with real OpenCode and a scripted local model (no provider)
+policy-smoke: ## Probe profiles, operator exceptions and persistent state with real OpenCode and a scripted local model (no provider)
 	bun scripts/policy-probes.ts
+	bun scripts/state-probes.ts
 
 release: ## Bump, check, commit and push a tag to trigger npm publication and a GitHub release (BUMP=patch|minor|major or VERSION=x.y.z)
 	bun scripts/release.ts "$(or $(VERSION),$(BUMP),patch)"

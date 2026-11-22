@@ -24,6 +24,8 @@ import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
 import { createRuntimeEnvironment } from "./runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
 import { removeUnusedRuntime } from "./runtime-processes.js";
+import { exceptionNames, loadPolicyFile } from "./policy-file.js";
+import { acquireState } from "./state-dir.js";
 import {
   FULL_ACCESS_WARNING,
   policySummary,
@@ -37,6 +39,8 @@ export interface ServerOptions {
   passEnv?: readonly string[];
   policy?: PolicyProfile;
   dangerouslySkipPermissions?: boolean;
+  policyFile?: string;
+  stateDir?: string;
   host?: string;
   port?: number;
   identity?: WorkerIdentity;
@@ -240,10 +244,26 @@ export async function launchGateway(options: ServerOptions) {
   const workspace = await stat(options.workspace).catch(() => undefined);
   if (!workspace?.isDirectory()) throw new StartupError("directory");
   validateIdentity(options.identity);
+  if (options.acp?.env && (options.policyFile || options.stateDir))
+    throw new StartupError("privateOptions");
   if (!options.acp?.env && process.platform !== "linux") throw new StartupError("runtimePlatform");
-  const runtime = options.acp?.env
-    ? undefined
-    : createRuntimeEnvironment(options.passEnv ?? [], process.env, policy);
+  const file = options.policyFile
+    ? loadPolicyFile(options.policyFile, options.workspace, policy)
+    : undefined;
+  const state = options.stateDir ? acquireState(options.stateDir, options.workspace) : undefined;
+  const runtime = (() => {
+    if (options.acp?.env) return undefined;
+    try {
+      return createRuntimeEnvironment(options.passEnv ?? [], process.env, policy, {
+        ...(file ? { exceptions: file.exceptions } : {}),
+        ...(state ? { data: state.data } : {}),
+      });
+    } catch (error) {
+      state?.release();
+      throw error;
+    }
+  })();
+  if (runtime && state) state.record(runtime.root, runtime.env.A2A_LITE_RUNTIME_ID!);
   const probeEnv = runtime ? { ...runtime.env } : undefined;
   if (probeEnv) for (const name of options.passEnv ?? []) delete probeEnv[name];
   let gateway: ReturnType<typeof createGateway>;
@@ -260,6 +280,7 @@ export async function launchGateway(options: ServerOptions) {
     });
   } catch (error) {
     runtime?.remove();
+    state?.release();
     throw error;
   }
   const abort = new AbortController();
@@ -277,6 +298,7 @@ export async function launchGateway(options: ServerOptions) {
         await gateway.close();
         if (result instanceof ProbeCleanupError) throw result;
         if (runtime) await removeUnusedRuntime(runtime);
+        state?.release();
       } catch (error) {
         if (!runtime) throw error;
         console.error(`Private runtime cleanup unconfirmed; retained ${runtime.root}`);
@@ -309,6 +331,8 @@ export async function launchGateway(options: ServerOptions) {
         env: probeEnv!,
         root: runtime.root,
         policy,
+        ...(file ? { exceptions: file.exceptions } : {}),
+        ...(state ? { data: state.data } : {}),
         signal: abort.signal,
       });
       await preparation;
@@ -317,6 +341,16 @@ export async function launchGateway(options: ServerOptions) {
     if (runtime) {
       if (policy === "full-access") status("WARNING", FULL_ACCESS_WARNING);
       for (const line of policySummary(policy, approvals)) status("policy", line);
+      if (file)
+        status(
+          "policy",
+          `operator exceptions: ${exceptionNames(file.exceptions).join(", ") || "none"} · allowlisting is not code sandboxing`,
+        );
+      if (state)
+        status(
+          "state",
+          "persistent private state · approvals, accounts and automations cleared each launch · session history kept",
+        );
     }
     const ready = await gateway.start();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
