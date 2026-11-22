@@ -72,6 +72,7 @@ a2a send -a http://127.0.0.1:41241 --context-id <returned-context-id> "Follow up
 
 The server runs in the foreground. Press Ctrl-C to see shutdown progress; it reports
 `stopped` only after closing the listener and releasing its owned OpenCode process.
+SIGTERM and SIGHUP also initiate shutdown.
 Status lines use color only on interactive terminals, honor `NO_COLOR`, and remain
 plain when redirected. Startup JSON stays on stdout; human-readable status is on stderr.
 
@@ -137,6 +138,7 @@ runtime currently fails closed on macOS pending verification of managed preferen
 Project-local configuration and instructions may still load plugins, MCP and tools and
 can access files and network as the invoking OS user. Library callers explicitly supplying
 `acp.env` retain their environment override and are responsible for isolation.
+Combining that override with `passEnv` is rejected.
 
 Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
 use `make dev` for development.

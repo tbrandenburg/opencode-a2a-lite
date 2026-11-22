@@ -224,6 +224,7 @@ export function createGateway(options: ServerOptions) {
 }
 
 export async function launchGateway(options: ServerOptions) {
+  if (options.acp?.env && options.passEnv?.length) throw new StartupError("passEnvConflict");
   const workspace = await stat(options.workspace).catch(() => undefined);
   if (!workspace?.isDirectory()) throw new StartupError("directory");
   const runtime = options.acp?.env
@@ -272,7 +273,9 @@ export async function launchGateway(options: ServerOptions) {
   };
   const status = (label: string, detail: string) =>
     console.error(formatStatus(label, detail, supportsTerminalColor(process.stderr, process.env)));
+  let signalled = false;
   const stop = () => {
+    signalled = true;
     status("stopping", "gateway · draining active work and closing the listener");
     void close()
       .then(() => status("stopped", "gateway · listener closed and OpenCode process released"))
@@ -283,6 +286,7 @@ export async function launchGateway(options: ServerOptions) {
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
+  process.once("SIGHUP", stop);
   try {
     if (runtime && executable) {
       preparation = verifyRuntime({
@@ -320,7 +324,14 @@ export async function launchGateway(options: ServerOptions) {
   } catch (error) {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
-    await close();
+    process.removeListener("SIGHUP", stop);
+    try {
+      await close();
+    } catch (cleanupError) {
+      if (signalled) throw cleanupError;
+      if (!runtime) console.error("Gateway owned shutdown failed during startup cleanup");
+    }
+    if (signalled) return;
     throw error;
   }
 }

@@ -90,9 +90,24 @@ test("loader and locale search paths are rejected even when present", () => {
     "HOSTALIASES",
     "RES_OPTIONS",
     "LOCALDOMAIN",
+    "_PRIVATE",
+    "GLIBC_TUNABLES",
+    "MALLOC_CHECK_",
+    "TERMINFO",
+    "TERMINFO_DIRS",
+    "TZDIR",
+    "TZ",
+    "SSH_ASKPASS",
+    "SSH_ASKPASS_REQUIRE",
   ]) {
     const source = { [name]: "sensitive-value" };
     expect(() => validatePassEnv([name], source)).toThrow();
     expect(() => validatePassEnv([name], source)).not.toThrow("sensitive-value");
   }
+  expect(
+    validatePassEnv(["OPENAI_API_KEY", "ANTHROPIC_API_KEY"], {
+      OPENAI_API_KEY: "first",
+      ANTHROPIC_API_KEY: "second",
+    }),
+  ).toEqual({ OPENAI_API_KEY: "first", ANTHROPIC_API_KEY: "second" });
 });

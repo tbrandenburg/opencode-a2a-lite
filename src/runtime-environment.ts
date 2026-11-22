@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 // Names affecting process startup, executable discovery, configuration, trust or
 // network routing cannot be delegated through the credential passthrough.
 const reserved =
-  /^(?:A2A_|OPENCODE_|XDG_|LD_|DYLD_|BUN_|NODE_|NPM_|BASH_FUNC_|SSL_|OPENSSL_|CURL_|GIT_|PYTHON|RUBY|PERL|JAVA_|JDK_|AWS_CONFIG|AWS_SHARED_CREDENTIALS|GOOGLE_APPLICATION_CREDENTIALS|GCONV_PATH$|LOCPATH$|NLSPATH$|GETCONF_DIR$|HOSTALIASES$|RES_OPTIONS$|LOCALDOMAIN$|HTTP_PROXY$|HTTPS_PROXY$|ALL_PROXY$|NO_PROXY$|HOME$|PATH$|SHELL$|ENV$|BASH_ENV$|CDPATH$|IFS$|TMPDIR$|TMP$|TEMP$|LANG$|LC_)/i;
+  /^(?:A2A_|OPENCODE_|XDG_|LD_|DYLD_|GLIBC_|MALLOC_|BUN_|NODE_|NPM_|BASH_FUNC_|SSL_|OPENSSL_|CURL_|GIT_|PYTHON|RUBY|PERL|JAVA_|JDK_|AWS_CONFIG|AWS_SHARED_CREDENTIALS|GOOGLE_APPLICATION_CREDENTIALS|GCONV_PATH$|LOCPATH$|NLSPATH$|GETCONF_DIR$|HOSTALIASES$|RES_OPTIONS$|LOCALDOMAIN$|TERMINFO|TZDIR$|TZ$|SSH_ASKPASS|HTTP_PROXY$|HTTPS_PROXY$|ALL_PROXY$|NO_PROXY$|HOME$|PATH$|SHELL$|ENV$|BASH_ENV$|CDPATH$|IFS$|TMPDIR$|TMP$|TEMP$|LANG$|LC_)/i;
 
 export function validatePassEnv(names: readonly string[], source: NodeJS.ProcessEnv) {
   const values: NodeJS.ProcessEnv = Object.create(null) as NodeJS.ProcessEnv;
@@ -13,7 +13,7 @@ export function validatePassEnv(names: readonly string[], source: NodeJS.Process
   for (const name of names) {
     if (
       !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
-      name.startsWith("__") ||
+      name.startsWith("_") ||
       reserved.test(name) ||
       /(?:^|_)(?:ENDPOINT|BASE|URL|URI|HOST|PROXY)(?:_|$)/i.test(name) ||
       seen.has(name) ||

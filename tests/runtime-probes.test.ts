@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, test, spyOn } from "bun:test";
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -16,6 +17,64 @@ import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import { verifyRuntime } from "../src/runtime-probes.js";
 import { launchGateway } from "../src/server.js";
 import { createAcpBridge } from "../src/acp-client.js";
+
+test("explicit ACP environment conflicts with pass-env", async () => {
+  await expect(
+    launchGateway({ workspace: "/tmp", passEnv: ["OPENAI_API_KEY"], acp: { env: {} } }),
+  ).rejects.toThrow("Cannot combine --pass-env");
+});
+
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+  test(`${signal} during preflight is a clean stop`, async () => {
+    if (process.platform !== "linux" || existsSync("/etc/opencode")) return;
+    const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-signal-test-"));
+    const executable = join(workspace, "opencode");
+    const marker = join(workspace, "probe-started");
+    writeFileSync(
+      executable,
+      `#!/bin/sh\nprintf '%s' "$HOME" > "${marker}"\nexec /bin/sleep 30\n`,
+      { mode: 0o700 },
+    );
+    const child = spawn(
+      process.execPath,
+      [join(import.meta.dir, "../src/cli.ts"), "--workspace", workspace, "--port", "0"],
+      {
+        cwd: workspace,
+        env: { PATH: `${workspace}:/usr/bin:/bin`, HOME: workspace },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.stdout.resume();
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+      (resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", (code, exitSignal) => resolve({ code, signal: exitSignal }));
+      },
+    );
+    try {
+      const deadline = Date.now() + 10_000;
+      while (!existsSync(marker) && Date.now() < deadline && child.exitCode === null)
+        await Bun.sleep(10);
+      expect(existsSync(marker)).toBe(true);
+      const home = readFileSync(marker, "utf8");
+      child.kill(signal);
+      expect(await exited).toEqual({ code: 0, signal: null });
+      expect(stderr).toContain("stopped");
+      expect(stderr).not.toContain("startup failed");
+      expect(existsSync(home)).toBe(false);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+        await exited;
+      }
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }, 20_000);
+}
 
 test("wrong executable probe never receives explicitly passed credential", async () => {
   if (process.platform !== "linux" || existsSync("/etc/opencode")) return;
@@ -126,6 +185,7 @@ printf '1.0.0\\n'
         { mode: 0o700 },
       );
       let child: { home: string; pid: number; start: string; port: number } | undefined;
+      const errors = spyOn(console, "error").mockImplementation(() => {});
       const cleanup = async () => {
         if (!child && existsSync(marker)) child = JSON.parse(readFileSync(marker, "utf8"));
         if (!child) return;
@@ -150,8 +210,12 @@ printf '1.0.0\\n'
       };
       try {
         await expect(launchGateway({ workspace, acp: { executable } })).rejects.toThrow(
-          tagged ? "cleanup unconfirmed" : "Unsupported OpenCode version",
+          "Unsupported OpenCode version",
         );
+        if (tagged)
+          expect(
+            errors.mock.calls.some((call) => String(call[0]).includes("cleanup unconfirmed")),
+          ).toBe(true);
         child = JSON.parse(readFileSync(marker, "utf8"));
         if (!child) throw new Error("Missing child marker");
         const root = join(child.home, "..");
@@ -171,6 +235,7 @@ printf '1.0.0\\n'
           expect(() => process.kill(child!.pid, 0)).not.toThrow();
         }
       } finally {
+        errors.mockRestore();
         await cleanup();
         rmSync(workspace, { recursive: true, force: true });
       }
@@ -198,7 +263,7 @@ test("unconfirmed detached descendant retains the private runtime", async () => 
   await new Promise<void>((resolve) => unrelated.listen(0, "127.0.0.1", resolve));
   try {
     await expect(launchGateway({ workspace, acp: { executable } })).rejects.toThrow(
-      "cleanup unconfirmed",
+      "Unsupported OpenCode version",
     );
     const [home, child] = readFileSync(marker, "utf8").split("\n");
     root = join(home!, "..");

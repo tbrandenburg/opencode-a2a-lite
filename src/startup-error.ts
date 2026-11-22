@@ -13,6 +13,7 @@ const messages = {
   version:
     "ACP startup failed: Unsupported OpenCode version; PATH must provide stable opencode v2.2.7 or newer.",
   passEnv: "Invalid, duplicate, reserved or missing --pass-env variable; use --help for details.",
+  passEnvConflict: "Cannot combine --pass-env with a caller-supplied ACP environment.",
   runtime: "Private runtime preflight failed; review trusted workspace and OpenCode configuration.",
 } as const;
 
