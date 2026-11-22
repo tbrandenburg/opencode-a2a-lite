@@ -84,6 +84,17 @@ the retained runtime on a later request. Process inspection can also fail or rac
 changes. These checks are evidence of references at an instant, not proof of owned
 descendant termination or that the runtime cannot be reopened.
 
+A proposed per-launch environment marker plus `/proc` cwd/fd scan also requires an
+explicit policy for unreadable processes. On the investigated shared Linux host, a
+read-only inspection found four live same-UID processes with `EACCES` reading
+`environ` or `cwd`, and three with `EACCES` reading `fd`. An experimental scanner
+that treated these entries as inconclusive reported a freshly created empty runtime
+as in use, although no child had received its marker. Thus the requested rule to
+fail closed on unreadable same-UID entries conflicts with successful cleanup on that
+host; no process was signaled or modified. The experimental scanner was not adopted.
+Using a marker would also not prove containment: an exec with a scrubbed environment
+can remove the marker, after which the descendant may reopen the runtime.
+
 Bun 1.4.4 exposes `Bun.spawn` with a cgroup option that places a child before
 execution, but the existing implementation uses Node-compatible `child_process`
 streams and the package also supports Node. A delegated cgroup, compatible spawn
