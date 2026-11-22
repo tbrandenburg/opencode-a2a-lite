@@ -14,6 +14,7 @@ export function validatePassEnv(names: readonly string[], source: NodeJS.Process
       !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
       name.startsWith("__") ||
       reserved.test(name) ||
+      /(?:^|_)(?:ENDPOINT|BASE|URL|URI|HOST|PROXY)(?:_|$)/i.test(name) ||
       seen.has(name) ||
       !Object.hasOwn(source, name) ||
       typeof source[name] !== "string" ||

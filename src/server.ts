@@ -231,7 +231,9 @@ export async function launchGateway(options: ServerOptions) {
   let gateway: ReturnType<typeof createGateway>;
   let executable: string | undefined;
   try {
-    executable = runtime ? resolveOpenCode(runtime.env.PATH!) : undefined;
+    executable = runtime
+      ? resolveOpenCode(runtime.env.PATH!, options.acp?.executable, options.workspace)
+      : undefined;
     gateway = createGateway({
       ...options,
       ...(runtime && executable ? { acp: { ...options.acp, env: runtime.env, executable } } : {}),
@@ -242,6 +244,7 @@ export async function launchGateway(options: ServerOptions) {
   }
   const abort = new AbortController();
   let preparation: Promise<void> = Promise.resolve();
+  let spawned = false;
   let cleanup: Promise<void> | undefined;
   const close = () => {
     if (cleanup) return cleanup;
@@ -251,8 +254,14 @@ export async function launchGateway(options: ServerOptions) {
         () => undefined,
         (error: unknown) => error,
       );
+      if (runtime && spawned)
+        console.error(`Private runtime cleanup unconfirmed; retained ${runtime.root}`);
       await gateway.close();
       if (result instanceof ProbeCleanupError) throw result;
+      if (runtime && spawned)
+        throw new ProbeCleanupError(
+          `Private runtime cleanup unconfirmed; retained ${runtime.root}`,
+        );
       runtime?.remove();
     })();
     return cleanup;
@@ -272,6 +281,7 @@ export async function launchGateway(options: ServerOptions) {
   process.once("SIGTERM", stop);
   try {
     if (runtime && executable) {
+      spawned = true;
       preparation = verifyRuntime({
         executable,
         cwd: options.workspace,
@@ -307,7 +317,12 @@ export async function launchGateway(options: ServerOptions) {
   } catch (error) {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
-    await close();
+    try {
+      await close();
+    } catch (cleanupError) {
+      if (!(cleanupError instanceof ProbeCleanupError && error instanceof StartupError))
+        throw cleanupError;
+    }
     throw error;
   }
 }

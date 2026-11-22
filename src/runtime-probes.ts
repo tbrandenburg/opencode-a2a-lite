@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { accessSync, constants, lstatSync, realpathSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
 import { validateRuntimePaths, validateRuntimeSources } from "./runtime-preflight.js";
@@ -27,10 +27,13 @@ function rejectAncestorConfiguration(workspace: string) {
   }
 }
 
-export function resolveOpenCode(path: string) {
-  for (const directory of path.split(":")) {
+export function resolveOpenCode(path: string, executable = "opencode", cwd = process.cwd()) {
+  const candidates = executable.includes("/")
+    ? [resolve(cwd, executable)]
+    : path.split(":").map((directory) => join(directory, executable));
+  for (const file of candidates) {
     try {
-      const candidate = realpathSync(join(directory, "opencode"));
+      const candidate = realpathSync(file);
       accessSync(candidate, constants.X_OK);
       if (statSync(candidate).isFile()) return candidate;
     } catch {

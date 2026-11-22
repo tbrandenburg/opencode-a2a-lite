@@ -96,15 +96,15 @@ opencode-a2a-lite --workspace <path> [--port <0..65535>]
 opencode-a2a-lite --help | --version
 ```
 
-| Option / variable                                                               | Meaning                                                                                                                                                   |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                                              |
-| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                                                  |
-| `--pass-env NAME`                                                               | Pass a named, existing provider variable to OpenCode; repeat for additional variables. Runtime, configuration and injection-sensitive names are rejected. |
-| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                       |
-| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                            |
-| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                    |
-| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                 |
+| Option / variable                                                               | Meaning                                                                                                                                                                          |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                                                                     |
+| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                                                                         |
+| `--pass-env NAME`                                                               | Pass a named, existing provider variable to OpenCode; repeat for additional variables. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |
+| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                                              |
+| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                                                   |
+| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                                           |
+| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                                        |
 
 The three opt-in flags are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
@@ -118,6 +118,12 @@ For example, export `OPENAI_API_KEY` in the invoking environment and name it wit
 credential can cause a sanitized task failure: check provider setup rather than expecting
 fallback to the host login. Review and configure the provider and model in the trusted
 workspace as needed. Persistent login/state is not supported by this CLI mode.
+
+**Cleanup limitation:** process groups do not contain detached descendants. Until
+owned descendant containment is available, any private-runtime preflight retains
+its runtime directory and reports cleanup as unconfirmed, even on normal shutdown.
+An operator must inspect owned processes and remove that directory only after
+confirming they have exited. No process outside the owned group is signaled.
 
 Preflight rejects managed Linux `/etc/opencode`, configuration in workspace ancestors,
 and unexpected configuration sources; choose a trusted standalone workspace. It checks

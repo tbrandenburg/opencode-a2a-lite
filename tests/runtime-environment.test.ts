@@ -24,6 +24,29 @@ test("private environment contains only runtime paths and named credentials", ()
   expect(existsSync(runtime.root)).toBe(false);
 });
 
+test("routing overrides are rejected while provider credentials remain usable", () => {
+  for (const name of [
+    "AWS_ENDPOINT_URL",
+    "AWS_ENDPOINT_URL_BEDROCK_RUNTIME",
+    "OPENAI_BASE_URL",
+    "OPENAI_API_BASE",
+    "ANTHROPIC_API_URL",
+    "AZURE_OPENAI_ENDPOINT",
+    "provider_host",
+  ]) {
+    expect(() => validatePassEnv([name], { [name]: "sensitive-value" })).toThrow();
+    expect(() => validatePassEnv([name], { [name]: "sensitive-value" })).not.toThrow(
+      "sensitive-value",
+    );
+  }
+  expect(
+    validatePassEnv(["AWS_ACCESS_KEY_ID", "OPENAI_API_KEY"], {
+      AWS_ACCESS_KEY_ID: "key",
+      OPENAI_API_KEY: "key",
+    }),
+  ).toEqual({ AWS_ACCESS_KEY_ID: "key", OPENAI_API_KEY: "key" });
+});
+
 test("passthrough rejects missing, duplicate and injection-sensitive names without values", () => {
   const source = { OPENAI_API_KEY: "sensitive-value", NODE_OPTIONS: "sensitive-value" };
   for (const names of [
