@@ -67,8 +67,22 @@ test("rejected source diagnostics identify categories without disclosing sensiti
       validateRuntimeSources(source("document", "/etc/opencode/config"), runtime, workspace),
     ).toThrow("managed");
     expect(() =>
-      validateRuntimeSources(source("document", "/tmp/external-config"), runtime, workspace),
-    ).toThrow("/tmp/external-config");
+      validateRuntimeSources(
+        source("document", "/private/etc/opencode/config"),
+        runtime,
+        workspace,
+      ),
+    ).toThrow("managed");
+    expect(() =>
+      validateRuntimeSources(source("document", "/etc/opencode-other/config"), runtime, workspace),
+    ).toThrow("external");
+    expect(() =>
+      validateRuntimeSources(
+        source("document", join(realpathSync("/tmp"), "external-config")),
+        runtime,
+        workspace,
+      ),
+    ).toThrow(join(realpathSync("/tmp"), "external-config"));
     expect(() =>
       validateRuntimeSources(
         source("remote", "https://user:secret@example.com/?token=secret"),

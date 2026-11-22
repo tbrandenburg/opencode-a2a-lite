@@ -65,13 +65,13 @@ export function validateRuntimeSources(output: string, root: string, workspace: 
     }
     if (typeof source.path !== "string")
       throw new RuntimeSourceError("virtual", undefined, privateRoot);
-    const target = physicalPath(source.path);
+    const reported = source.path;
+    const target = physicalPath(reported);
     if (!inside(privateRoot, target) && !inside(trusted, target)) {
-      const category = inside(trusted, source.path)
-        ? "symlink"
-        : target.startsWith("/etc/")
-          ? "managed"
-          : "external";
+      const managed = ["/etc/opencode", "/private/etc/opencode"].some(
+        (path) => inside(path, reported) || inside(path, target),
+      );
+      const category = managed ? "managed" : inside(trusted, reported) ? "symlink" : "external";
       throw new RuntimeSourceError(category, target, privateRoot);
     }
     if (source.type === "directory" && inside(privateRoot, target)) privateDirectory = true;
