@@ -24,14 +24,20 @@ launch policy from a prompt, A2A metadata or the workspace. Neither is an OS san
   `*`/`?`, `$`, URLs, relative or `..` paths, environment substitution and anything outside the
   character classes below are rejected:
   `mcp.use` server name (`[A-Za-z0-9-]`, not a built-in tool name); `skill.use` skill id;
-  `plugin.use` unversioned package name or an absolute file path outside the workspace;
-  `tool.use` only `<server>_<tool>:*` of an MCP server the same file allows. Built-in tools
+  `plugin.use` unversioned package name or an absolute file path outside the workspace (literal and realpath comparison);
+  `tool.use` only `<server>_<tool>:*` of an MCP server the same file allows, and the composed
+  name `<server>_<tool>` must not equal a built-in tool or permission name (`read glob grep edit
+  write shell bash webfetch websearch subagent task execute skill question external_directory
+  apply_patch todo_write ...`; the tool names OpenCode 2.3.2 sends to the model plus known
+  permission names). Without this, `mcp.use external` + `tool.use external_directory:*` lifted the
+  outside-workspace denial (reproduced in `make policy-smoke`). Built-in tools
   (`shell`, `edit`, `webfetch` ...) cannot be lifted, so **shell exceptions are rejected** for every
   base: use `full-access` deliberately instead.
 - Trust checks (one file descriptor, `O_NOFOLLOW`, `fstat`): absolute canonical path equal to its
   realpath (no symlink in any component), regular file with one link, owned by the invoking user,
   no group/world write, 64 KiB limit, every ancestor a real directory owned by root or you with no
-  group/world write (sticky shared directories such as `/tmp` allowed), and outside the workspace.
+  group/world write (sticky shared directories such as `/tmp` allowed), and outside the workspace. Bind mounts are not detectable by realpath; do not place the file or state
+  directory on a mount that exposes workspace content.
 - Generated order: base statements first, then exceptions sorted by action and resource. Observed
   on OpenCode 2.3.2, a policy `allow` only lifts a denial; usability needs more, which the gateway
   adds and verifies:
@@ -67,14 +73,21 @@ the runtime root.
 - Rejected before any child starts: relative path, symlink components, inside or containing the
   workspace, wrong owner, mode other than 0700, shared-writable ancestors, a non-empty directory
   with no binding marker, or a marker for another workspace.
-- Lock: `O_EXCL` file. A held lock is refused. It is taken over only when its recorded pid is
+- Lock: `O_EXCL` file; stale takeover is serialized by an `O_EXCL` `lock.takeover` guard (the winner
+  renames the stale lock aside, then creates the new one; every loser fails closed and a guard left by a
+  crash must be removed by hand after checking no gateway runs). A held lock is refused. It is taken over only when its recorded pid is
   absent or has another start time **and** no process still carries the recorded runtime tag or
   uses its root. Unreadable locks fail closed. No signal is ever sent.
 - Shutdown removes the runtime root and the lock and keeps `data/`. A failed startup keeps
   pre-existing content (a new empty state directory keeps its marker).
 - **Authority is not persisted.** The database holds saved "always" approvals (`permission`),
   credentials and accounts (`credential`, `account`, `account_state`, `control_account`) and
-  scheduled `automation`/`job` rows. These are emptied at every launch and at shutdown; the
+  scheduled `automation`/`job` rows, plus per-session permission rulesets (`session_v2.permission`,
+  set to NULL; a seeded allow ruleset did not make a read-only shell run on 2.3.2, but is cleared anyway).
+  Startup fails closed on any other table or column whose name matches
+  `permission|credential|approval|account|token|grant|auth` (usage counters `tokens_*` excepted), so
+  an OpenCode schema change cannot silently persist grants (verified against the 2.3.2 schema only).
+  These are emptied at every launch and at shutdown; the
   `auth.json`/`mcp-auth.json` files fail startup if present. Provider keys therefore only come from
   `--pass-env`. Session history (`session_*`, messages) is kept.
 - `--allow-resume` is still required to load a stored session; persistence alone restores nothing

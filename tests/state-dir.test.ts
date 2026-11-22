@@ -18,6 +18,10 @@ import { acquireState } from "../src/state-dir.js";
 import { processStart } from "../src/state-lock.js";
 import { StartupError } from "../src/startup-error.js";
 
+// The lock inspects /proc and the CLI private runtime is Linux-only.
+const linux = process.platform === "linux" ? test : test.skip;
+const linuxEach = ((table: never) =>
+  (process.platform === "linux" ? test : test.skip).each(table)) as typeof test.each;
 const base = realpathSync(mkdtempSync(join(tmpdir(), "state-dir-")));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
 const workspace = join(base, "ws");
@@ -41,11 +45,11 @@ function seed(data: string) {
   db.run("create table permission (id text, action text)");
   db.run("create table credential (id text, value text)");
   db.run("create table automation (id text)");
-  db.run("create table session_v2 (id text)");
+  db.run("create table session_v2 (id text, permission text, tokens_input integer)");
   db.run("insert into permission values ('p', 'shell')");
   db.run("insert into credential values ('c', 'secret')");
   db.run("insert into automation values ('a')");
-  db.run("insert into session_v2 values ('ses_keep')");
+  db.run("insert into session_v2 values ('ses_keep', '[{\"action\":\"shell\"}]', 5)");
   db.close();
 }
 const count = (data: string, table: string) => {
@@ -55,7 +59,7 @@ const count = (data: string, table: string) => {
   return row?.n;
 };
 
-test("creates a 0700 owned directory bound to the workspace; release keeps data", () => {
+linux("creates a 0700 owned directory bound to the workspace; release keeps data", () => {
   const path = fresh();
   const state = acquireState(path, workspace);
   expect(statSync(path).mode & 0o777).toBe(0o700);
@@ -72,7 +76,7 @@ test("creates a 0700 owned directory bound to the workspace; release keeps data"
   acquireState(path, workspace).release();
 });
 
-test("rejects reuse by another workspace without changing the state", () => {
+linux("rejects reuse by another workspace without changing the state", () => {
   const path = fresh();
   acquireState(path, workspace).release();
   const before = readFileSync(join(path, "binding.json"), "utf8");
@@ -81,7 +85,7 @@ test("rejects reuse by another workspace without changing the state", () => {
   expect(existsSync(join(path, "lock"))).toBe(false);
 });
 
-test.each([
+linuxEach([
   ["inside the workspace", () => join(workspace, "state")],
   ["containing the workspace", () => base],
   [
@@ -139,7 +143,7 @@ test.each([
     expect(readFileSync(join(path, "operator-file"), "utf8")).toBe("x");
 });
 
-test("a second owner is refused while the first is alive; live locks are never taken over", () => {
+linux("a second owner is refused while the first is alive; live locks are never taken over", () => {
   const path = fresh();
   const first = acquireState(path, workspace);
   expect(message(() => acquireState(path, workspace))).toMatch(/in use/);
@@ -147,7 +151,7 @@ test("a second owner is refused while the first is alive; live locks are never t
   acquireState(path, workspace).release();
 });
 
-test("stale lock: dead pid or recycled start time is recovered; garbage fails closed", () => {
+linux("stale lock: dead pid or recycled start time is recovered; garbage fails closed", () => {
   const path = fresh();
   acquireState(path, workspace).release();
   const lock = join(path, "lock");
@@ -165,7 +169,7 @@ test("stale lock: dead pid or recycled start time is recovered; garbage fails cl
   expect(readFileSync(lock, "utf8")).toBe("not json");
 });
 
-test("authority tables are emptied each launch; sessions survive", () => {
+linux("authority tables are emptied each launch; sessions survive", () => {
   const path = fresh();
   const state = acquireState(path, workspace);
   seed(state.data);
@@ -179,7 +183,7 @@ test("authority tables are emptied each launch; sessions survive", () => {
   again.release();
 });
 
-test("saved approvals present before launch are cleared; credential files fail closed", () => {
+linux("saved approvals present before launch are cleared; credential files fail closed", () => {
   const path = fresh();
   const first = acquireState(path, workspace);
   seed(first.data);
@@ -194,4 +198,73 @@ test("saved approvals present before launch are cleared; credential files fail c
   expect(message(() => acquireState(path, workspace))).toMatch(/--state-dir rejected/);
   expect(existsSync(join(first.data, "opencode", "auth.json"))).toBe(true);
   expect(existsSync(join(path, "lock"))).toBe(false);
+});
+
+linux(
+  "two processes racing for one stale lock: exactly one wins",
+  async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const path = fresh();
+      mkdirSync(path, { mode: 0o700 });
+      writeFileSync(
+        join(path, "lock"),
+        JSON.stringify({ pid: 2 ** 22 + 9, start: "1", nonce: "stale" }),
+        { mode: 0o600 },
+      );
+      const go = join(base, `go-${round}`);
+      const run = () =>
+        Bun.spawn(
+          [process.execPath, join(import.meta.dir, "fixtures/lock-contender.ts"), path, go],
+          {
+            stdout: "pipe",
+          },
+        );
+      const children = [run(), run()];
+      await Bun.sleep(300);
+      writeFileSync(go, "");
+      const results = await Promise.all(children.map((child) => new Response(child.stdout).text()));
+      expect(results.map((text) => text.trim()).sort()).toEqual(["busy", "won"]);
+      expect(existsSync(join(path, "lock"))).toBe(false);
+      expect(existsSync(join(path, "lock.takeover"))).toBe(false);
+    }
+  },
+  30_000,
+);
+
+linux("session permission rulesets are neutralized, history and counters kept", () => {
+  const path = fresh();
+  const first = acquireState(path, workspace);
+  seed(first.data);
+  first.release();
+  const db = new Database(join(first.data, "opencode", "opencode.db"), { readonly: true });
+  const row = db
+    .query<{ permission: string | null; tokens_input: number }, []>("select * from session_v2")
+    .get();
+  db.close();
+  expect(row).toMatchObject({ permission: null, tokens_input: 5 });
+});
+
+linuxEach([
+  ["table", "create table grant_cache (id text)"],
+  ["column", "alter table session_v2 add column auth_token text"],
+  ["required ruleset column", "create table other (id text, permission text not null default '')"],
+])("schema drift (%s) with authority-like names fails closed", (_name, ddl) => {
+  const path = fresh();
+  const first = acquireState(path, workspace);
+  seed(first.data);
+  first.release();
+  const db = new Database(join(first.data, "opencode", "opencode.db"));
+  db.run(ddl);
+  db.close();
+  expect(message(() => acquireState(path, workspace))).toMatch(/--state-dir rejected/);
+  expect(existsSync(join(path, "lock"))).toBe(false);
+});
+
+linux("an untrusted parent is rejected before the directory is created", () => {
+  const shared = join(base, "shared-parent");
+  mkdirSync(shared);
+  chmodSync(shared, 0o777);
+  const path = join(shared, "state");
+  expect(message(() => acquireState(path, workspace))).toMatch(/--state-dir rejected/);
+  expect(existsSync(path)).toBe(false);
 });

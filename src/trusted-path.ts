@@ -27,14 +27,12 @@ function exposed(info: Stats, directory: boolean) {
 }
 
 // Every ancestor must be a real directory owned by root or the invoking user that no one else can
-// modify; the path must not traverse a symlink and the workspace must not contain it.
-export function requireTrustedPath(path: string, workspace: string, code: TrustCode) {
+// modify, and the parent must not be reached through a symlink. Usable before the leaf exists.
+export function requireTrustedParents(path: string, code: TrustCode) {
   const fail = () => new StartupError(code);
   if (!isAbsolute(path) || resolve(path) !== path || /[\x00-\x1f\x7f]/.test(path)) throw fail();
   try {
-    if (realpathSync(path) !== path) throw fail();
-    const real = realpathSync(workspace);
-    if (contains(real, path) || contains(path, real)) throw fail();
+    if (realpathSync(dirname(path)) !== dirname(path)) throw fail();
     for (let dir = dirname(path); ; dir = dirname(dir)) {
       const info = lstatSync(dir);
       if (!info.isDirectory() || ![0, uid()].includes(info.uid) || exposed(info, true))
@@ -43,6 +41,19 @@ export function requireTrustedPath(path: string, workspace: string, code: TrustC
     }
   } catch (error) {
     throw error instanceof StartupError ? error : fail();
+  }
+}
+
+// The path itself must not traverse a symlink (bind mounts are not detectable by realpath) and the
+// workspace must not contain it or be contained by it.
+export function requireTrustedPath(path: string, workspace: string, code: TrustCode) {
+  requireTrustedParents(path, code);
+  try {
+    const real = realpathSync(workspace);
+    if (realpathSync(path) !== path || contains(real, path) || contains(path, real))
+      throw new StartupError(code);
+  } catch (error) {
+    throw error instanceof StartupError ? error : new StartupError(code);
   }
 }
 

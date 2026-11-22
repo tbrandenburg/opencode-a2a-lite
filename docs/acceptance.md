@@ -86,6 +86,15 @@ approval row cleared, session kept. Live-model recall and negatives are recorded
 Design, layout, data sensitivity and deletion: [operator-policy-state.md](operator-policy-state.md).
 Not probed with a real plugin: `plugin.use` is covered by schema/config tests only.
 
+### Intermittent `debug agents` result
+
+OpenCode 2.3.2 intermittently (about 1 in 25 `debug agents` calls, also on `main`) omits the private
+global config for a single process. Preflight therefore retries only the `debug agents` probe up to
+three times in fresh processes (short backoff) and prints a sanitized note when a retry was needed; a
+deterministic project weakening fails all three. Preflight observes one process while the ACP child
+is another, so in such a window only the hard `policies` layer is guaranteed. A red `make
+policy-smoke` should be re-run once before investigating.
+
 ## Runtime upgrade verification (issues #60 and #61)
 
 On **2026-11-10**, the Linux x64 live acceptance run used standalone Bun 1.4.4,

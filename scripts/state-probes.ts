@@ -1,6 +1,11 @@
 // Real-OpenCode probes (scripted local model, no provider) for operator exceptions and persistent
 // state: named MCP/skill exceptions work and stay narrow, and state created under full-access
 // cannot lift a later read-only launch.
+if (process.platform !== "linux") {
+  console.log(JSON.stringify({ skipped: "private runtime probes are Linux-only" }));
+  process.exit(0);
+}
+
 import assert from "node:assert/strict";
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -195,6 +200,45 @@ async function named() {
   }
 }
 
+// Old behaviour: `external_directory:*` composed from an MCP server `external` lifted the hard
+// outside-workspace denial. The parser now rejects it; the raw statements prove why.
+async function collision() {
+  const outside = join(scratch, "outside.txt");
+  writeFileSync(outside, "outside-secret\n");
+  const raw: Exception[] = [
+    { action: "mcp.use", resource: "external" },
+    { action: "tool.use", resource: "external_directory:*" },
+  ];
+  const read = [call("read", { path: outside })];
+  const plain = await launch("read-only", read);
+  const lifted = await launch("read-only", read, { exceptions: raw });
+  try {
+    const before = (await plain.run()).outcomes;
+    assert.equal(before[0]?.status, "error", "outside read is denied without the exception");
+    await assert.rejects(lifted.preflight(), /capability policy/);
+    const after = (await lifted.run()).outcomes;
+    assert.equal(after[0]?.status, "completed", "raw exception lifts the outside-read denial");
+    assert.match(after[0]?.text ?? "", /outside-secret/);
+    const file = JSON.stringify({
+      version: 1,
+      base: "read-only",
+      policies: [
+        { action: "mcp.use", resource: "external", effect: "allow" },
+        { action: "tool.use", resource: "external_directory:*", effect: "allow" },
+      ],
+    });
+    assert.throws(() => parsePolicyFile(file, workspace), /--policy-file/);
+    log("builtin-name-collision", {
+      rawLiftsDenial: true,
+      preflightRejectsRaw: true,
+      parserRejects: true,
+    });
+  } finally {
+    await plain.finish();
+    await lifted.finish();
+  }
+}
+
 async function downgrade() {
   const state = join(scratch, "state");
   const full = await launch(
@@ -224,6 +268,9 @@ async function downgrade() {
     "insert into permission (id, project_id, action, resource, time_created, time_updated) values ('p', ?, 'shell', '*', 0, 0)",
     [project!.id],
   );
+  db.run("update session_v2 set permission = ?", [
+    JSON.stringify([{ action: "*", resource: "*", effect: "allow" }]),
+  ]);
   db.close();
   rmSync(join(workspace, "FULL-SHELL.txt"));
   rmSync(join(workspace, "FULL-EDIT.txt"));
@@ -256,6 +303,13 @@ async function downgrade() {
       check.query("select id from session_v2 where id = ?").get(session),
       "session history kept",
     );
+    assert.equal(
+      check
+        .query<{ n: number }, []>("select count(*) n from session_v2 where permission is not null")
+        .get()?.n,
+      0,
+      "session permission rulesets cleared",
+    );
     check.close();
     log("downgrade-full-access-to-read-only", {
       shellDenied: true,
@@ -270,6 +324,7 @@ async function downgrade() {
 
 try {
   await named();
+  await collision();
   await downgrade();
   console.log(JSON.stringify({ stateProbes: true }));
 } catch (error) {

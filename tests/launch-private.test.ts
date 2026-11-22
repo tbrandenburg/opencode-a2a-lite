@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launchGateway } from "../src/server.js";
 
+const linux = process.platform === "linux" ? test : test.skip;
 const base = realpathSync(mkdtempSync(join(tmpdir(), "launch-private-")));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
 const workspace = join(base, "ws");
@@ -35,7 +36,7 @@ test("a full-access policy file without the CLI profile fails before any runtime
   expect(await fails({ policyFile: file, policy: "full-access" })).toMatch(/--dangerously-skip/);
 });
 
-test("unsafe policy files and state directories fail before readiness", async () => {
+test("unsafe policy files fail before readiness on every platform", async () => {
   expect(await fails({ policyFile: join(workspace, "p.json") })).toMatch(/--policy-file/);
   expect(
     await fails({
@@ -46,15 +47,27 @@ test("unsafe policy files and state directories fail before readiness", async ()
       }),
     }),
   ).toMatch(/--policy-file/);
+});
+
+linux("an unsafe state directory fails before readiness", async () => {
   expect(await fails({ stateDir: join(workspace, "state") })).toMatch(/--state-dir/);
   expect(existsSync(join(workspace, "state"))).toBe(false);
 });
+
+const darwin = process.platform === "linux" ? test.skip : test;
+darwin(
+  "a valid policy file still fails closed where the private runtime is unavailable",
+  async () => {
+    const file = policyFile({ version: 1, base: "read-only", policies: [] });
+    expect(await fails({ policyFile: file })).toMatch(/Linux-only/);
+  },
+);
 
 test("library callers with their own ACP environment cannot use the private options", async () => {
   expect(await fails({ stateDir: join(base, "s"), acp: { env: {} } })).toMatch(/private runtime/);
 });
 
-test("a failed startup keeps pre-existing state and releases its lock", async () => {
+linux("a failed startup keeps pre-existing state and releases its lock", async () => {
   const state = join(base, "state");
   mkdirSync(state, { mode: 0o700 });
   const marker = join(state, "binding.json");

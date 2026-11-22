@@ -86,6 +86,12 @@ test.each([
   ["global tool wildcard", doc([allow("tool.use", "*")])],
   ["tool without server", doc([allow("tool.use", "docs_search:*")])],
   ["reserved server", doc([allow("mcp.use", "shell")])],
+  [
+    "external_directory collision",
+    doc([allow("mcp.use", "external"), allow("tool.use", "external_directory:*")]),
+  ],
+  ["apply_patch collision", doc([allow("mcp.use", "apply"), allow("tool.use", "apply_patch:*")])],
+  ["todo_write collision", doc([allow("mcp.use", "todo"), allow("tool.use", "todo_write:*")])],
   ["relative plugin path", doc([allow("plugin.use", "./p.js")])],
   ["plugin path traversal", doc([allow("plugin.use", "/opt/../etc/p.js")])],
   ["plugin inside workspace", doc([allow("plugin.use", join(workspace, "p.js"))])],
@@ -184,4 +190,23 @@ test("preflight: an agent-level deny after an exception fails closed", () => {
   expect(() => validateAgentPermissions(agents(rules(denied)), "read-only", exceptions)).toThrow();
   const missing = policyConfig("read-only").permissions;
   expect(() => validateAgentPermissions(agents([...missing]), "read-only", exceptions)).toThrow();
+});
+
+test("plugin path through a symlink into the workspace is rejected", () => {
+  const target = join(workspace, "plugin.js");
+  writeFileSync(target, "x");
+  const link = join(admin, "plugin-link.js");
+  symlinkSync(target, link);
+  expect(code(() => parsePolicyFile(doc([allow("plugin.use", link)]), workspace))).toMatch(
+    /--policy-file reject/,
+  );
+});
+
+test("a non-colliding composed tool name is still accepted", () => {
+  expect(
+    parsePolicyFile(
+      doc([allow("mcp.use", "external"), allow("tool.use", "external_search:*")]),
+      workspace,
+    ).exceptions,
+  ).toHaveLength(2);
 });

@@ -19,16 +19,33 @@ const SKILL = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}(?::[A-Za-z0-9][A-Za-z0-9_.-]{0,6
 const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]{0,63}\/)?[a-z0-9][a-z0-9._-]{0,63}$/;
 const FILE = /^\/[A-Za-z0-9_.@/-]{1,512}$/;
 const TOOL = /^([A-Za-z0-9][A-Za-z0-9-]{0,63})_([A-Za-z0-9_-]{1,64}):\*$/;
-// Built-in tool/permission names stay governed by the profile, so shell and edit cannot be lifted.
+// Built-in tool and permission names (tool names sent to the model by OpenCode 2.3.2 plus known
+// V1/V2 permission names) stay governed by the profile. A composed MCP tool name `<server>_<tool>`
+// must not equal one either, or the exception would lift e.g. `external_directory`.
 const RESERVED = new Set(
-  "read glob grep edit write shell bash webfetch websearch subagent task execute skill external_directory".split(
-    " ",
-  ),
+  `read glob grep edit write shell bash webfetch websearch subagent task execute skill question
+  external_directory apply_patch patch multiedit todo_write todowrite todoread lsp list codesearch
+  doom_loop plan_enter plan_exit batch invalid experimental_image_generate`.split(/\s+/),
 );
 
 const record = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const invalid = () => new StartupError("policyFile");
+
+const composed = (resource: string) => resource.replace(TOOL, "$1_$2");
+
+// Compare the literal and the resolved path so a symlink into the workspace is also refused.
+function insideWorkspace(resource: string, workspace: string) {
+  const root = realpathSync(workspace);
+  const resolved = (() => {
+    try {
+      return realpathSync(resource);
+    } catch {
+      return resource;
+    }
+  })();
+  return contains(root, resource) || contains(root, resolved);
+}
 
 function exceptionOf(entry: unknown, workspace: string): Exception {
   if (!record(entry) || Object.keys(entry).sort().join() !== "action,effect,resource")
@@ -38,12 +55,12 @@ function exceptionOf(entry: unknown, workspace: string): Exception {
   const ok =
     (action === "mcp.use" && SERVER.test(resource) && !RESERVED.has(resource)) ||
     (action === "skill.use" && SKILL.test(resource)) ||
-    (action === "tool.use" && TOOL.test(resource)) ||
+    (action === "tool.use" && TOOL.test(resource) && !RESERVED.has(composed(resource))) ||
     (action === "plugin.use" &&
       (PACKAGE.test(resource) ||
         (FILE.test(resource) &&
           !resource.split("/").includes("..") &&
-          !contains(realpathSync(workspace), resource))));
+          !insideWorkspace(resource, workspace))));
   if (!ok) throw invalid();
   return { action: action as Exception["action"], resource };
 }

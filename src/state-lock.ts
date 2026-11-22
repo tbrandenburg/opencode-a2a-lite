@@ -1,4 +1,12 @@
-import { closeSync, openSync, readFileSync, unlinkSync, writeFileSync, constants } from "node:fs";
+import {
+  closeSync,
+  constants,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { runtimeInUse } from "./runtime-processes.js";
@@ -41,6 +49,37 @@ function stale(file: string) {
   }
 }
 
+const exclusive = (file: string, text: string) => {
+  const fd = openSync(file, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+  closeSync(fd);
+  writeFileSync(file, text);
+};
+const exists = (error: unknown) =>
+  error instanceof Error && "code" in error && error.code === "EEXIST";
+
+// Takeover is serialized by an O_EXCL guard: the single winner renames the stale lock aside and
+// then races ordinary contenders for the O_EXCL lock; every loser fails closed. A guard left by a
+// crash is never removed automatically.
+function takeOver(file: string, owner: string) {
+  const guard = `${file}.takeover`;
+  try {
+    exclusive(guard, owner);
+  } catch {
+    throw new StartupError("stateBusy");
+  }
+  try {
+    if (!stale(file)) throw new StartupError("stateBusy");
+    const aside = `${file}.stale.${randomBytes(8).toString("hex")}`;
+    renameSync(file, aside);
+    unlinkSync(aside);
+    exclusive(file, owner);
+  } catch (error) {
+    throw error instanceof StartupError ? error : new StartupError("stateBusy");
+  } finally {
+    unlinkSync(guard);
+  }
+}
+
 export function acquireLock(directory: string) {
   const file = join(directory, "lock");
   const owner: Owner = {
@@ -49,17 +88,11 @@ export function acquireLock(directory: string) {
     nonce: randomBytes(16).toString("hex"),
   };
   if (!owner.start) throw new StartupError("stateDir");
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const fd = openSync(file, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-      closeSync(fd);
-      writeFileSync(file, JSON.stringify(owner));
-      break;
-    } catch (error) {
-      const busy = error instanceof Error && "code" in error && error.code === "EEXIST";
-      if (!busy || attempt === 1 || !stale(file)) throw new StartupError("stateBusy");
-      unlinkSync(file);
-    }
+  try {
+    exclusive(file, JSON.stringify(owner));
+  } catch (error) {
+    if (!exists(error)) throw new StartupError("stateBusy");
+    takeOver(file, JSON.stringify(owner));
   }
   const mine = () => {
     try {

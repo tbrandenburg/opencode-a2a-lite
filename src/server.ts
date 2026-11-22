@@ -246,10 +246,10 @@ export async function launchGateway(options: ServerOptions) {
   validateIdentity(options.identity);
   if (options.acp?.env && (options.policyFile || options.stateDir))
     throw new StartupError("privateOptions");
-  if (!options.acp?.env && process.platform !== "linux") throw new StartupError("runtimePlatform");
   const file = options.policyFile
     ? loadPolicyFile(options.policyFile, options.workspace, policy)
     : undefined;
+  if (!options.acp?.env && process.platform !== "linux") throw new StartupError("runtimePlatform");
   const state = options.stateDir ? acquireState(options.stateDir, options.workspace) : undefined;
   const runtime = (() => {
     if (options.acp?.env) return undefined;
