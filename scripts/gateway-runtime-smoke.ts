@@ -3,11 +3,34 @@ import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { createGateway } from "../src/server.js";
 import { cleanup, prepare } from "./acp-smoke-config.js";
+import { createRuntimeEnvironment } from "../src/runtime-environment.js";
+import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "../src/runtime-probes.js";
+import { removeUnusedRuntime } from "../src/runtime-processes.js";
 
 let stage = "isolation";
 try {
+  if (process.platform !== "linux") {
+    stage = "private-runtime-linux-only";
+    throw new Error("Private runtime smoke is Linux-only");
+  }
   const workspace = await prepare({ providerFree: true });
   try {
+    stage = "private-runtime-preflight";
+    const runtime = createRuntimeEnvironment([], process.env);
+    try {
+      await verifyRuntime({
+        executable: resolveOpenCode(runtime.env.PATH!),
+        cwd: workspace.cwd,
+        env: runtime.env,
+        root: runtime.root,
+        signal: new AbortController().signal,
+      });
+    } catch (error) {
+      if (!(error instanceof ProbeCleanupError)) await removeUnusedRuntime(runtime);
+      throw error;
+    }
+    await removeUnusedRuntime(runtime);
+    console.log(JSON.stringify({ privateRuntimePreflight: true }));
     stage = "gateway";
     const gateway = createGateway({
       workspace: workspace.cwd,

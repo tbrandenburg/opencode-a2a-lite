@@ -41,6 +41,24 @@ test("C3: unknown, duplicate and missing-value flags fail without reflecting inp
   expect(() => parseOptions(["--workspace"], env)).toThrow("Use --help");
 });
 
+test("repeatable passthrough is explicit and rejects invalid names without revealing values", () => {
+  const env = { A2A_WORKSPACE: "/trusted", FIRST_KEY: "private-value", SECOND_KEY: "another" };
+  expect(parseOptions(["--pass-env", "FIRST_KEY", "--pass-env", "SECOND_KEY"], env)).toMatchObject({
+    server: { passEnv: ["FIRST_KEY", "SECOND_KEY"] },
+  });
+  for (const args of [
+    ["--pass-env", "MISSING"],
+    ["--pass-env", "PATH"],
+    ["--pass-env", "NODE_OPTIONS"],
+    ["--pass-env", "FIRST_KEY", "--pass-env", "FIRST_KEY"],
+    ["--pass-env", "FIRST_KEY,SECOND_KEY"],
+  ]) {
+    expect(() => parseOptions(args, env)).toThrow(StartupError);
+    expect(() => parseOptions(args, env)).not.toThrow("private-value");
+  }
+  expect(parseOptions(["--help", "--pass-env", "MISSING"], {})).toEqual({ action: "help" });
+});
+
 test("C4: absent and relative environment workspaces never implicitly trust cwd", () => {
   expect(() => parseOptions([], {})).toThrow(StartupError);
   expect(() => parseOptions([], {})).toThrow("trusted absolute workspace");

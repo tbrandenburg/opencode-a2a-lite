@@ -19,8 +19,9 @@ findings; retirement does **not** mean failures have been fixed.
 ## Safety and test boundaries
 
 - **Never** expose the unauthenticated gateway through a public proxy.
-  Workspaces must be explicitly trusted; production inherits OpenCode configuration,
-  provider access, tools, plugins and MCP. ACP permission rejection is not a sandbox, and the opt-in extras let any client
+  Workspaces must be explicitly trusted; workspace config can enable tools, plugins
+  and MCP. CLI launches use private runtime state and explicit provider passthrough;
+  explicit library `acp.env` overrides remain caller-owned. ACP permission rejection is not a sandbox, and the opt-in extras let any client
   on the port approve tool runs or read earlier sessions; never make them defaults.
 - Real permission requests need a config override (`OPENCODE_CONFIG_CONTENT`, e.g. `bash: ask`);
   the usual user config allows everything, so none appear.
@@ -28,8 +29,8 @@ findings; retirement does **not** mean failures have been fixed.
   verified a2abridge 4.0.2 binary and its endpoint guard with exact peer/tool
   allowlists. No global service/configuration edits.
 - Provider-free core gateway checks and package smoke also run on macOS with Bun
-  1.4.4. The isolated live demo can run on macOS after its effective config and
-  owned-process cleanup checks pass. macOS gateway use remains experimental: the
+  1.4.4; normal CLI private-runtime launch and the current live demo are Linux-only.
+  macOS gateway library use remains experimental: the
   recorded live evidence is limited to a two-turn demo; full acceptance and
   guarded MCP/team workflows use Linux-specific process and listener inspection.
 - Do not publish prompts, credentials, private reasoning, raw provider diagnostics
@@ -104,6 +105,7 @@ chronological incident diary.
 
 ## Lessons Learned
 
+- 2026-11-22: Pitfall: A detached descendant can scrub its tag or become unreadable and reopen a runtime after `/proc` scans. Invariant: require process-group shutdown and scan for the launch tag and readable cwd/fd references; unexpected scan errors retain the runtime. Escaping or unreadable descendants remain an accepted trusted-worker limit, not proof of containment.
 - 2026-10-30: Pitfall: Updating negative fixtures can remove independent policy and precedence checks. Prevention: retain original adversarial cases and add overlapping-invalid-input tests; verify each policy mutation makes a targeted assertion fail.
 - 2026-10-30: Pitfall: Disposable OpenCode homes can collide on managed-service ports, and a scrubbed `PATH` can hide the pinned executable. Prevention: bind-check and set private service ports, retain pinned binary paths, and run effective-config probes from the disposable project cwd.
 - 2026-11-10: Pitfall: GitHub's latest OpenCode release endpoint can select V1 despite newer V2 releases. Prevention: enumerate releases, select the intended major explicitly, and verify the exact tag and downloaded artifact before changing runtime admission.

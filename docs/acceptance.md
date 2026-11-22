@@ -17,7 +17,8 @@ port reclamation.
 
 This is one two-turn demo, not the full live acceptance matrix or evidence for
 other macOS architectures, versions, providers, cancellation, or optional guarded
-MCP/team workflows. macOS gateway use remains experimental.
+MCP/team workflows. The current CLI private runtime and live demo are Linux-only;
+macOS library use remains experimental.
 
 ## Runtime upgrade verification (issues #60 and #61)
 
@@ -47,11 +48,53 @@ remain in Git; see also [Bun security](bun-runtime-security.md) and
 ### Reproduction boundaries
 
 Run `make install`, `make check`, and `make package-smoke` for provider-free
-checks. `make runtime-smoke` starts the real OpenCode executable without a model
+checks. On Linux, `make runtime-smoke` starts the real OpenCode executable without a model
 prompt. On Linux, `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make
 interop-test` verifies the separate guarded interop path. `make demo` and Linux
 `make e2e` require explicit live authorization, reviewed isolation, provider
 access and the official A2A CLI; never silently substitute provider-free evidence.
+
+Issue #87's private CLI runtime requires a fresh authorized live acceptance receipt;
+the historical runs above predate it. `make runtime-smoke` checks standalone runtime
+paths and config sources without prompting a provider. It does not establish live
+provider authentication, continuity, or cleanup of every possible detached descendant.
+The selected executable is operator-trusted, not authenticated by its version.
+Probes deliberately omit passed credentials while retaining the ACP base environment
+and resolved executable; this is stricter than the original same-snapshot requirement.
+
+### Private runtime containment investigation
+
+Linux cleanup combines process-group shutdown with a bounded `/proc` scan for an
+inherited per-launch marker and readable cwd/fd references inside the runtime.
+This is best-effort evidence, not proof of descendant termination or containment;
+the residual escape risk is an accepted limit for trusted workers.
+
+On the investigated Linux host, `/proc/self/cgroup` identified a root-owned session
+cgroup whose `cgroup.procs` was not writable by the invoking user. An unprivileged
+`unshare --user --map-root-user --pid --fork /bin/true` failed with `Operation not
+permitted` while writing `uid_map`. A user systemd manager was available, and
+`systemd-run --user --scope --quiet --collect /bin/true` succeeded; its transient
+scope was user-owned. This is not a portable ownership proof: it adds a user-systemd
+dependency and requires a supervised unit lifecycle, permissions and escape analysis,
+and evidence for failure and abnormal termination paths. The experiment did not
+establish those properties. A subreaper can adopt orphaned descendants, but it is
+not inherited by children and does not by itself contain or stop a live process tree.
+
+An exec with a scrubbed environment can remove the marker, and a descendant with
+no currently visible runtime reference can reopen it after the scan. Linux `/proc`
+environment data may not reflect later environment changes. Entries returning
+`EACCES`, `EPERM`, `ENOENT`, or `ESRCH` are ignored; these can include owned
+descendants, such as non-dumpable processes. Unexpected scan errors retain the root.
+Snapshots race with process changes and cannot detect every listener or future access.
+The provider-free detached-child tests cover marker inheritance and tag scrubbing,
+but do not establish complete ownership.
+
+Bun 1.4.4 exposes `Bun.spawn` with a cgroup option that places a child before
+execution, but the existing implementation uses Node-compatible `child_process`
+streams and the package also supports Node. A delegated cgroup, compatible spawn
+implementation, containment permissions, and cleanup proof are not established.
+Do not infer complete descendant ownership or private-root cleanup from
+`make runtime-smoke`'s process-cleanup summary.
 
 The [isolation verifier](../scripts/acp-smoke-config.ts) creates private HOME,
 XDG and workspace state, verifies configuration, disables tools/plugins and

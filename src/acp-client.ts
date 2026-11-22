@@ -16,6 +16,7 @@ export interface AcpBridgeOptions {
   args?: readonly string[];
   versionArgs?: readonly string[];
   env?: NodeJS.ProcessEnv;
+  versionEnv?: NodeJS.ProcessEnv;
   startupTimeoutMs?: number;
   promptTimeoutMs?: number;
   cancelTimeoutMs?: number;
@@ -35,6 +36,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   const executable = options.executable ?? "opencode";
   const args = [...(options.args ?? ["acp"])];
   const env = { ...(options.env ?? process.env) };
+  const versionEnv = { ...(options.versionEnv ?? env) };
   const startup = options.startupTimeoutMs ?? 30_000;
   const promptTimeout = options.promptTimeoutMs ?? 120_000;
   const cancelTimeout = options.cancelTimeoutMs ?? 5_000;
@@ -144,7 +146,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         // Probe the executable itself, not configuration or the ACP protocol version.
         child = spawn(executable, [...(options.versionArgs ?? ["--version"])], {
           cwd,
-          env,
+          env: versionEnv,
           detached: true,
           stdio: ["pipe", "pipe", "pipe"],
         });
