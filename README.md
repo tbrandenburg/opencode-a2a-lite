@@ -89,7 +89,7 @@ launcher still use Linux-specific tooling.
 
 ```text
 opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
-                     [--permissions <reject|ask>]
+                     [--permissions <reject|ask>] [--allow-resume]
 opencode-a2a-lite --help | --version
 ```
 
@@ -129,6 +129,19 @@ reusing the ACP session for that context.
   underlying OpenCode diagnostic is never published. A bridge failure is permanent until restart.
 - Every task's metadata carries `opencode.sessionId` and `opencode.stopReason` (after a session
   exists). The session id is the key for finding the full transcript in OpenCode itself.
+- `--allow-resume` (off by default) lets a client continue an **existing OpenCode session** of the
+  gateway's workspace, for example after a gateway restart or one started elsewhere. Send the
+  first message with metadata `opencode.sessionId` set to the session id (from earlier task
+  metadata or `opencode session list`): `a2a send -a <url> --metadata '{"opencode.sessionId":"ses_…"}' "Continue"`.
+  The task metadata then shows `opencode.resumed: "true"`; follow up with the returned
+  `contextId` as usual. After a restart a client may also re-bind its old `contextId` by sending it
+  together with the session id. OpenCode itself refuses ids that are unknown or belong to another
+  workspace (`ACP session resume rejected`), which fails only that task. A session can be bound to one
+  context at a time, and without the flag the metadata is refused, never ignored. The conversation
+  history is not replayed into A2A, and only one writer should use a session at a time (stop an
+  open OpenCode TUI on it first). **Sessions hold earlier conversation content that any client able
+  to reach the unauthenticated port can then read**; enable it for trusted clients only. The Agent
+  Card declares the `urn:opencode-a2a-lite:resume:v1` extension.
 - `--publish-activity` (off by default) adds an `activity` artifact of data parts: tool call id,
   title, kind and status, plus the model's reasoning text as `{"thought": "..."}` when OpenCode
   emits it. Tool inputs and outputs are never published. Titles and reasoning may reveal paths,

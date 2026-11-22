@@ -173,6 +173,31 @@ test("A2c: waiting for a human does not trip the prompt deadline, but cancellati
   expect(response.permissionDenied).toBeUndefined();
 });
 
+test("A2d: resuming binds an existing session, rejects bad ids without retiring the bridge", async () => {
+  const instance = bridge();
+  await instance.start();
+  await expect(instance.resumeSession("ses_unknown0001")).rejects.toThrow("resume rejected");
+  const failure = await instance.resumeSession("ses_unknown0001").catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(BridgeError);
+  const out: string[] = [];
+  await expect(instance.prompt("ses_resumed0001", "whoami", () => undefined)).rejects.toThrow(
+    "Unknown",
+  );
+  expect(await instance.resumeSession("ses_resumed0001")).toBe("ses_resumed0001");
+  await instance.prompt("ses_resumed0001", "whoami", (text) => out.push(text));
+  expect(out).toEqual(["ses_resumed0001"]);
+  expect((await instance.newSession()).sessionId).toBeTruthy();
+});
+
+test("A2e: an unexpected resume failure is sanitized and retires the bridge", async () => {
+  const instance = bridge("resume-internal-error");
+  await instance.start();
+  const failure = await instance.resumeSession("ses_resumed0002").catch((error: unknown) => error);
+  expect((failure as Error).message).toBe("ACP session resume failed");
+  expect((failure as Error).message).not.toContain("secret");
+  await expect(instance.newSession()).rejects.toThrow("unavailable");
+});
+
 test("A3: shutdown cancels active work before EOF, preserves final chunks and stops admission", async () => {
   const instance = bridge();
   await instance.start();

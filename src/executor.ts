@@ -12,11 +12,13 @@ import type { createAcpBridge } from "./acp-client.js";
 import { BridgeError } from "./bridge-error.js";
 import { createPermissionDesk } from "./permission-desk.js";
 import { parseAnswer, type PermissionRequest } from "./permission.js";
+import { resumeRefusal, wantedSession } from "./resume.js";
 
 export type ExecutorBridge = Pick<
   ReturnType<typeof createAcpBridge>,
   "newSession" | "prompt" | "cancel"
->;
+> &
+  Partial<Pick<ReturnType<typeof createAcpBridge>, "resumeSession">>;
 
 export const EXPLICIT_CONTEXT = "opencode.explicitContext";
 
@@ -25,10 +27,12 @@ export interface ExecutorOptions {
   activity?: boolean;
   permissions?: "ask";
   permissionTimeoutMs?: number;
+  resume?: boolean;
 }
 
 export const ACTIVITY_EXTENSION = "urn:opencode-a2a-lite:activity:v1";
 export const PERMISSIONS_EXTENSION = "urn:opencode-a2a-lite:permissions:v1";
+export const RESUME_EXTENSION = "urn:opencode-a2a-lite:resume:v1";
 
 function permissionPart(requestId: string, request: PermissionRequest): Part {
   return {
@@ -72,6 +76,11 @@ export function createAgentExecutor(
     cancellation?: Promise<void>;
   };
   let active: Active | undefined;
+
+  async function resumeSession(sessionId: string): Promise<string> {
+    if (!bridge.resumeSession) throw new Error("Session resume unavailable");
+    return bridge.resumeSession(sessionId);
+  }
 
   // Handles a message that answers a pending permission request; true when it was consumed.
   async function resume(
@@ -244,7 +253,14 @@ export function createAgentExecutor(
       finish(TaskState.TASK_STATE_FAILED, "Gateway busy; retry after the active turn finishes");
       return;
     }
-    if (explicit && !existing) {
+    const wanted = wantedSession(message.metadata) ?? wantedSession(ctx.request.metadata);
+    const refusal =
+      wanted && resumeRefusal(wanted, options.resume === true, existing, sessions.values());
+    if (refusal) {
+      finish(TaskState.TASK_STATE_FAILED, refusal);
+      return;
+    }
+    if (explicit && !existing && !wanted) {
       finish(
         TaskState.TASK_STATE_FAILED,
         "Unknown or expired context; omit contextId to start a new conversation",
@@ -264,7 +280,11 @@ export function createAgentExecutor(
     active = record;
     status(TaskState.TASK_STATE_WORKING);
     try {
-      const sessionId = existing ?? (await bridge.newSession()).sessionId;
+      const resuming = wanted && "id" in wanted && !existing ? wanted.id : undefined;
+      const sessionId =
+        existing ??
+        (resuming ? await resumeSession(resuming) : (await bridge.newSession()).sessionId);
+      if (resuming) meta["opencode.resumed"] = "true";
       record.sessionId = sessionId;
       meta["opencode.sessionId"] = sessionId;
       sessions.set(contextId, sessionId);

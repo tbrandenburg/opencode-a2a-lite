@@ -103,3 +103,18 @@ test("C5: --permissions takes exactly reject or ask and combines with --publish-
   ])
     expect(() => parseOptions(bad, env)).toThrow(StartupError);
 });
+
+test("C6: --allow-resume is a valueless, non-repeatable opt-in", () => {
+  const env = { A2A_WORKSPACE: "/trusted" };
+  expect(parseOptions(["--allow-resume"], env)).toEqual({
+    action: "run",
+    server: { workspace: "/trusted", port: 41241, executor: { resume: true } },
+  });
+  expect(
+    parseOptions(["--allow-resume", "--permissions", "ask", "--publish-activity"], env),
+  ).toMatchObject({
+    server: { executor: { resume: true, permissions: "ask", activity: true } },
+  });
+  expect(() => parseOptions(["--allow-resume", "--allow-resume"], env)).toThrow(StartupError);
+  expect(() => parseOptions(["--allow-resume=1"], env)).toThrow(StartupError);
+});

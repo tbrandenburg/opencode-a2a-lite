@@ -13,6 +13,7 @@ import {
   createAgentExecutor,
   EXPLICIT_CONTEXT,
   PERMISSIONS_EXTENSION,
+  RESUME_EXTENSION,
   type ExecutorOptions,
 } from "./executor.js";
 import { createRequestHandler } from "./request-handler.js";
@@ -124,6 +125,17 @@ export function createGateway(options: ServerOptions) {
                     },
                   ]
                 : []),
+              ...(options.executor?.resume
+                ? [
+                    {
+                      uri: RESUME_EXTENSION,
+                      description:
+                        "A first message with metadata opencode.sessionId continues that existing OpenCode session of this workspace.",
+                      required: false,
+                      params: undefined,
+                    },
+                  ]
+                : []),
               ...(options.executor?.permissions === "ask"
                 ? [
                     {
@@ -229,6 +241,8 @@ export async function launchGateway(options: ServerOptions) {
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
     status("ready", `gateway · ${ready.url}`);
     status("workspace", options.workspace);
+    if (options.executor?.resume)
+      status("resume", "enabled · clients can continue existing sessions of this workspace");
     if (options.executor?.permissions === "ask")
       status("permissions", "ask · any client that can reach this port can approve tool runs");
     if (options.executor?.activity)

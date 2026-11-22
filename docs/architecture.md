@@ -30,6 +30,7 @@ Keep v1 scope narrow: map each A2A context to one ACP session in memory, reuse i
 - `server.ts` composes the SDK, gates readiness on ACP, preserves explicit context intent through public SDK methods, and owns HTTP shutdown.
 - `executor.ts` holds the bounded context map and single admission slot, publishes task/working/artifact/terminal events, and uses the prompt response as its outcome.
 - `acp-client.ts` owns the pinned subprocess, persistent stable-v1 connection, update filtering, permission denial, deadlines and process cleanup. It never retries an uncertain prompt.
+- `resume.ts` validates the client-supplied `opencode.sessionId` and decides refusals. The bridge's `resumeSession` calls ACP `session/resume`; OpenCode's invalid-params answer (unknown id or foreign workspace) rejects only that request, while any other failure retires the bridge like session creation does. Resume is opt-in because a session exposes its earlier conversation.
 - `permission.ts` and `permission-desk.ts` hold the permission-answer rules and the single pending request per task. With `--permissions ask` the first `execute()` stays running while the task is `input-required`; the answer arrives as a second `execute()` that hands it over and waits for the first to finish, after publishing the task snapshot so streams stay valid.
 - `request-handler.ts` keeps the SDK's `InMemoryTaskStore` but synchronizes cancellation with its original event consumer; this avoids SDK 1.3 duplicate artifact persistence. This narrow workaround is regression-tested, not a second task database.
 

@@ -52,6 +52,14 @@ agent.onRequest(acp.methods.agent.session.new, async (request) => {
   return { sessionId: `session-${++sessions}` };
 });
 
+agent.onRequest(acp.methods.agent.session.resume, async (request) => {
+  // Like OpenCode: unknown ids and foreign workspaces are invalid params, not fatal errors.
+  if (request.params.cwd !== process.cwd() || request.params.sessionId.startsWith("ses_unknown"))
+    throw acp.RequestError.invalidParams({ sessionId: request.params.sessionId });
+  if (mode === "resume-internal-error") throw new Error("secret provider diagnostics");
+  return {};
+});
+
 async function chunk(
   ctx: AgentContext,
   sessionId: string,
@@ -75,6 +83,10 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   const text = request.params.prompt[0];
   if (text?.type !== "text") throw new Error("bad prompt");
   if (text.text === "exit") process.exit(13);
+  if (text.text === "whoami") {
+    await chunk(ctx, activeSession, activeSession);
+    return { stopReason: "end_turn" };
+  }
   if (text.text === "hang") {
     await chunk(ctx, activeSession, "ready");
     return forever();

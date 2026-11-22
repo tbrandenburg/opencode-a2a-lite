@@ -34,11 +34,12 @@ function executorOptions(flags: Map<string, string>): Pick<ServerOptions, "execu
   const executor = {
     ...(flags.has("--publish-activity") ? { activity: true } : {}),
     ...(permissions === "ask" ? { permissions: "ask" as const } : {}),
+    ...(flags.has("--allow-resume") ? { resume: true } : {}),
   };
   return Object.keys(executor).length ? { executor } : {};
 }
 
-const VALUELESS = new Set(["--help", "--version", "--publish-activity"]);
+const VALUELESS = new Set(["--help", "--version", "--publish-activity", "--allow-resume"]);
 
 function parseFlags(args: readonly string[]) {
   const flags = new Map<string, string>();

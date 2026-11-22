@@ -21,6 +21,8 @@ export interface AcpBridgeOptions {
   closeTimeoutMs?: number;
 }
 
+const INVALID_PARAMS = -32602;
+
 interface Hold {
   count: number;
   rearm?: () => void;
@@ -271,6 +273,29 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     return response;
   }
 
+  // An id OpenCode refuses (unknown or another workspace) rejects only this request; it must
+  // not retire the shared bridge, so only that exact JSON-RPC error is converted.
+  async function resumeSession(sessionId: string): Promise<string> {
+    const current = requireConnection();
+    const accepted = await bounded(
+      () =>
+        current.agent
+          .request(acp.methods.agent.session.resume, { sessionId, cwd, mcpServers: [] })
+          .then(
+            () => true,
+            (error: unknown) => {
+              if (error instanceof acp.RequestError && error.code === INVALID_PARAMS) return false;
+              throw error;
+            },
+          ),
+      startup,
+      "session resume",
+    );
+    if (!accepted) throw new BridgeError("ACP session resume rejected");
+    sessions.add(sessionId);
+    return sessionId;
+  }
+
   async function prompt(
     sessionId: string,
     text: string,
@@ -386,5 +411,5 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     return closing;
   }
 
-  return { start, newSession, prompt, cancel, close };
+  return { start, newSession, resumeSession, prompt, cancel, close };
 }
