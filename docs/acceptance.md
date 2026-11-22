@@ -57,12 +57,16 @@ Issue #87's private CLI runtime requires a fresh authorized live acceptance rece
 the historical runs above predate it. `make runtime-smoke` checks standalone runtime
 paths and config sources without prompting a provider. It does not establish live
 provider authentication, continuity, or cleanup of every possible detached descendant.
+The selected executable is operator-trusted, not authenticated by its version.
+Probes deliberately omit passed credentials while retaining the ACP base environment
+and resolved executable; this is stricter than the original same-snapshot requirement.
 
 ### Private runtime containment investigation
 
 Linux cleanup combines process-group shutdown with a bounded `/proc` scan for an
 inherited per-launch marker and readable cwd/fd references inside the runtime.
-This is best-effort evidence, not proof of descendant termination or containment.
+This is best-effort evidence, not proof of descendant termination or containment;
+the residual escape risk is an accepted limit for trusted workers.
 
 On the investigated Linux host, `/proc/self/cgroup` identified a root-owned session
 cgroup whose `cgroup.procs` was not writable by the invoking user. An unprivileged

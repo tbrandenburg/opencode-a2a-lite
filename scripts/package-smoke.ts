@@ -143,11 +143,13 @@ try {
   assert.equal(built.success, true);
   const record = join(temp, "peer.json");
   const environment = join(temp, "peer-env.jsonl");
+  const probeMode = join(temp, "probe-mode");
   const peer = join(bin, "opencode");
   writeFileSync(
     peer,
     `#!${process.execPath}
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+const probeMode = existsSync(${JSON.stringify(probeMode)}) ? readFileSync(${JSON.stringify(probeMode)}, "utf8") : "";
 console.error("PRIVATE_PEER_DIAGNOSTIC");
 if (process.argv[2] === "--version" || process.argv[2] === "acp")
   appendFileSync(${JSON.stringify(environment)}, JSON.stringify({
@@ -162,7 +164,7 @@ if (process.argv[2] === "debug" && process.argv[3] === "paths") {
   process.exit(0);
 }
 if (process.argv[2] === "--standalone" && process.argv[3] === "debug" && process.argv[4] === "config") {
-  console.log(JSON.stringify(process.env.PEER_MODE === "bad-config"
+  console.log(JSON.stringify(probeMode === "bad-config"
     ? [{type:"remote",path:"https://example.invalid"}]
     : [{type:"directory",path:process.env.HOME}]));
   process.exit(0);
@@ -170,7 +172,7 @@ if (process.argv[2] === "--standalone" && process.argv[3] === "debug" && process
 if (process.argv[2] !== "--version") {
   writeFileSync(${JSON.stringify(record)}, JSON.stringify({pid:process.pid,parent:process.ppid,cwd:process.cwd()}));
 }
-process.argv = [process.argv[0], process.argv[1], process.env.PEER_MODE ?? "normal", ...process.argv.slice(2)];
+process.argv = [process.argv[0], process.argv[1], probeMode || process.env.PEER_MODE || "normal", ...process.argv.slice(2)];
 await import(${JSON.stringify(join(temp, "acp-peer.js"))});
 `,
   );
@@ -191,22 +193,13 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
   assert.match(invalidDirect.stderr, /Invalid worker identity/);
   assert.doesNotMatch(invalidDirect.stderr, /private-identity|Error:|\n\s+at /);
   assert.equal(existsSync(record), false);
-  reject(
-    ["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"],
-    /stable opencode v2.2.7 or newer/,
-    {
-      PEER_MODE: "executable-version",
-    },
-  );
+  writeFileSync(probeMode, "executable-version");
+  reject(["--workspace", ".", "--port", "0"], /stable opencode v2.2.7 or newer/);
   const versionSnapshot = JSON.parse(readFileSync(environment, "utf8").trim().split("\n").at(-1)!);
   assert.equal(existsSync(versionSnapshot.home), false, "version failure must clean runtime");
-  reject(
-    ["--workspace", ".", "--port", "0", "--pass-env", "PEER_MODE"],
-    /Private runtime preflight failed/,
-    {
-      PEER_MODE: "bad-config",
-    },
-  );
+  writeFileSync(probeMode, "bad-config");
+  reject(["--workspace", ".", "--port", "0"], /Private runtime preflight failed/);
+  rmSync(probeMode);
   const preflightSnapshot = JSON.parse(
     readFileSync(environment, "utf8").trim().split("\n").at(-1)!,
   );
@@ -326,7 +319,11 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
           snapshots.map((snapshot) => snapshot.phase),
           ["--version", "--version", "acp"],
         );
-        assert(snapshots.every((snapshot) => snapshot.approved && snapshot.clean));
+        assert.deepEqual(
+          snapshots.map((snapshot) => snapshot.approved),
+          [false, false, true],
+        );
+        assert(snapshots.every((snapshot) => snapshot.clean));
         assert.equal(new Set(snapshots.map((snapshot) => snapshot.home)).size, 1);
         privateHome = snapshots[0].home;
       }

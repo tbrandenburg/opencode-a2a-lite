@@ -1,5 +1,15 @@
 import { expect, test } from "bun:test";
-import { runtimeInUse } from "../src/runtime-processes.js";
+import { existsSync } from "node:fs";
+import { createRuntimeEnvironment } from "../src/runtime-environment.js";
+import { removeUnusedRuntime, runtimeInUse } from "../src/runtime-processes.js";
+
+test("shared cleanup removes an unused private runtime", async () => {
+  if (process.platform !== "linux") return;
+  const runtime = createRuntimeEnvironment([], { PATH: "/usr/bin:/bin" });
+  expect(existsSync(runtime.root)).toBe(true);
+  await removeUnusedRuntime(runtime);
+  expect(existsSync(runtime.root)).toBe(false);
+});
 
 test("runtime scan ignores specified inaccessible process entries but fails on unexpected errors", () => {
   for (const code of ["EACCES", "EPERM", "ENOENT", "ESRCH", "EIO"]) {

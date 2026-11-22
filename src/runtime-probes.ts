@@ -3,24 +3,28 @@ import { accessSync, constants, lstatSync, realpathSync, statSync } from "node:f
 import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
-import { validateRuntimePaths, validateRuntimeSources } from "./runtime-preflight.js";
+import {
+  RuntimeSourceError,
+  validateRuntimePaths,
+  validateRuntimeSources,
+} from "./runtime-preflight.js";
 
 export class ProbeCleanupError extends Error {}
 
-function rejectIfPresent(path: string) {
+function rejectIfPresent(path: string, category: string, root: string) {
   try {
     lstatSync(path);
-    throw new StartupError("runtime");
+    throw new RuntimeSourceError(category, path, root);
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
   }
 }
 
-function rejectAncestorConfiguration(workspace: string) {
+function rejectAncestorConfiguration(workspace: string, root: string) {
   let current = dirname(realpathSync(workspace));
   for (;;) {
     for (const name of ["opencode.json", "opencode.jsonc", ".opencode", ".agents", ".claude"])
-      rejectIfPresent(join(current, name));
+      rejectIfPresent(join(current, name), "external", root);
     const parent = dirname(current);
     if (parent === current) return;
     current = parent;
@@ -130,8 +134,8 @@ export async function verifyRuntime(options: {
   onSpawn?: () => void;
 }) {
   if (process.platform !== "linux") throw new StartupError("runtime");
-  rejectIfPresent("/etc/opencode");
-  rejectAncestorConfiguration(options.cwd);
+  rejectIfPresent("/etc/opencode", "managed", options.root);
+  rejectAncestorConfiguration(options.cwd, options.root);
   const run = (args: string[]) =>
     probe(options.executable, args, options.cwd, options.env, options.signal, options.onSpawn);
   const version = await run(["--version"]);
@@ -144,7 +148,7 @@ export async function verifyRuntime(options: {
       options.cwd,
     );
   } catch (error) {
-    if (error instanceof ProbeCleanupError) throw error;
+    if (error instanceof ProbeCleanupError || error instanceof RuntimeSourceError) throw error;
     throw new StartupError("runtime");
   }
 }

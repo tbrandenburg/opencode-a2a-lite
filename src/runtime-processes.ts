@@ -68,3 +68,12 @@ export async function awaitRuntimeUnused(root: string, tag: string, timeout = 2_
   }
   throw new ProbeCleanupError("Private runtime cleanup unconfirmed");
 }
+
+export async function removeUnusedRuntime(runtime: {
+  root: string;
+  env: NodeJS.ProcessEnv;
+  remove: () => void;
+}) {
+  await awaitRuntimeUnused(runtime.root, runtime.env.A2A_LITE_RUNTIME_ID!);
+  runtime.remove();
+}

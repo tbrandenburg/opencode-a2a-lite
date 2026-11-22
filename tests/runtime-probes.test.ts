@@ -15,6 +15,57 @@ import { createServer } from "node:net";
 import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import { verifyRuntime } from "../src/runtime-probes.js";
 import { launchGateway } from "../src/server.js";
+import { createAcpBridge } from "../src/acp-client.js";
+
+test("wrong executable probe never receives explicitly passed credential", async () => {
+  if (process.platform !== "linux" || existsSync("/etc/opencode")) return;
+  const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-secret-test-"));
+  const executable = join(workspace, "selected");
+  const marker = join(workspace, "seen");
+  writeFileSync(
+    executable,
+    `#!/bin/sh\nif [ "\${SYNTHETIC_KEY+x}" ]; then echo present > "${marker}"; else echo absent > "${marker}"; fi\nprintf '1.0.0\\n'\n`,
+    { mode: 0o700 },
+  );
+  const prior = process.env.SYNTHETIC_KEY;
+  process.env.SYNTHETIC_KEY = "synthetic-secret";
+  try {
+    await expect(
+      launchGateway({ workspace, passEnv: ["SYNTHETIC_KEY"], acp: { executable } }),
+    ).rejects.toThrow("Unsupported OpenCode version");
+    expect(readFileSync(marker, "utf8").trim()).toBe("absent");
+    expect(existsSync(executable)).toBe(true);
+  } finally {
+    if (prior === undefined) delete process.env.SYNTHETIC_KEY;
+    else process.env.SYNTHETIC_KEY = prior;
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("bridge version environment excludes credential while ACP receives it", async () => {
+  const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-bridge-env-test-"));
+  const executable = join(workspace, "selected");
+  const fixture = join(import.meta.dir, "fixtures/acp-peer.ts");
+  writeFileSync(
+    executable,
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then printf '%s' "\${SYNTHETIC_KEY-unset}" > version-env; echo 'opencode v2.2.7'; exit; fi\nprintf '%s' "\${SYNTHETIC_KEY-unset}" > acp-env\nexec "${process.execPath}" "${fixture}" normal acp\n`,
+    { mode: 0o700 },
+  );
+  const bridge = createAcpBridge({
+    cwd: workspace,
+    executable,
+    env: { PATH: "/usr/bin:/bin", SYNTHETIC_KEY: "synthetic-secret" },
+    versionEnv: { PATH: "/usr/bin:/bin" },
+  });
+  try {
+    await bridge.start();
+    expect(readFileSync(join(workspace, "version-env"), "utf8")).toBe("unset");
+    expect(readFileSync(join(workspace, "acp-env"), "utf8")).toBe("synthetic-secret");
+  } finally {
+    await bridge.close();
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
 
 test("launchGateway preflights the caller-selected executable without an explicit env", async () => {
   const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-selected-test-"));
@@ -40,7 +91,7 @@ for (const tagged of [true, false])
   test(
     tagged
       ? "detached tag-inheriting process retains runtime without cwd or fd references"
-      : "tag-scrubbing detached process can evade runtime cleanup evidence",
+      : "documented limit: tag-scrubbing detached process can evade runtime cleanup evidence",
     async () => {
       if (process.platform !== "linux" || existsSync("/etc/opencode")) return;
       const workspace = mkdtempSync(join(realpathSync("/tmp"), "runtime-reopen-test-"));

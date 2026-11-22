@@ -27,6 +27,11 @@ existing OpenCode sessions and replaying their history; see [Advanced features](
 > exposed through a public proxy. Trusted workspace configuration can enable tools, plugins and MCP. Rejecting ACP
 > permission requests is **not** an OS sandbox, and cancellation does not roll back work.
 
+The operator must trust the OpenCode executable selected on `PATH`: a version
+string does not verify provenance. Preflight probes use the same resolved
+executable and private base environment as ACP, but do not receive `--pass-env`
+values; those values go only to the ACP child.
+
 Choosing a workspace is an explicit trust decision, not a filesystem boundary:
 OpenCode runs as the invoking user and can access resources permitted to that user.
 For stronger isolation use a separately secured VM or container with minimal

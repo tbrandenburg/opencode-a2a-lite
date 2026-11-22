@@ -50,3 +50,43 @@ test("runtime paths require a complete private path set", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("rejected source diagnostics identify categories without disclosing sensitive paths", () => {
+  const root = mkdtempSync(join(realpathSync("/tmp"), "runtime-diagnostic-test-"));
+  const workspace = join(root, "workspace");
+  const runtime = join(root, "runtime");
+  mkdirSync(workspace);
+  mkdirSync(runtime);
+  try {
+    const source = (type: string, path: string) =>
+      JSON.stringify([
+        { type: "directory", path: runtime },
+        { type, path },
+      ]);
+    expect(() =>
+      validateRuntimeSources(source("document", "/etc/opencode/config"), runtime, workspace),
+    ).toThrow("managed");
+    expect(() =>
+      validateRuntimeSources(source("document", "/tmp/external-config"), runtime, workspace),
+    ).toThrow("/tmp/external-config");
+    expect(() =>
+      validateRuntimeSources(
+        source("remote", "https://user:secret@example.com/?token=secret"),
+        runtime,
+        workspace,
+      ),
+    ).toThrow("remote");
+    expect(() =>
+      validateRuntimeSources(
+        source("remote", "https://user:secret@example.com/?token=secret"),
+        runtime,
+        workspace,
+      ),
+    ).not.toThrow("secret");
+    expect(() =>
+      validateRuntimeSources(source("virtual", `${runtime}/secret`), runtime, workspace),
+    ).not.toThrow(`${runtime}/secret`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

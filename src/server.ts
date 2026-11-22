@@ -23,7 +23,7 @@ import { validateIdentity, type WorkerIdentity } from "./identity.js";
 import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
 import { createRuntimeEnvironment } from "./runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
-import { awaitRuntimeUnused } from "./runtime-processes.js";
+import { removeUnusedRuntime } from "./runtime-processes.js";
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
@@ -229,6 +229,8 @@ export async function launchGateway(options: ServerOptions) {
   const runtime = options.acp?.env
     ? undefined
     : createRuntimeEnvironment(options.passEnv ?? [], process.env);
+  const probeEnv = runtime ? { ...runtime.env } : undefined;
+  if (probeEnv) for (const name of options.passEnv ?? []) delete probeEnv[name];
   let gateway: ReturnType<typeof createGateway>;
   let executable: string | undefined;
   try {
@@ -237,7 +239,9 @@ export async function launchGateway(options: ServerOptions) {
       : undefined;
     gateway = createGateway({
       ...options,
-      ...(runtime && executable ? { acp: { ...options.acp, env: runtime.env, executable } } : {}),
+      ...(runtime && executable && probeEnv
+        ? { acp: { ...options.acp, env: runtime.env, versionEnv: probeEnv, executable } }
+        : {}),
     });
   } catch (error) {
     runtime?.remove();
@@ -257,13 +261,12 @@ export async function launchGateway(options: ServerOptions) {
       try {
         await gateway.close();
         if (result instanceof ProbeCleanupError) throw result;
-        if (runtime) await awaitRuntimeUnused(runtime.root, runtime.env.A2A_LITE_RUNTIME_ID!);
+        if (runtime) await removeUnusedRuntime(runtime);
       } catch (error) {
         if (!runtime) throw error;
         console.error(`Private runtime cleanup unconfirmed; retained ${runtime.root}`);
         throw new ProbeCleanupError("Private runtime cleanup unconfirmed");
       }
-      runtime?.remove();
     })();
     return cleanup;
   };
@@ -285,7 +288,7 @@ export async function launchGateway(options: ServerOptions) {
       preparation = verifyRuntime({
         executable,
         cwd: options.workspace,
-        env: runtime.env,
+        env: probeEnv!,
         root: runtime.root,
         signal: abort.signal,
       });

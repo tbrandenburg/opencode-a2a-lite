@@ -5,6 +5,7 @@ import { createGateway } from "../src/server.js";
 import { cleanup, prepare } from "./acp-smoke-config.js";
 import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "../src/runtime-probes.js";
+import { removeUnusedRuntime } from "../src/runtime-processes.js";
 
 let stage = "isolation";
 try {
@@ -21,10 +22,10 @@ try {
         signal: new AbortController().signal,
       });
     } catch (error) {
-      if (!(error instanceof ProbeCleanupError)) runtime.remove();
+      if (!(error instanceof ProbeCleanupError)) await removeUnusedRuntime(runtime);
       throw error;
     }
-    runtime.remove();
+    await removeUnusedRuntime(runtime);
     console.log(JSON.stringify({ privateRuntimePreflight: true }));
     stage = "gateway";
     const gateway = createGateway({
