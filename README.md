@@ -45,6 +45,8 @@ HOME/configuration, but is not an OS sandbox.
 - [Requirements](#requirements)
 - [Usage](#usage)
 - [Advanced features](#advanced-features)
+- [Capability profiles](#capability-profiles)
+- [Accepted limitations](#accepted-limitations)
 - [Behavior and limitations](#behavior-and-limitations)
 - [Development](#development)
 - [Multi-agent coordination](#multi-agent-coordination)
@@ -303,6 +305,48 @@ callback; a hard denial is never approvable.
     after launch are re-evaluated at the next launch. On the tested versions the hard policy alone
     already blocks outside paths even when a project agent allows `external_directory`; the agent
     check is defence in depth.
+
+## Accepted limitations
+
+The private runtime, capability profiles, operator policy file and persistent state are **soft
+execution hardening, not isolation**. These limits are known, recorded in issues
+[#87](https://github.com/tbrandenburg/opencode-a2a-lite/issues/87),
+[#88](https://github.com/tbrandenburg/opencode-a2a-lite/issues/88) and
+[#89](https://github.com/tbrandenburg/opencode-a2a-lite/issues/89), and accepted by the maintainer.
+Do not rely on the gateway to contain a hostile workspace, model or local client.
+
+- **No OS sandbox, no authentication.** The worker runs as the invoking user with ordinary
+  filesystem, process and network access; any local client that can reach the loopback port can use
+  whatever the profile allows, including `full-access` shell commands and `--permissions ask`
+  approvals. Use a disposable user, host or VM for anything unattended.
+- **`supervised` is not available.** A project agent rule can turn a gateway `shell: ask` into an
+  unprompted run, so one-time shell approval cannot be guaranteed; `--policy supervised` is rejected.
+- **Cleanup is best effort.** Before the private runtime root is deleted the gateway checks that the
+  process group is gone and that no readable process carries the launch tag or uses the root. A
+  descendant that scrubs its environment, becomes unreadable or reopens the root later can evade this;
+  the root is then retained or leaks. Escaping descendants are treated as an accepted limit for a
+  trusted worker, not as containment.
+- **The executable is trusted by the operator.** The first `opencode` on `PATH` (or the library
+  caller's `acp.executable`) is resolved once and used for every launch; a version string is not
+  provenance. Probes run without `--pass-env` credentials, but the ACP child receives them.
+- **Linux only for the CLI.** The CLI private runtime and the state lock use `/proc`, so on macOS the
+  CLI fails closed with a clear message; library callers can still supply their own `acp.env`.
+- **Preflight sees one process.** OpenCode 2.3.2 intermittently omits the private global config in a
+  single process ([#93](https://github.com/tbrandenburg/opencode-a2a-lite/issues/93)). Startup retries
+  and fails closed, but the real ACP child is a different process, so in that window only the hard
+  policies are guaranteed. Configuration changed after launch is re-checked at the next launch.
+- **`edit` risks.** Symlinks inside the workspace that point outside it, and files that run later
+  (`.git/hooks/*`, `Makefile`, `package.json` scripts, `.envrc`), are not blocked; see the profile
+  limits above.
+- **Operator exceptions run code.** An allowed MCP server, skill or plugin is trusted code with host-user
+  authority; `plugin.use` is covered by schema and configuration tests only, and shell or edit
+  exceptions are rejected. Bind mounts are not detected by the workspace-containment checks.
+- **Persistent state holds conversations.** `--state-dir` keeps session history on disk (mode `0700`);
+  approvals, credentials and automations are cleared each launch, verified against OpenCode 2.3.2
+  only. Deleting it is the operator's job, see [operator policy and state](docs/operator-policy-state.md).
+- **Evidence scope.** Live acceptance used one provider and model on Linux with OpenCode 2.3.2; other
+  versions, providers and `full-access` against a real model were not exercised, and `make policy-smoke`
+  (real OpenCode, scripted local model) is not part of CI. See [acceptance](docs/acceptance.md).
 
 ## Behavior and limitations
 
