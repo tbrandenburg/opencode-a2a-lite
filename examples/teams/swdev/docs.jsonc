@@ -5,13 +5,6 @@
     "model": "gpt-6-luna",
   },
   "default_agent": "docs",
-  "permissions": [
-    {
-      "action": "*",
-      "resource": "*",
-      "effect": "deny",
-    },
-  ],
   "agents": {
     "docs": {
       "mode": "primary",
@@ -19,7 +12,12 @@
       "system": "{file:./docs.md}",
       "permissions": [
         {
-          "action": "context7_*",
+          "action": "context7_resolve-library-id",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "context7_query-docs",
           "resource": "*",
           "effect": "allow",
         },

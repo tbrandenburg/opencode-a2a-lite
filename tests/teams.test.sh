@@ -85,7 +85,16 @@ register() {
 case ${0##*/} in
   bun)
     if [[ $1 == --version ]]; then echo 1.4.4; exit; fi
-    [[ ( $OPENCODE_CONFIG == *.json || $OPENCODE_CONFIG == *.jsonc ) && $HOME == */worker.*/home && ! ${OPENCODE_CONFIG_CONTENT+x} ]]
+    # The CLI strips OPENCODE_*; the profile must arrive as the workspace project config instead.
+    [[ ! ${OPENCODE_CONFIG+x} && ! ${OPENCODE_CONFIG_CONTENT+x} && $HOME == */worker.*/home ]]
+    [[ $PWD == */worker.*/project && $2 == --workspace && $3 == $PWD && $4 == --port && $5 == 0 ]]
+    [[ $6 == --policy && $7 == read-only && $8 == --policy-file ]]
+    policy=$9
+    [[ $policy == */worker.*/policy.json ]]
+    [[ $policy != "$PWD"/* && -f $policy && -O $policy && $(stat -c %a "$policy") == 600 ]]
+    [[ -f $PWD/opencode.json || -f $PWD/opencode.jsonc ]]
+    cp -- "$policy" "$fixture/policy-$A2A_NAME.json"
+    printf '%s\n' "${@:10}" >"$fixture/passenv-$A2A_NAME"
     [[ $OPENAI_API_KEY == test-model ]]
     case $A2A_NAME in
       scout) port=41321 ;;
@@ -95,12 +104,15 @@ case ${0##*/} in
       stubborn) port=41325 ;;
       record-fail) port=41332; trap '' TERM ;;
       rollback) port=41326 ;;
-      override) port=41327; [[ $TEAM_SYSTEM_PROMPT_FILE == */override.md ]] ;;
+      override) port=41327; [[ $(<"$PWD/system.md") == 'override prompt' ]] ;;
       repo) port=41328; [[ $GITHUB_PERSONAL_ACCESS_TOKEN == test-gh-token ]] ;;
       docs) port=41329 ;;
+      browser) port=41333 ;;
+      diagnostics) port=41334 ;;
       *) exit 2 ;;
     esac
     if [[ $A2A_NAME != repo ]]; then [[ ! ${GITHUB_PERSONAL_ACCESS_TOKEN+x} ]]; fi
+    if [[ $A2A_NAME != docs ]]; then [[ ! ${CONTEXT7_API_KEY+x} ]]; fi
     card=$A2A_NAME
     if [[ $card == bad-card ]]; then card=wrong; fi
     register "$card" "$port"
@@ -115,7 +127,17 @@ case ${0##*/} in
     case $1 in
       --version) cat "$fixture/opencode-version" ;;
       service) jq -r .disabled "$XDG_CONFIG_HOME/opencode/service.json" ;;
-      debug) jq -cn --arg path "$OPENCODE_CONFIG" '[{type:"document",path:$path}]' ;;
+      debug)
+        if [[ ${OPENCODE_CONFIG+x} ]]; then
+          jq -cn --arg path "$OPENCODE_CONFIG" '[{type:"document",path:$path}]'
+          exit
+        fi
+        [[ $PWD == */worker.*/project ]]
+        file=$(compgen -G "$PWD/opencode.json*")
+        info=$(perl -0pe 's/,(\s*[}\]])/$1/g' "$file" | /usr/bin/jq -c .)
+        jq -cn --arg dir "$XDG_CONFIG_HOME/opencode" --arg path "$file" --argjson info "$info" \
+          '[{type:"directory",path:$dir,info:null},{type:"document",path:$path,info:$info}]'
+        ;;
       serve)
         [[ $OPENCODE_PASSWORD && $OPENAI_API_KEY == test-model && ! ${GITHUB_PERSONAL_ACCESS_TOKEN+x} ]]
         jq -e 'length == 2' <<<"$TEAM_PEERS" >/dev/null
@@ -158,7 +180,7 @@ case ${0##*/} in
     [[ $* == 'auth token --hostname github.com' && $HOME != */worker.*/home ]]
     printf '%s\n' test-gh-token
     ;;
-  a2a|github-mcp-server) exit 0 ;;
+  a2a|github-mcp-server|playwright-mcp|chrome-devtools-mcp) exit 0 ;;
   sha256sum) printf 'bdfa1f6894f5547dfef539140139e162402ca6ab33bb7602d9335d125d414db2  %s\n' "$2" ;;
   ss)
     for file in "$fixture/listeners/"*.json; do
@@ -207,7 +229,7 @@ STUB
 chmod +x -- "$fixture/bin/stub"
 cp -- "$fixture/bin/stub" "$fixture/bin/bridge"
 cp -- "$fixture/bin/stub" "$fixture/bin/a2abridge"
-for stub in a2a bun opencode gh github-mcp-server sha256sum ss curl mv jq; do
+for stub in a2a bun opencode gh github-mcp-server playwright-mcp chrome-devtools-mcp sha256sum ss curl mv jq; do
   ln -s stub "$fixture/bin/$stub"
 done
 
@@ -382,14 +404,47 @@ grep -q $'^  task-2\tnot completed\tlast state TASK_STATE_FAILED$' "$fixture/rep
 mkdir -- "$fixture/mixed-profiles"
 cp -- "$profile" "$fixture/mixed-profiles/scout.json"
 cp -- "$profile" "$fixture/mixed-profiles/bad-card.jsonc"
+cp -- "${profile%.jsonc}.md" "$fixture/mixed-profiles/scout.md"
 reject make --no-print-directory team-up TEAM="$fixture/mixed-profiles" MODE=run \
   PROMPT_FILE="$fixture/brief with spaces.md"
 grep -q 'Worker bad-card did not become ready' "$fixture/rejected.err"
 grep -q 'stopped.*scout' "$fixture/rejected.err"
 
 spawn repo examples/teams/swdev/repo.jsonc
-spawn docs examples/teams/swdev/docs.jsonc
+CONTEXT7_API_KEY=test-context7 spawn docs examples/teams/swdev/docs.jsonc
+spawn browser examples/teams/web/browser.jsonc
+spawn diagnostics examples/teams/web/diagnostics.jsonc
+# Launch contract: read-only profile plus a policy file derived from each profile's MCP servers
+# and exact allowed tools; credentials only through --pass-env, never OPENCODE_CONFIG.
+policy_is() {
+  jq -e --argjson want "$2" '.version == 1 and .base == "read-only" and
+    ([.policies[] | .action + ":" + .resource] | sort) == ($want | sort)' \
+    "$fixture/policy-$1.json" >/dev/null
+}
+policy_is scout '["mcp.use:exa","tool.use:exa_web_search_exa:*"]'
+policy_is docs '["mcp.use:context7","tool.use:context7_query-docs:*","tool.use:context7_resolve-library-id:*"]'
+policy_is browser '["mcp.use:playwright","tool.use:playwright_browser_click:*","tool.use:playwright_browser_navigate:*","tool.use:playwright_browser_snapshot:*"]'
+jq -e '.policies | map(select(.resource | startswith("devtools_"))) | length == 8' "$fixture/policy-diagnostics.json" >/dev/null
+jq -e '[.policies[].resource | select(startswith("github_"))] | length == 9' "$fixture/policy-repo.json" >/dev/null
+[[ $(tr '\n' ' ' <"$fixture/passenv-scout") == '--pass-env OPENAI_API_KEY ' ]]
+[[ $(tr '\n' ' ' <"$fixture/passenv-docs") == '--pass-env OPENAI_API_KEY --pass-env CONTEXT7_API_KEY ' ]]
+[[ $(tr '\n' ' ' <"$fixture/passenv-repo") == '--pass-env OPENAI_API_KEY --pass-env GITHUB_PERSONAL_ACCESS_TOKEN ' ]]
+worker_dirs=("$network.state"/worker.*)
+for dir in "${worker_dirs[@]}"; do
+  [[ -f $dir/project/opencode.jsonc && -f $dir/policy.json && $(stat -c %a "$dir/policy.json") == 600 ]]
+  [[ ! -e $dir/project/policy.json && ! -e $dir/project/opencode.json ]]
+done
+[[ -f ${worker_dirs[0]}/project/$(ls "${worker_dirs[0]}/project" | grep '\.md$' | head -n 1) ]]
 down
+
+# Fail closed: wildcard or built-in allows cannot be expressed in the exact policy file.
+for bad in 's|"exa_web_search_exa"|"exa_*"|' 's|"exa_web_search_exa"|"bash"|'; do
+  sed "$bad" "$profile" >"$fixture/unsupported.jsonc"
+  cp -- examples/teams/research/scout.md "$fixture/scout.md"
+  reject spawn scout "$fixture/unsupported.jsonc" "$fixture/unsupported.json"
+  grep -q 'cannot express' "$fixture/rejected.err"
+  [[ ! -e $fixture/unsupported.json ]]
+done
 
 cp -- "$profile" "$fixture/custom profile.jsonc"
 sed -i 's|{file:./scout.md}|{file:{env:TEAM_SYSTEM_PROMPT_FILE}}|' "$fixture/custom profile.jsonc"

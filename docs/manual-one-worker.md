@@ -144,9 +144,19 @@ cd "$WORKER"
 opencode debug config
 # Privately review sources; supply the approved provider key in this launch environment.
 echo "owned gateway PID: $$"
+mkdir -m 700 "$STATE/worker-state"
 exec env A2A_NAME=smoke-worker A2A_DESCRIPTION='Short text continuity smoke' A2A_TAGS='text' \
-  bun "$REPO/dist/src/cli.js" --workspace "$WORKER" --port 41241
+  bun "$REPO/dist/src/cli.js" --workspace "$WORKER" --port 41241 \
+    --pass-env OPENAI_API_KEY --state-dir "$STATE/worker-state"
 ```
+
+The CLI builds its own private runtime (fresh HOME/XDG, no saved logins, `OPENCODE_*` and
+other ambient variables removed) and runs the default `read-only` profile, so this worker
+reads and searches the project but runs no shell, web tools, MCP, plugins, skills or
+subagents; the project config above can only narrow that. The provider key reaches it
+**only** through `--pass-env OPENAI_API_KEY` (the exports above merely review the sources).
+`--state-dir` keeps the worker's session history after shutdown, because the private HOME
+itself is removed; saved approvals and credentials are cleared every launch.
 
 `exec` replaces only this dedicated shell: record its PID privately before launch.
 Record the gateway's actual readiness URL and its owned ACP/private-server PIDs
@@ -415,7 +425,8 @@ filtered file contains private synthetic prompts, tool inputs/results and answer
 Inspect it locally only. If the pinned API response differs from the documented
 shape, stop and report the mismatch; do not infer missing evidence.
 
-In a separate inspection terminal, restore the worker's exact HOME/XDG from step 2,
+In a separate inspection terminal, restore the worker's HOME/XDG from step 2 but set
+`XDG_DATA_HOME="$STATE/worker-state/data"` (the gateway's private runtime wrote there),
 `cd "$WORKER"`, and use the same `session list --standalone` and message API/filter
 with the **observed worker session ID** and distinct private output filenames.
 Check location, launch time and the unique first marker prompt, then verify both
@@ -447,7 +458,7 @@ The API paths/filters follow [V2 API documentation](https://opencode.ai/v2/docs/
 and its [OpenAPI](https://opencode.ai/v2/openapi.json). The observed pass inspected
 two message pages for each correlated coordinator/worker session using the pinned
 operation-ID API. After owned server shutdown, inspection may instead use
-`--standalone` with the exact same private HOME/XDG/project and observed session ID;
+`--standalone` with the exact same private HOME/XDG (worker: the `--state-dir` data), project and observed session ID;
 this reads persisted evidence, not a continuation or a new model prompt. Session
 review is client-side evidence, not a production OpenCode HTTP adapter.
 

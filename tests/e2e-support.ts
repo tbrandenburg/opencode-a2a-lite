@@ -4,6 +4,7 @@ import {
   accessSync,
   constants,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -13,13 +14,13 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { isDeepStrictEqual, promisify } from "node:util";
+import { promisify } from "node:util";
 import { Task, TaskState } from "@a2a-js/sdk";
 import { Database } from "bun:sqlite";
 import { cleanup, prepare } from "../scripts/acp-smoke-config.js";
 
 export const exec = promisify(execFile);
-const entrypoint = resolve("dist/src/server.js");
+const entrypoint = resolve("dist/src/cli.js");
 export type Workspace = Awaited<ReturnType<typeof prepare>>;
 
 const criteria = [
@@ -155,11 +156,14 @@ export async function withCleanup<T>(
   return result.value;
 }
 
-export function deniedToolEvidence(workspace: Pick<Workspace, "env">) {
-  assert(workspace.env.XDG_DATA_HOME);
-  const db = new Database(resolve(workspace.env.XDG_DATA_HOME, "opencode/opencode.db"), {
-    readonly: true,
-  });
+// The CLI's private runtime keeps its own HOME/XDG per launch; only --state-dir data persists.
+export const stateDirectory = (workspace: Pick<Workspace, "root">) =>
+  join(workspace.root, "gateway-state");
+export const databasePath = (workspace: Pick<Workspace, "root">) =>
+  join(stateDirectory(workspace), "data/opencode/opencode.db");
+
+export function deniedToolEvidence(workspace: Pick<Workspace, "root">) {
+  const db = new Database(databasePath(workspace), { readonly: true });
   try {
     // Read only type/count metadata across the denied turn's fresh session.
     const types = db
@@ -190,88 +194,9 @@ export function deniedToolEvidence(workspace: Pick<Workspace, "env">) {
   }
 }
 
-function metadata(value: unknown): Record<string, unknown> {
-  assert(value && typeof value === "object" && !Array.isArray(value), "Invalid runtime metadata");
-  return value as Record<string, unknown>;
-}
-
-function catalog(value: unknown, cwd: string) {
-  const result = metadata(value);
-  assert(metadata(result.location).directory === cwd, "Wrong runtime catalog location");
-  assert(Array.isArray(result.data), "Invalid runtime catalog");
-  return result.data.map(metadata);
-}
-
-// V2 catalogs initialize asynchronously. Inspect the same ACP-owned server, never a new service.
-export function runtimeCatalogReady(
-  workspace: Pick<Workspace, "cwd" | "root" | "config">,
-  values: { config: unknown; plugins: unknown; agents: unknown; model: unknown; mcp: unknown },
-) {
-  assert(Array.isArray(values.config), "Invalid runtime configuration sources");
-  const documents = values.config.map(metadata).filter((entry) => {
-    assert(
-      typeof entry.path === "string" && entry.path.startsWith(workspace.root + "/"),
-      "Unexpected runtime configuration source",
-    );
-    assert(["document", "directory"].includes(String(entry.type)), "Invalid config source type");
-    return entry.type === "document";
-  });
-  assert(
-    documents.length === 1 &&
-      documents[0]?.path === resolve(workspace.cwd, "opencode.json") &&
-      isDeepStrictEqual(documents[0].info, workspace.config),
-    "Runtime configuration changed the restrictions",
-  );
-  const plugins = catalog(values.plugins, workspace.cwd);
-  assert(
-    plugins.every((plugin) => metadata(plugin.source).type === "builtin"),
-    "Unexpected runtime plugin source",
-  );
-  assert(catalog(values.mcp, workspace.cwd).length === 0, "Unexpected runtime MCP server");
-  const agents = catalog(values.agents, workspace.cwd);
-  const agent = agents.find((entry) => entry.mode !== "subagent" && !entry.hidden);
-  const model = metadata(values.model);
-  assert(metadata(model.location).directory === workspace.cwd, "Wrong runtime model location");
-  const selected = model.data === null ? {} : metadata(model.data);
-  if (
-    plugins.length === 0 ||
-    !plugins.every((plugin) => metadata(plugin.state).status === "active") ||
-    agent?.id !== workspace.config.default_agent ||
-    selected.providerID !== workspace.config.model.providerID ||
-    selected.id !== workspace.config.model.model
-  )
-    return false;
-  assert(
-    agent.mode === "primary" && agent.system === workspace.config.agents.smoke.system,
-    "Unexpected runtime smoke agent",
-  );
-  assert(
-    agent.model === undefined ||
-      (metadata(agent.model).providerID === workspace.config.model.providerID &&
-        metadata(agent.model).id === workspace.config.model.model),
-    "Unexpected runtime agent model override",
-  );
-  assert(Array.isArray(agent.permissions), "Missing runtime agent permissions");
-  const rules = agent.permissions.map(metadata);
-  const denied = rules.reduce(
-    (previous, rule, index) =>
-      rule.action === "*" && rule.resource === "*" && rule.effect === "deny" ? index : previous,
-    -1,
-  );
-  assert(
-    denied >= 0 && rules.slice(denied).every((rule) => rule.effect === "deny"),
-    "Runtime agent does not deny tool access",
-  );
-  return ["opencode.config.agent", "opencode.config.provider", "opencode.config.mcp"].every((id) =>
-    plugins.some((plugin) => plugin.id === id),
-  );
-}
-
-export async function verifyPrivateRuntime(
-  workspace: Workspace,
-  gateway: number,
-  deadline: number,
-) {
+// The private server's credentials are not exposed, so its catalog cannot be queried from outside.
+// The CLI preflight verifies the effective configuration before readiness; only ownership is proven.
+export function verifyPrivateRuntime(workspace: Pick<Workspace, "root">, gateway: number) {
   try {
     const owned = processes(workspace.root);
     const adapters = owned.filter(
@@ -284,52 +209,9 @@ export async function verifyPrivateRuntime(
     assert(servers.length === 1, "Expected one ACP-owned private server");
     const server = servers[0];
     assert(server);
-    // Keep the private lease credential in memory only; never return it or raw API diagnostics.
-    const password = readFileSync(`/proc/${server.pid}/environ`, "utf8")
-      .split("\0")
-      .find((entry) => entry.startsWith("OPENCODE_PASSWORD="))
-      ?.slice("OPENCODE_PASSWORD=".length);
-    assert(password, "Missing private lease credential");
-    const sockets = readdirSync(`/proc/${server.pid}/fd`).map((fd) =>
-      readlinkSync(`/proc/${server.pid}/fd/${fd}`),
-    );
-    const ports = ["tcp", "tcp6"].flatMap((table) =>
-      readFileSync(`/proc/net/${table}`, "utf8")
-        .trim()
-        .split("\n")
-        .slice(1)
-        .map((line) => line.trim().split(/\s+/))
-        .filter((fields) => fields[3] === "0A" && sockets.includes(`socket:[${fields[9]}]`))
-        .map((fields) => Number.parseInt(fields[1]!.split(":")[1]!, 16)),
-    );
-    assert(ports.length === 1, "Expected one private HTTP listener");
-    const signal = AbortSignal.timeout(Math.max(1, Math.ceil(deadline - performance.now())));
-    const read = async (endpoint: string): Promise<unknown> => {
-      const url = new URL(endpoint, `http://127.0.0.1:${ports[0]}`);
-      url.searchParams.set("location[directory]", workspace.cwd);
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
-        },
-        signal,
-        redirect: "error",
-        proxy: false,
-      });
-      assert(response.ok, "Private runtime metadata request failed");
-      return response.json();
-    };
-    while (performance.now() < deadline) {
-      const config = await read("/api/config");
-      const plugins = await read("/api/plugin");
-      const agents = await read("/api/agent");
-      const model = await read("/api/model/default");
-      const mcp = await read("/api/mcp");
-      if (runtimeCatalogReady(workspace, { config, plugins, agents, model, mcp })) return;
-      await setTimeout(100, undefined, { signal });
-    }
-    throw new Error("Private runtime catalog readiness deadline exceeded");
+    assert(server.args.includes("--stdio"), "Expected a stdio-only private server");
   } catch {
-    throw new Error("Owned private runtime readiness verification failed; no prompt submitted");
+    throw new Error("Owned private runtime verification failed; no prompt submitted");
   }
 }
 
@@ -390,16 +272,29 @@ export function candidateEnvironment(
 
 export async function launch(workspace: Workspace, invalidCredential = false) {
   assert(existsSync(entrypoint), "Run make build before live acceptance");
-  const child = spawn(process.execPath, [entrypoint], {
-    cwd: workspace.cwd,
-    env: {
-      ...candidateEnvironment(workspace),
-      A2A_WORKSPACE: workspace.cwd,
-      A2A_PORT: "0",
-      ...(invalidCredential ? { OPENAI_API_KEY: "sk-intentionally-invalid-acceptance" } : {}),
+  mkdirSync(stateDirectory(workspace), { recursive: true, mode: 0o700 });
+  const child = spawn(
+    process.execPath,
+    [
+      entrypoint,
+      "--workspace",
+      workspace.cwd,
+      "--port",
+      "0",
+      "--pass-env",
+      "OPENAI_API_KEY",
+      "--state-dir",
+      stateDirectory(workspace),
+    ],
+    {
+      cwd: workspace.cwd,
+      env: {
+        ...candidateEnvironment(workspace),
+        ...(invalidCredential ? { OPENAI_API_KEY: "sk-intentionally-invalid-acceptance" } : {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
   child.stderr.resume();
   let output = "";
   child.stdout.on("data", (data: Buffer) => {
@@ -429,7 +324,7 @@ export async function launch(workspace: Workspace, invalidCredential = false) {
         const url = String(ready.url);
         assert.match(url, /^http:\/\/127\.0\.0\.1:[1-9]\d*\/$/);
         assert(child.pid);
-        await verifyPrivateRuntime(workspace, child.pid, deadline);
+        verifyPrivateRuntime(workspace, child.pid);
         return { child, url, close };
       }
       await setTimeout(50);

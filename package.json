@@ -25,8 +25,8 @@
     "access": "public"
   },
   "scripts": {
-    "dev": "bun --watch src/server.ts",
-    "start": "bun dist/src/server.js",
+    "dev": "bun --watch src/cli.ts",
+    "start": "bun dist/src/cli.js",
     "build": "tsc --noEmit false --outDir dist --rootDir .",
     "prepack": "rm -rf dist/src && bun run build && chmod +x dist/src/cli.js",
     "package-smoke": "bun scripts/package-smoke.ts",

@@ -149,8 +149,9 @@ hard denials, but project instructions remain trusted. Library callers explicitl
 `acp.env` retain their environment override, receive **no** gateway policy and are responsible
 for isolation and tool controls. Combining that override with `passEnv` or `policy` is rejected.
 
-Run the compiled server with `A2A_WORKSPACE=/absolute/trusted/path make run`;
-use `make dev` for development.
+Run the compiled CLI with `A2A_WORKSPACE=/absolute/trusted/path make run ARGS='--pass-env OPENAI_API_KEY'`;
+use `make dev` (same `ARGS`) for development. Without `--pass-env` the private runtime has no
+provider credentials.
 
 ### Package distribution
 
@@ -381,7 +382,7 @@ Run from source:
 ```sh
 make install             # frozen Bun lockfile
 make check               # format, lint, typecheck, deterministic tests, build
-bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
+bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0 --pass-env OPENAI_API_KEY
 ```
 
 | Command                                                                | Purpose                                                                                                       |
