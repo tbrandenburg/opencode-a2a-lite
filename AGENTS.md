@@ -67,6 +67,11 @@ pipeline smoke. For other approved topology investigations, consult the specific
 issue and [portable skill](.opencode/skills/multi-a2a-agent/SKILL.md) rather than
 inventing a new runner.
 
+Workers launch through the CLI private runtime: `--pass-env OPENAI_API_KEY`, the default `read-only`
+profile (no MCP/shell on a worker unless an operator `--policy-file` allows exact MCP servers and
+tools; `OPENCODE_CONFIG`/`OPENCODE_*` are never passed through, workspace `opencode.json` is the
+project config). The coordinator is a separate owned `opencode serve`, not the gateway.
+
 Trust exact worker cards/peer URLs; check the actual model-visible tool catalog,
 not just network availability. Submit using `blocking:false`, follow up with the
 returned `context_id` and **no** old `task_id`, verify stored task artifacts,

@@ -257,15 +257,17 @@ private() {
   export PATH TERM NO_COLOR
   export HOME="$state/home" XDG_CONFIG_HOME="$state/home/.config"
   export XDG_DATA_HOME="$state/home/.local/share" XDG_STATE_HOME="$state/home/.local/state"
-  export XDG_CACHE_HOME="$state/home/.cache" XDG_RUNTIME_DIR="$state/run" OPENCODE_CONFIG="$config"
+  export XDG_CACHE_HOME="$state/home/.cache" XDG_RUNTIME_DIR="$state/run"
   # Share the npm cache so npx-based MCP servers start before the first task.
   export npm_config_cache="$npm_cache"
   for key in "${forward[@]}"; do export "${key?}"; done
   if [[ $action == spawn-agent ]]; then
-    export A2A_NAME="$name" TEAM_SYSTEM_PROMPT_FILE="$prompt"
+    # The gateway CLI strips OPENCODE_* and takes credentials only through --pass-env.
+    export A2A_NAME="$name"
+    for key in "${profile_env[@]}"; do export "${key?}"; done
     if [[ -n $github_token ]]; then export GITHUB_PERSONAL_ACCESS_TOKEN="$github_token"; fi
   else
-    export OPENCODE_PASSWORD="$password"
+    export OPENCODE_CONFIG="$config" OPENCODE_PASSWORD="$password"
     export TEAM_BUN="$bun" TEAM_PROXY="$repo/interop/bridge-proxy.ts" TEAM_BRIDGE="$bridge"
     export TEAM_DIRECTORY="$directory" TEAM_PEERS="$peer_json" TEAM_RECEIPTS="$state/receipts.jsonl"
   fi
@@ -274,11 +276,57 @@ private() {
   exec "$@"
 }
 
+# Coordinator: the supplied profile; worker: the profile installed as the workspace project config.
 sources_ok() {
-  jq -e --arg config "$config" --arg prefix "$state/" '
+  jq -e --arg config "${sources:-$config}" --arg prefix "$state/" '
     type == "array" and ([.[] | select(.type == "document") | .path] == [$config]) and
     all(.[]; .type == "document" or (.type == "directory" and (.path | startswith($prefix))))
   ' >/dev/null
+}
+
+# The CLI loads the profile only as the workspace project config. Without --policy-file it stays
+# a read-only agent, so the file below (outside the workspace) allows exactly the profile's MCP
+# servers and the exact tools its agents allow.
+install_profile() {
+  local ref file key
+  declare -A seen=()
+  project_config="$state/project/opencode.${config##*.}"
+  if [[ -n $prompt ]]; then
+    sed 's|{file:{env:TEAM_SYSTEM_PROMPT_FILE}}|{file:./system.md}|g' -- "$config" >"$project_config"
+    cp -- "$prompt" "$state/project/system.md"
+  else
+    cp -- "$config" "$project_config"
+    while IFS= read -r ref; do
+      file=${ref#'{file:./'}
+      file=${file%'}'}
+      [[ -f ${config%/*}/$file ]] || die "The profile references a missing file $file."
+      cp -- "${config%/*}/$file" "$state/project/$file"
+    done < <(grep -oE '\{file:\./[A-Za-z0-9_][A-Za-z0-9._-]*\}' "$config" || true)
+  fi
+  profile_env=()
+  for key in "${forward[@]}"; do profile_env+=("$key"); seen[$key]=1; done
+  # Only {env:NAME} references that are set are passed on; unset ones stay empty as before.
+  while IFS= read -r key; do
+    [[ -z ${seen[$key]+x} && -n ${!key:-} ]] || continue
+    seen[$key]=1
+    profile_env+=("$key")
+  done < <(grep -oE '\{env:[A-Z][A-Z0-9_]*\}' "$project_config" | sed 's/^{env:\(.*\)}$/\1/' || true)
+  if [[ -n $github_token ]]; then profile_env+=(GITHUB_PERSONAL_ACCESS_TOKEN); fi
+}
+
+derive_policy() {
+  jq -e '
+    [.[] | select(.type == "document") | .info] as $docs
+    | select($docs | length == 1) | $docs[0] as $doc
+    | ($doc.mcp.servers // {} | keys) as $servers
+    | [$doc.agents[]?.permissions[]? | select(.effect == "allow") | .action] | unique as $allowed
+    | [$allowed[] | select(. as $a | (test("^[A-Za-z0-9_-]+$") and
+        any($servers[]; . as $s | $a | startswith($s + "_"))) | not)] as $other
+    | if ($other | length) > 0 then error("unsupported agent allow: " + ($other | join(","))) else . end
+    | {version: 1, base: "read-only", policies:
+        (($servers | map({action: "mcp.use", resource: ., effect: "allow"})) +
+         ($allowed | map({action: "tool.use", resource: (. + ":*"), effect: "allow"})))}
+  '
 }
 
 curl_local() { curl -q --noproxy '*' -fsS --max-time 2 "$@"; }
@@ -419,12 +467,21 @@ spawn() {
   retain_startup_evidence=false
   trap spawn_cleanup EXIT
   prepare_workspace
+  install_profile
   [[ $(private timeout 4s "$opencode" service get disabled 2>/dev/null) == true ]] ||
     die 'Private OpenCode service configuration was not recognized.'
-  private timeout 15s "$opencode" debug config 2>/dev/null | sources_ok ||
-    die 'OpenCode did not report only the supplied profile and private sources.'
+  report=$(private timeout 15s "$opencode" debug config 2>/dev/null) ||
+    die 'Could not read the effective profile configuration.'
+  sources=$project_config
+  sources_ok <<<"$report" || die 'OpenCode did not report only the installed profile and private sources.'
+  derive_policy <<<"$report" >"$state/policy.json" ||
+    die "The profile needs tools the gateway policy file cannot express; list exact MCP tool names."
+  unset report
+  pass_args=()
+  for key in "${profile_env[@]}"; do pass_args+=(--pass-env "$key"); done
 
   launch_child worker private setsid "$bun" "$repo/dist/src/cli.js" --workspace "$state/project" --port 0 \
+    --policy read-only --policy-file "$state/policy.json" "${pass_args[@]}" \
     </dev/null >"$state/ready.jsonl" 2>"$state/worker.err" || die "Could not record worker $name."
   worker_pid=$child_pid
   [[ -f $state/worker.process ]] || die "Worker $name exited during launch."

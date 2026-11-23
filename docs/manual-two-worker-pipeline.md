@@ -222,8 +222,15 @@ fi
 port=$WORKER1_PORT
 if test "$role" = worker2; then port=$WORKER2_PORT; fi
 exec env A2A_NAME="pipeline-$role" A2A_DESCRIPTION='Disposable pipeline worker' \
-  "$BUN" "$REPO/dist/src/cli.js" --workspace "$PWD" --port "$port"
+  "$BUN" "$REPO/dist/src/cli.js" --workspace "$PWD" --port "$port" \
+    --pass-env OPENAI_API_KEY --state-dir "$STATE/$role-state"
 ```
+
+Workers run the CLI's private runtime in the default `read-only` profile: the key is delivered
+only by `--pass-env`, the shell, web tools, MCP, plugins and subagents stay blocked (the
+coordinator's MCP route is the separate owned `opencode serve` above, unaffected), and
+`--state-dir` (a 0700 sibling of the project, created by the CLI) keeps session history for the
+inspection below. The `HOME`/XDG exports in this block only serve the source review.
 
 Review `/etc/opencode` if it exists; stop for unsafe managed settings rather than
 changing them. The next block creates an owned tmux server with a clean environment.
@@ -692,7 +699,8 @@ test "$result" = 0 && touch "$STATE/inspection.done"
 
 Use the already observed IDs, exact project and launch time plus the unique marker
 to correlate the sessions. Never infer a worker session ID from an A2A handle or
-select the newest unrelated session. Each private worker home contains just this
+select the newest unrelated session. Each worker state directory
+(`STATE/<role>-state`, inspect with `XDG_DATA_HOME=STATE/<role>-state/data`) contains just this
 smoke's root session; ambiguity is missing evidence, not permission to guess.
 When the observed coordinator PID is absent/zombie, the exact commands expand to
 `opencode session list --standalone --max-count 20 --format json` and

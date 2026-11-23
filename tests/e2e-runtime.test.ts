@@ -3,12 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import {
-  candidateEnvironment,
-  deniedToolEvidence,
-  exec,
-  runtimeCatalogReady,
-} from "./e2e-support.js";
+import { candidateEnvironment, deniedToolEvidence, exec } from "./e2e-support.js";
 
 const secret = "PRIVATE-content-not-for-evidence";
 
@@ -52,11 +47,11 @@ test("production PATH executes the exact candidate instead of a different inheri
 
 function stored(
   seed: (db: Database) => void,
-  operation: (db: Database, workspace: { env: NodeJS.ProcessEnv }) => void,
+  operation: (db: Database, workspace: { root: string }) => void,
 ) {
   const root = mkdtempSync(join(tmpdir(), "issue-61-evidence-"));
-  mkdirSync(join(root, "opencode"));
-  const db = new Database(join(root, "opencode/opencode.db"));
+  mkdirSync(join(root, "gateway-state/data/opencode"), { recursive: true });
+  const db = new Database(join(root, "gateway-state/data/opencode/opencode.db"));
   try {
     db.transaction(() => {
       // Relevant DDL copied from the provider-free v2.2.7 executable's sqlite_master.
@@ -78,7 +73,7 @@ function stored(
       `);
       seed(db);
     })();
-    operation(db, { env: { XDG_DATA_HOME: root } });
+    operation(db, { root });
   } finally {
     db.close();
     rmSync(root, { recursive: true, force: true });
@@ -189,113 +184,4 @@ test("denial evidence fails closed on empty, reasoning-only and missing part sto
       expect(() => deniedToolEvidence(workspace)).toThrow();
     },
   );
-});
-
-function runtime() {
-  const deny = { action: "*", resource: "*", effect: "deny" };
-  const workspace = {
-    root: "/tmp/private-runtime",
-    cwd: "/tmp/private-runtime/workspace",
-    config: {
-      model: { providerID: "openai", model: "gpt-6-luna" },
-      default_agent: "smoke",
-      permissions: [deny],
-      agents: {
-        smoke: { mode: "primary", description: "probe", system: "probe", permissions: [deny] },
-      },
-      plugins: [],
-      skills: [],
-      instructions: [],
-      snapshots: false,
-      warming: false,
-    },
-  };
-  const list = <T>(data: T[]) => ({ location: { directory: workspace.cwd }, data });
-  const values = {
-    config: [
-      { type: "document", path: join(workspace.cwd, "opencode.json"), info: workspace.config },
-    ],
-    plugins: list(
-      ["opencode.config.agent", "opencode.config.provider", "opencode.config.mcp"].map((id) => ({
-        id,
-        source: { type: "builtin" },
-        state: { status: "active" },
-      })),
-    ),
-    agents: list([{ id: "smoke", mode: "primary", system: "probe", permissions: [deny] }]),
-    model: {
-      location: { directory: workspace.cwd },
-      data: { providerID: "openai", id: "gpt-6-luna" },
-    },
-    mcp: list<unknown>([]),
-  };
-  return { workspace, values };
-}
-
-test("runtime readiness waits for cold catalogs and wrong agent/model, not config alone", () => {
-  const { workspace, values } = runtime();
-  expect(runtimeCatalogReady(workspace, values)).toBe(true);
-  expect(
-    runtimeCatalogReady(workspace, { ...values, plugins: { ...values.plugins, data: [] } }),
-  ).toBe(false);
-  values.plugins.data[0]!.state.status = "pending";
-  expect(runtimeCatalogReady(workspace, values)).toBe(false);
-  values.plugins.data[0]!.state.status = "active";
-  values.plugins.data[0]!.id = "unrelated-builtin";
-  expect(runtimeCatalogReady(workspace, values)).toBe(false);
-  values.plugins.data[0]!.id = "opencode.config.agent";
-  values.agents.data[0]!.id = "build";
-  expect(runtimeCatalogReady(workspace, values)).toBe(false);
-  values.agents.data[0]!.id = "smoke";
-  values.model.data.id = "wrong-model";
-  expect(runtimeCatalogReady(workspace, values)).toBe(false);
-});
-
-test("runtime readiness rejects permission overrides and nonbuiltin plugins without raw details", () => {
-  const { workspace, values } = runtime();
-  values.agents.data[0]!.permissions.push({ action: "shell", resource: "*", effect: "allow" });
-  expect(() => runtimeCatalogReady(workspace, values)).toThrow("does not deny tool access");
-  values.agents.data[0]!.permissions.pop();
-  values.plugins.data[0]!.source.type = secret;
-  expect(() => runtimeCatalogReady(workspace, values)).toThrow("Unexpected runtime plugin source");
-});
-
-test("runtime readiness rejects missing denial, agent-model overrides and changed effective config", () => {
-  const { workspace, values } = runtime();
-  expect(() =>
-    runtimeCatalogReady(workspace, {
-      ...values,
-      agents: { ...values.agents, data: [{ ...values.agents.data[0], permissions: [] }] },
-    }),
-  ).toThrow("does not deny tool access");
-  expect(() =>
-    runtimeCatalogReady(workspace, {
-      ...values,
-      agents: {
-        ...values.agents,
-        data: [{ ...values.agents.data[0], model: { providerID: "openai", id: "wrong-model" } }],
-      },
-    }),
-  ).toThrow("Unexpected runtime agent model override");
-  expect(() =>
-    runtimeCatalogReady(workspace, {
-      ...values,
-      config: values.config.map((entry) => ({
-        ...entry,
-        info: { ...entry.info, permissions: [] },
-      })),
-    }),
-  ).toThrow("Runtime configuration changed the restrictions");
-});
-
-test("runtime readiness rejects external config, MCP and wrong catalog locations", () => {
-  const { workspace, values } = runtime();
-  expect(() =>
-    runtimeCatalogReady(workspace, { ...values, config: [{ path: "/outside/config" }] }),
-  ).toThrow("configuration source");
-  values.mcp.data.push({ name: secret });
-  expect(() => runtimeCatalogReady(workspace, values)).toThrow("Unexpected runtime MCP");
-  values.mcp.data.pop();
-  values.model.location.directory = "/wrong/workspace";
-  expect(() => runtimeCatalogReady(workspace, values)).toThrow("Wrong runtime model location");
 });

@@ -5,13 +5,6 @@
     "model": "gpt-6-luna",
   },
   "default_agent": "repo",
-  "permissions": [
-    {
-      "action": "*",
-      "resource": "*",
-      "effect": "deny",
-    },
-  ],
   "agents": {
     "repo": {
       "mode": "primary",
@@ -19,7 +12,47 @@
       "system": "{file:./repo.md}",
       "permissions": [
         {
-          "action": "github_*",
+          "action": "github_pull_request_read",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_list_pull_requests",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_search_pull_requests",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_actions_get",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_actions_list",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_get_job_logs",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_get_file_contents",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_list_commits",
+          "resource": "*",
+          "effect": "allow",
+        },
+        {
+          "action": "github_get_commit",
           "resource": "*",
           "effect": "allow",
         },

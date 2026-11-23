@@ -8,7 +8,7 @@ import { Database } from "bun:sqlite";
 import { createAcpBridge } from "../src/acp-client.js";
 import { supportedOpenCode } from "../src/opencode-version.js";
 import { cleanup, prepare } from "../scripts/acp-smoke-config.js";
-import { launch, verifyPrivateRuntime, withCleanup } from "./e2e-support.js";
+import { databasePath, launch, withCleanup } from "./e2e-support.js";
 import { spawnOwnedProcess } from "./owned-process.js";
 
 const workspace = await prepare({ providerFree: true });
@@ -190,20 +190,14 @@ await withCleanup(
         }
       },
     );
-    // A synthetic key exposes the configured catalog without authorizing a provider request.
+    // The CLI preflight verifies the effective config before readiness; a synthetic key authorizes no request.
     const gateway = await launch({
       ...workspace,
       env: { ...workspace.env, OPENAI_API_KEY: "sk-intentionally-invalid-provider-free-readiness" },
     });
     try {
       assert(gateway.child.pid);
-      await assert.rejects(
-        verifyPrivateRuntime(workspace, gateway.child.pid, performance.now() - 1),
-        /readiness verification failed; no prompt submitted/,
-      );
-      const db = new Database(`${workspace.env.XDG_DATA_HOME}/opencode/opencode.db`, {
-        readonly: true,
-      });
+      const db = new Database(databasePath(workspace), { readonly: true });
       try {
         const count = db
           .query<{ count: number }, []>("SELECT count(*) AS count FROM session_message")
@@ -212,9 +206,7 @@ await withCleanup(
       } finally {
         db.close();
       }
-      console.log(
-        JSON.stringify({ sameServerReadiness: true, readinessDeadline: true, noPrompt: true }),
-      );
+      console.log(JSON.stringify({ privateRuntimeReadiness: true, noPrompt: true }));
     } finally {
       await gateway.close();
     }

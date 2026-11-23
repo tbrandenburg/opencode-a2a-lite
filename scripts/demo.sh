@@ -47,8 +47,8 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# The production entrypoint owns its ACP process group and releases its private lease.
-A2A_WORKSPACE="$PWD" A2A_PORT=0 bun "$DEMO_REPO/dist/src/server.js" \
+# The CLI entrypoint (private runtime) owns its ACP process group and releases its private lease.
+bun "$DEMO_REPO/dist/src/cli.js" --workspace "$PWD" --port 0 --pass-env OPENAI_API_KEY \
   >"$DEMO_ROOT/gateway.jsonl" 2>"$DEMO_ROOT/gateway.stderr" &
 gateway=$!
 url=''
