@@ -10,6 +10,7 @@ async function main() {
                          [--permissions <reject|ask>] [--policy <read-only|edit|full-access>]
                          [--dangerously-skip-permissions] [--policy-file <absolute path>]
                          [--state-dir <absolute path>] [--allow-resume] [--pass-env NAME]...
+                         [--prompt-timeout <duration|unlimited>]
 
 Start the foreground, unauthenticated A2A gateway.
 Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
@@ -17,6 +18,10 @@ The private CLI runtime currently fails closed on macOS.
 
   --workspace <path>  Explicitly trust this directory; relative paths are resolved.
   --port <0..65535>   Port (default 41241; 0 selects a free port).
+  --prompt-timeout <duration|unlimited>
+                      Whole ACP prompt deadline (default 60m); integer ms, s, m or h,
+                      30ms to 2147483647ms. unlimited disables only this deadline.
+                      Human permission waits suspend it; the full budget restarts on release.
   --pass-env NAME     Pass one named provider variable to OpenCode; repeat as needed.
                       Reserved runtime/configuration variables and missing values are rejected.
   --publish-activity  Also publish an "activity" artifact with tool call ids, titles, kinds and

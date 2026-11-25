@@ -139,3 +139,40 @@ test("C10 HTTP cancellation of a terminal task cannot affect the next active tur
     await gateway.close();
   }
 });
+
+test(
+  "HTTP prompt deadline persists failure, not cancellation, even after ACP acknowledges stop",
+  async () => {
+    const gateway = createGateway({
+      workspace: process.cwd(),
+      port: 0,
+      acp: {
+        executable: process.execPath,
+        args: [fixture, "normal"],
+        versionArgs: [fixture, "normal", "--version"],
+        env: { PATH: process.env.PATH },
+        startupTimeoutMs: 6_000,
+        promptTimeoutMs: 500,
+        cancelTimeoutMs: 500,
+        closeTimeoutMs: 600,
+      },
+    });
+    try {
+      const ready = await gateway.start();
+      const first = await stream(ready.url);
+      expect(await first.ended).toContain("TASK_STATE_FAILED");
+      const stored = await (await rpc(ready.url, "GetTask", { id: first.task.id })).json();
+      expect(stored.result.status.state).toBe("TASK_STATE_FAILED");
+      expect(stored.result.status.message.parts[0].text).toBe("ACP prompt timed out");
+      expect(stored.result.artifacts[0].parts.map((part: { text: string }) => part.text)).toEqual([
+        "ready",
+        "late-before-stop",
+        "late-cancelled",
+        "",
+      ]);
+    } finally {
+      await gateway.close();
+    }
+  },
+  12_000,
+);

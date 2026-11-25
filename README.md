@@ -104,6 +104,7 @@ macOS demo results predate this change.
 opencode-a2a-lite --workspace <path> [--port <0..65535>]
                   [--publish-activity] [--permissions <reject|ask>] [--allow-resume] [--pass-env NAME]...
                   [--policy <read-only|edit|full-access>] [--dangerously-skip-permissions]
+                  [--prompt-timeout <duration|unlimited>]
 opencode-a2a-lite --help | --version
 ```
 
@@ -124,6 +125,32 @@ opencode-a2a-lite --help | --version
 The three opt-in flags are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
 do, so enable them only for trusted clients on loopback.
+
+### Prompt execution deadline
+
+The default whole ACP prompt deadline is now **60 minutes** (previously 120 seconds).
+Use `--prompt-timeout 60m`, `--prompt-timeout 120s` to restore the old budget, or
+another integer duration with suffix `ms`, `s`, `m` or `h` (30 through 2,147,483,647 ms).
+`--prompt-timeout unlimited` explicitly disables the prompt deadline. It does not disable
+startup/session allocation, cancellation, cleanup, or the independent permission-answer timeout.
+Library callers use `acp.promptTimeoutMs` in server options (or `promptTimeoutMs` directly
+in bridge options): omit it for the new default, pass an integer in milliseconds as before,
+or pass `null` for unlimited. No A2A protocol or request-level configuration changes.
+
+The budget covers the whole turn, including tools and silent downstream waits, not
+an HTTP request or an individual model call. Output does not reset the deadline.
+Operator permission waits suspend it; the full budget restarts when the last wait ends.
+On expiry the bridge requests ACP cancellation within the separate cancellation budget,
+then retires and cleans up its owned ACP process group. The task fails with
+`ACP prompt timed out`, even if ACP acknowledges cancellation; it is never replayed.
+Restart the gateway before admitting more work. Explicit cancellation remains bounded
+and reports the actual ACP stop outcome.
+
+Long or unlimited turns can hold the single admission slot and consume provider
+credits, CPU, memory and downstream resources. Prefer a finite budget, monitor costs
+and accepted tasks independently of HTTP timeouts, and use explicit cancellation or
+owned gateway shutdown to stop unwanted work. Remote tool side effects may survive
+local cancellation; verify them before retrying.
 
 CLI launches use an ephemeral private HOME and XDG directories, a PATH consisting of
 absolute entries, `LANG=C`, and explicit `--pass-env` variables. Ambient OpenCode

@@ -18,7 +18,8 @@ export interface AcpBridgeOptions {
   env?: NodeJS.ProcessEnv;
   versionEnv?: NodeJS.ProcessEnv;
   startupTimeoutMs?: number;
-  promptTimeoutMs?: number;
+  /** Whole prompt deadline; null explicitly disables it. */
+  promptTimeoutMs?: number | null;
   cancelTimeoutMs?: number;
   closeTimeoutMs?: number;
 }
@@ -28,6 +29,7 @@ const INVALID_PARAMS = -32602;
 interface Hold {
   count: number;
   rearm?: () => void;
+  disarm?: () => void;
 }
 
 export function createAcpBridge(options: AcpBridgeOptions) {
@@ -38,11 +40,11 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   const env = { ...(options.env ?? process.env) };
   const versionEnv = { ...(options.versionEnv ?? env) };
   const startup = options.startupTimeoutMs ?? 30_000;
-  const promptTimeout = options.promptTimeoutMs ?? 120_000;
+  const promptTimeout = options.promptTimeoutMs === undefined ? 3_600_000 : options.promptTimeoutMs;
   const cancelTimeout = options.cancelTimeoutMs ?? 5_000;
   const closeTimeout = options.closeTimeoutMs ?? 5_000;
   if (
-    [startup, promptTimeout, cancelTimeout, closeTimeout].some(
+    [startup, cancelTimeout, closeTimeout, ...(promptTimeout === null ? [] : [promptTimeout])].some(
       (ms) => !Number.isSafeInteger(ms) || ms < 30 || ms > 2_147_483_647,
     )
   )
@@ -85,25 +87,35 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   // While a human decision is pending (hold.count > 0) the deadline is suspended and restarts on release.
   function bounded<T>(
     operation: () => Promise<T>,
-    ms: number,
+    ms: number | null,
     label: string,
     hold?: Hold,
+    onTimeout?: () => void,
   ): Promise<T> {
     if (failure.signal.aborted) return Promise.reject(failure.signal.reason);
     return new Promise<T>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let disarmed = false;
       const expire = () => {
-        if (hold?.count) timer = setTimeout(expire, ms);
+        if (hold?.count) arm();
+        else if (onTimeout) onTimeout();
         else fail(`ACP ${label} timed out`);
       };
-      let timer = setTimeout(expire, ms);
+      const arm = () => {
+        clearTimeout(timer);
+        if (!disarmed && ms !== null) timer = setTimeout(expire, ms);
+      };
+      const disarm = () => {
+        disarmed = true;
+        clearTimeout(timer);
+      };
+      arm();
       if (hold) {
-        hold.rearm = () => {
-          clearTimeout(timer);
-          timer = setTimeout(expire, ms);
-        };
+        hold.rearm = arm;
+        hold.disarm = disarm;
       }
       const cleanup = () => {
-        clearTimeout(timer);
+        disarm();
         failure.signal.removeEventListener("abort", abort);
       };
       const abort = () => {
@@ -343,6 +355,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       completion: undefined as Promise<acp.PromptResponse> | undefined,
     };
     turn = active;
+    let deadlineExpired = false;
     active.completion = bounded(
       () =>
         current.agent.request(acp.methods.agent.session.prompt, {
@@ -352,14 +365,27 @@ export function createAcpBridge(options: AcpBridgeOptions) {
       promptTimeout,
       "prompt",
       active.hold,
+      () => {
+        deadlineExpired = true;
+        // Request a cooperative stop first. cancel() has its own finite deadline,
+        // even for an unlimited prompt. Never turn a deadline into a user cancel.
+        void cancel(sessionId).catch(() => fail("ACP prompt timed out"));
+      },
     );
     try {
       const response = await active.completion;
-      return active.denied ? { ...response, permissionDenied: true } : response;
-    } finally {
       active.settled = true;
       // A late cancel write must settle before another prompt can acquire this session.
       await active.cancellation;
+      if (deadlineExpired) throw new BridgeError("ACP prompt timed out");
+      return active.denied ? { ...response, permissionDenied: true } : response;
+    } catch (error) {
+      if (deadlineExpired) throw new BridgeError("ACP prompt timed out");
+      throw error;
+    } finally {
+      active.settled = true;
+      await active.cancellation?.catch(() => undefined);
+      if (deadlineExpired) fail("ACP prompt timed out");
       if (turn === active) turn = undefined;
     }
   }
@@ -372,6 +398,8 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     const active = turn;
     if (active.cancellation) return active.cancellation;
     active.cancelled = true;
+    // Once cancellation starts, only its own deadline governs the stop.
+    active.hold.disarm?.();
     active.released.resolve(undefined);
     active.cancellation = bounded(
       async () => {

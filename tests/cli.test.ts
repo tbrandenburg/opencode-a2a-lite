@@ -136,3 +136,39 @@ test("C6: --allow-resume is a valueless, non-repeatable opt-in", () => {
   expect(() => parseOptions(["--allow-resume", "--allow-resume"], env)).toThrow(StartupError);
   expect(() => parseOptions(["--allow-resume=1"], env)).toThrow(StartupError);
 });
+
+test("prompt timeout is a validated startup-only ACP option", () => {
+  const env = { A2A_WORKSPACE: "/trusted" };
+  for (const [value, ms] of [
+    ["30ms", 30],
+    ["120s", 120_000],
+    ["60m", 3_600_000],
+    ["1h", 3_600_000],
+    ["2147483647ms", 2_147_483_647],
+    ["unlimited", null],
+  ] as const) {
+    expect(parseOptions(["--prompt-timeout", value], env)).toMatchObject({
+      server: { acp: { promptTimeoutMs: ms } },
+    });
+  }
+  for (const value of [
+    "0ms",
+    "29ms",
+    "-1s",
+    "1.5m",
+    "1e3s",
+    "120",
+    "1d",
+    "2147483648ms",
+    "Infinity",
+    "UNLIMITED",
+    "60m ",
+    "60m\n",
+  ]) {
+    expect(() => parseOptions(["--prompt-timeout", value], env)).toThrow("Invalid prompt timeout");
+  }
+  expect(() => parseOptions(["--prompt-timeout"], env)).toThrow(StartupError);
+  expect(() =>
+    parseOptions(["--prompt-timeout", "1m", "--prompt-timeout", "2m"], env),
+  ).toThrow(StartupError);
+});

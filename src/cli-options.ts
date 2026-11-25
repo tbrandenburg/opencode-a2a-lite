@@ -30,12 +30,27 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
       workspace,
       port: parsePort(flags.get("--port") ?? env.A2A_PORT),
       ...(names.length ? { passEnv: names } : {}),
+      ...promptOptions(flags),
       ...executorOptions(flags),
       ...policyOptions(flags),
       ...privateOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
   };
+}
+
+function promptOptions(flags: Map<string, string>): Pick<ServerOptions, "acp"> {
+  const value = flags.get("--prompt-timeout");
+  if (value === undefined) return {};
+  if (value === "unlimited") return { acp: { promptTimeoutMs: null } };
+  const match = /^(\d+)(ms|s|m|h)$/.exec(value);
+  if (!match || match[0] !== value) throw new StartupError("promptTimeout");
+  const unit = match[2];
+  const multiplier = unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : unit === "s" ? 1_000 : 1;
+  const ms = Number(match[1]) * multiplier;
+  if (!Number.isSafeInteger(ms) || ms < 30 || ms > 2_147_483_647)
+    throw new StartupError("promptTimeout");
+  return { acp: { promptTimeoutMs: ms } };
 }
 
 function executorOptions(flags: Map<string, string>): Pick<ServerOptions, "executor"> {
@@ -105,6 +120,7 @@ function parseFlags(args: readonly string[]) {
     if (
       flag !== "--workspace" &&
       flag !== "--port" &&
+      flag !== "--prompt-timeout" &&
       flag !== "--permissions" &&
       flag !== "--policy" &&
       flag !== "--policy-file" &&
