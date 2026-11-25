@@ -150,6 +150,9 @@ async function verifyAgents(
     } catch (error) {
       const weakened = error instanceof StartupError && error.message === POLICY_MESSAGE;
       if (!weakened || attempt === AGENT_ATTEMPTS) throw error;
+      console.error(
+        `Private runtime preflight: agent check attempt ${attempt} of ${AGENT_ATTEMPTS} did not report the private policy; retrying`,
+      );
       await new Promise((done) => setTimeout(done, 100 * attempt));
     }
   }
