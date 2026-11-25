@@ -282,17 +282,66 @@ test("A5: subprocess death rejects pending work and permanently retires the brid
   await expect(instance.start()).rejects.toThrow("unavailable");
 });
 
-test("A6: a prompt deadline rejects pending work and permanently retires the bridge", async () => {
-  const instance = bridge("normal", { promptTimeoutMs: 200 });
+for (const mode of ["normal", "cancel-hang"]) {
+  test(`A6: prompt deadline cancels and retires the bridge (${mode})`, async () => {
+    const instance = bridge(mode, { promptTimeoutMs: 300, cancelTimeoutMs: 500 });
+    await instance.start();
+    const session = await instance.newSession();
+    const prior = await instance.prompt(session.sessionId, "hello", () => undefined);
+    const pid = prior._meta?.pid;
+    if (typeof pid !== "number") throw new Error("Missing owned PID");
+    const chunks: string[] = [];
+    const started = performance.now();
+    await expect(
+      instance.prompt(session.sessionId, "cancel", (text) => chunks.push(text)),
+    ).rejects.toThrow("ACP prompt timed out");
+    expect(chunks).toEqual(
+      mode === "normal"
+        ? ["ready", "late-before-stop", "late-cancelled"]
+        : ["ready", "cancel-received"],
+    );
+    expect(performance.now() - started).toBeLessThan(2_000);
+    await expect(instance.newSession()).rejects.toThrow("unavailable");
+    await expect(instance.start()).rejects.toThrow("unavailable");
+    await instance.close();
+    expect(() => process.kill(pid, 0)).toThrow("No such process");
+  });
+}
+
+for (const promptTimeoutMs of [5_000, null]) {
+  test(`A6: silent prompt beyond the old fixture budget completes (${promptTimeoutMs})`, async () => {
+    const instance = bridge("normal", { promptTimeoutMs });
+    await instance.start();
+    const session = await instance.newSession();
+    const chunks: string[] = [];
+    const response = await instance.prompt(session.sessionId, "slow-prompt", (text) =>
+      chunks.push(text),
+    );
+    expect(response.stopReason).toBe("end_turn");
+    expect(chunks).toEqual(["turn-1:", "slow-prompt"]);
+  });
+}
+
+test("A6: unlimited prompts still have bounded explicit cancellation", async () => {
+  const instance = bridge("cancel-hang", { promptTimeoutMs: null, cancelTimeoutMs: 150 });
   await instance.start();
   const session = await instance.newSession();
-  const chunks: string[] = [];
-  await expect(
-    instance.prompt(session.sessionId, "hang", (text) => chunks.push(text)),
-  ).rejects.toThrow("ACP prompt timed out");
-  expect(chunks).toEqual(["ready"]);
-  await expect(instance.newSession()).rejects.toThrow("unavailable");
-  await expect(instance.start()).rejects.toThrow("unavailable");
+  const ready = Promise.withResolvers<void>();
+  const pending = instance.prompt(session.sessionId, "cancel", () => ready.resolve());
+  const rejected = pending.catch((error: unknown) => error);
+  await ready.promise;
+  await expect(instance.cancel(session.sessionId)).rejects.toThrow("cancel timed out");
+  expect(String(await rejected)).toContain("cancel timed out");
+  await instance.close();
+});
+
+test("A6: invalid library prompt timeouts are rejected before launch", async () => {
+  for (const promptTimeoutMs of [0, 29, -1, 1.5, NaN, Infinity, 2_147_483_648]) {
+    expect(() => bridge("normal", { promptTimeoutMs })).toThrow("ACP timeouts");
+  }
+  expect(() => bridge("normal", { cancelTimeoutMs: 0, promptTimeoutMs: null })).toThrow(
+    "ACP timeouts",
+  );
 });
 
 async function cancellationProbe(

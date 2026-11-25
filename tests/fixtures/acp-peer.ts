@@ -132,6 +132,7 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   const text = request.params.prompt[0];
   if (text?.type !== "text") throw new Error("bad prompt");
   if (text.text === "exit") process.exit(13);
+  if (text.text === "slow-prompt") await Bun.sleep(2_300);
   if (text.text === "whoami") {
     await chunk(ctx, activeSession, activeSession);
     return { stopReason: "end_turn" };

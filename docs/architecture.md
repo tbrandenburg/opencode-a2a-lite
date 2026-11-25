@@ -52,6 +52,10 @@ adapter or the transport's stream-consumption lifecycle.
   through a public proxy; loopback alone is not protection from other local users.
 - ACP stdout is protocol-only. Drain stderr without publishing provider diagnostics.
   Use the prompt response, not quiet output or HTTP admission, as the completion signal.
+- The whole ACP prompt deadline defaults to 60 minutes; CLI and library callers can
+  configure it or explicitly disable it. Permission waits suspend and restart the budget;
+  silent tool waits and output chunks do not reset it. Expiry attempts bounded cancellation,
+  retires the bridge and fails the task; explicit cancellation has its own deadline.
 - A timeout or dispatched cancellation is not confirmed cancellation. Preserve
   the original task outcome and context binding; never retry an uncertain prompt.
 - Close owned subprocess groups and listeners without affecting unrelated services.
