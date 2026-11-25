@@ -168,7 +168,6 @@ test("prompt timeout is a validated startup-only ACP option", () => {
     expect(() => parseOptions(["--prompt-timeout", value], env)).toThrow("Invalid prompt timeout");
   }
   expect(() => parseOptions(["--prompt-timeout"], env)).toThrow(StartupError);
-  expect(() =>
-    parseOptions(["--prompt-timeout", "1m", "--prompt-timeout", "2m"], env),
-  ).toThrow(StartupError);
+  const duplicate = ["--prompt-timeout", "1m", "--prompt-timeout", "2m"];
+  expect(() => parseOptions(duplicate, env)).toThrow(StartupError);
 });
