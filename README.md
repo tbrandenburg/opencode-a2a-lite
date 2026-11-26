@@ -63,8 +63,6 @@ cd /absolute/path/to/trusted/workspace
 npx --yes @tbrandenburg/opencode-a2a-lite@latest --port 0 --access read
 ```
 
-Upgrading from 0.8? See the [v0.9.0 release notes](docs/release-0.9.0.md) for the old-to-new flag table.
-
 This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
 process over ACP in that workspace. It does not run any task by itself: OpenCode only
 works when an A2A client sends a prompt. On startup, the CLI prints aligned lifecycle
@@ -142,16 +140,25 @@ with `--pass-env NAME`; disable the automatic ones with `--no-env`. Under `dange
 nothing is passed automatically because every command then sees the credentials; name what you
 need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
 
+### Startup with several gateways
+
+Gateways of the same user serialize their startup checks with a per-user lock file
+(`/tmp/opencode-a2a-launch-<uid>.lock`, pid and start-time owner record). A dead owner never
+blocks and no signal is ever sent to another pid. Waiting is bounded (5 minutes) and logged; after
+that the launch continues unlocked and says so. When the agent probe is slow and never reports the
+private policy, startup fails with the attempts, elapsed time, last probe duration and "host appears
+overloaded; start fewer gateways at once". A fast, deterministic policy mismatch still fails closed
+with the policy error. The lock is Linux-only and a performance aid, not a safety boundary.
+
 ### Prompt execution deadline
 
-The default whole ACP prompt deadline is now **60 minutes** (previously 120 seconds).
-Use `--prompt-timeout 60m`, `--prompt-timeout 120s` to restore the old budget, or
+The default whole ACP prompt deadline is **60 minutes**. Set `--prompt-timeout 120s` or
 another integer duration with suffix `ms`, `s`, `m` or `h` (30 through 2,147,483,647 ms).
 `--prompt-timeout unlimited` explicitly disables the prompt deadline. It does not disable
 startup/session allocation, cancellation, cleanup, or the independent permission-answer timeout.
 Library callers use `acp.promptTimeoutMs` in server options (or `promptTimeoutMs` directly
-in bridge options): omit it for the new default, pass an integer in milliseconds as before,
-or pass `null` for unlimited. No A2A protocol or request-level configuration changes.
+in bridge options): omit it for the default, pass an integer in milliseconds, or pass `null` for
+unlimited. There is no request-level configuration.
 
 The budget covers the whole turn, including tools and silent downstream waits, not
 an HTTP request or an individual model call. Output does not reset the deadline.
