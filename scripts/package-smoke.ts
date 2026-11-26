@@ -135,7 +135,10 @@ try {
     ["--workspace", ".", "--port", "0", "--access", "danger-full-access", "--enable", "approve"],
     /nothing is left to approve/,
   );
-  reject(["--workspace", ".", "--port", "0", "--access", "supervised"], /Use --help/);
+  reject(
+    ["--workspace", ".", "--port", "0", "--access", "supervised"],
+    /Invalid --access value: use read, edit or danger-full-access/,
+  );
   reject(["--workspace", "--version"], /Use --help/);
   reject(["--workspace"], /Use --help/);
   reject(["--workspace", ".", "--port"], /Use --help/);
