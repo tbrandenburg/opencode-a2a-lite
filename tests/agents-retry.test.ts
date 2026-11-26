@@ -20,7 +20,9 @@ afterAll(() => rmSync(base, { recursive: true, force: true }));
 
 // Fake `opencode`: valid preflight documents, but `debug agents` answers with the first N
 // counted calls weakened (no private config applied), then correctly.
-function fake(weakCalls: number) {
+const fast = { deadlineMs: 5_000, maxAttempts: 10, delayMs: 1 };
+
+function fake(weakCalls: number, agentRetry = fast, signal = new AbortController().signal) {
   const dir = mkdtempSync(join(base, "fx-"));
   const runtime = createRuntimeEnvironment([], process.env, "read-only");
   const workspace = join(dir, "ws");
@@ -52,11 +54,13 @@ function fake(weakCalls: number) {
     `#!/bin/sh
 d="${dir}"
 case "$*" in
-  *--version*) echo "opencode v2.3.2" ;;
+  *--version*) echo "opencode v2.4.1" ;;
   *"debug paths"*) cat "$d/paths.txt" ;;
   *"debug config"*) cat "$d/config.json" ;;
   *"debug agents"*)
+    echo "$*" >> "$d/argv"
     n=$(cat "$d/count" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$d/count"
+    if [ ${weakCalls} -lt 0 ]; then exit 1; fi
     if [ $n -le ${weakCalls} ]; then cat "$d/weak.json"; else cat "$d/good.json"; fi ;;
   *) exit 1 ;;
 esac
@@ -71,31 +75,86 @@ esac
       env: runtime.env,
       root: runtime.root,
       policy: "read-only",
-      signal: new AbortController().signal,
+      signal,
+      agentRetry,
     });
   const calls = () => Number(readFileSync(join(dir, "count"), "utf8"));
-  return { verify, calls, done: () => runtime.remove() };
+  const argv = () => readFileSync(join(dir, "argv"), "utf8").trim().split("\n");
+  return { verify, calls, argv, done: () => runtime.remove() };
 }
 
-linux("a transiently weakened debug agents answer is retried and noted", async () => {
+linux("a transiently weakened answer passes after several failures within the budget", async () => {
   const note = spyOn(console, "error").mockImplementation(() => undefined);
-  const probe = fake(1);
+  const probe = fake(4);
   try {
     await probe.verify();
-    expect(probe.calls()).toBe(2);
-    expect(note).toHaveBeenCalledWith(expect.stringMatching(/passed on attempt 2 of 3/));
+    expect(probe.calls()).toBe(5);
+    expect(probe.argv().every((line) => line === "--standalone debug agents")).toBe(true);
+    expect(note).toHaveBeenCalledWith(expect.stringMatching(/passed on attempt 5$/));
   } finally {
     note.mockRestore();
     probe.done();
   }
 });
 
-linux("a permanently weakened answer fails closed after exactly three attempts", async () => {
-  const probe = fake(99);
+linux("a permanently weakened answer fails closed and reports the attempt count", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  const probe = fake(99, { ...fast, maxAttempts: 4 });
   try {
     await expect(probe.verify()).rejects.toThrow(/capability policy was dropped/);
-    expect(probe.calls()).toBe(3);
+    expect(probe.calls()).toBe(4);
+    expect(note).toHaveBeenCalledWith(
+      expect.stringMatching(/known to be intermittent.*4 attempt\(s\).*none reported/),
+    );
   } finally {
+    note.mockRestore();
+    probe.done();
+  }
+});
+
+linux("the deadline stops retrying before the attempt cap", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  const probe = fake(99, { deadlineMs: 30, maxAttempts: 1000, delayMs: 10 });
+  try {
+    await expect(probe.verify()).rejects.toThrow(/capability policy was dropped/);
+    expect(probe.calls()).toBeGreaterThan(1);
+    expect(probe.calls()).toBeLessThan(1000);
+    expect(probe.calls()).toBeLessThan(50);
+    expect(note).toHaveBeenCalledWith(
+      expect.stringMatching(
+        new RegExp(`known to be intermittent.*${probe.calls()} attempt\\(s\\)`),
+      ),
+    );
+  } finally {
+    note.mockRestore();
+    probe.done();
+  }
+});
+
+linux("aborting during the retry backoff stops the probe with a runtime error", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  const abort = new AbortController();
+  const probe = fake(99, { deadlineMs: 60_000, maxAttempts: 10, delayMs: 60_000 }, abort.signal);
+  try {
+    const result = probe.verify();
+    setTimeout(() => abort.abort(), 500);
+    await expect(result).rejects.toThrow(/Private runtime preflight failed; review/);
+    expect(probe.calls()).toBe(1);
+  } finally {
+    note.mockRestore();
+    probe.done();
+  }
+});
+
+linux("a non-policy probe failure is not retried", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  const probe = fake(-1);
+  try {
+    await expect(probe.verify()).rejects.toThrow(/Private runtime preflight failed; review/);
+    expect(probe.calls()).toBe(1);
+    expect(note).not.toHaveBeenCalled();
+  } finally {
+    note.mockRestore();
     probe.done();
   }
 });

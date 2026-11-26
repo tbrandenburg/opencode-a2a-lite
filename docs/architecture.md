@@ -73,11 +73,13 @@ Opt-in `--policy-file` and `--state-dir` (startup-only, private runtime only) ar
 
 ### Known OpenCode flake
 
-OpenCode 2.3.2 intermittently (about 1 in 25 `debug agents` calls, also on `main`) omits the private
-global config for a single process. Preflight therefore retries only the `debug agents` probe up to
-three times in fresh processes (short backoff) and prints a sanitized note when a retry was needed; a
-deterministic project weakening fails all three. Preflight observes one process while the ACP child
-is another, so in such a window only the hard `policies` layer is guaranteed. A red `make
+OpenCode 2.3.x and 2.4.x intermittently omit the private global config for a single `debug agents`
+process (about 1 in 25 calls on a fast host; 1/12 to 5/12 passes on a slow cold host, #93; 2.4.x is
+accepted but not shown more reliable). Preflight retries only that probe in fresh processes with
+capped exponential backoff until an approximate 180 s monotonic deadline (plus one in-flight probe, itself limited to 120 s) or 10 attempts, honours abort, and
+prints sanitized attempt counts. A deterministic weakening fails every attempt and keeps the policy
+error. Preflight observes one process while the ACP child is another, so in such a window only the
+hard `policies` layer is guaranteed. A red `make
 policy-smoke` should be re-run once before investigating.
 
 ## Deliberately unsupported
