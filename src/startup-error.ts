@@ -21,7 +21,7 @@ const messages = {
   passEnvConflict: "Cannot combine --pass-env with a caller-supplied ACP environment.",
   runtime: "Private runtime preflight failed; review trusted workspace and OpenCode configuration.",
   overloaded:
-    "Private runtime preflight failed: OpenCode probes were too slow to report the private policy; the host appears overloaded, so start fewer gateways at once and retry.",
+    "Private runtime preflight failed: the capability policy was never reported and the probes were slow; the host appears overloaded, so start fewer gateways at once and retry (on an idle host, review the workspace configuration: it may have dropped or weakened the policy).",
   policy:
     "Private runtime preflight failed: the capability policy was dropped, overridden or weakened by configuration; review trusted workspace and OpenCode configuration.",
   policyAcknowledgement:

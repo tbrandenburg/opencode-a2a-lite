@@ -390,6 +390,10 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         const summary = status.splice(0, 5);
         assert(summary.every((line) => line.startsWith("  policy ")));
         assert.match(summary.join("\n"), /read-only[\s\S]*shell: denied[\s\S]*OS isolation: none/);
+        assert.match(
+          status.shift() ?? "",
+          /^ {2}env +(passing FAKE_API_KEY to OpenCode \(names only\)|no provider variables passed to OpenCode)$/,
+        );
         assert.equal(status[0], `  ready      gateway · ${ready.url}`);
         assert.match(status[1]!, /^  workspace  \//);
         assert.ok(status[1]!.endsWith("consumer workspace"));
