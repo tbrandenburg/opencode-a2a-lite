@@ -231,18 +231,22 @@ linux(
   30_000,
 );
 
-linux("session permission rulesets are neutralized, history and counters kept", () => {
-  const path = fresh();
-  const first = acquireState(path, workspace);
-  seed(first.data);
-  first.release();
-  const db = new Database(join(first.data, "opencode", "opencode.db"), { readonly: true });
-  const row = db
-    .query<{ permission: string | null; tokens_input: number }, []>("select * from session_v2")
-    .get();
-  db.close();
-  expect(row).toMatchObject({ permission: null, tokens_input: 5 });
-});
+linux(
+  "session permission rulesets are neutralized, history and counters kept",
+  () => {
+    const path = fresh();
+    const first = acquireState(path, workspace);
+    seed(first.data);
+    first.release();
+    const db = new Database(join(first.data, "opencode", "opencode.db"), { readonly: true });
+    const row = db
+      .query<{ permission: string | null; tokens_input: number }, []>("select * from session_v2")
+      .get();
+    db.close();
+    expect(row).toMatchObject({ permission: null, tokens_input: 5 });
+  },
+  30_000,
+);
 
 linuxEach([
   ["table", "create table grant_cache (id text)"],

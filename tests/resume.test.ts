@@ -29,10 +29,10 @@ test("R2: refusals cover disabled, invalid, rebinding, shared sessions and repla
     replay?: boolean | "invalid",
     w: { id: string } | { error: string } | null = wanted,
   ) => ({ wanted: w ?? undefined, replay });
-  expect(resumeRefusal(ask(), false, undefined, [])).toContain("--allow-resume");
+  expect(resumeRefusal(ask(), false, undefined, [])).toContain("--enable resume");
   expect(resumeRefusal(ask(undefined, { error: "Invalid" }), true, undefined, [])).toBe("Invalid");
   expect(resumeRefusal(ask(undefined, { error: "Invalid" }), false, undefined, [])).toContain(
-    "--allow-resume",
+    "--enable resume",
   );
   expect(resumeRefusal(ask(), true, "ses_otherother1", [])).toContain("different session");
   expect(resumeRefusal(ask(), true, undefined, ["ses_x0000000", id])).toContain("another context");
@@ -43,7 +43,7 @@ test("R2: refusals cover disabled, invalid, rebinding, shared sessions and repla
   expect(resumeRefusal(ask(true, null), true, undefined, [])).toContain("first message");
   expect(resumeRefusal(ask(true), true, id, [id])).toContain("first message");
   expect(resumeRefusal(ask("invalid"), true, undefined, [])).toContain("true or false");
-  expect(resumeRefusal(ask(true), false, undefined, [])).toContain("--allow-resume");
+  expect(resumeRefusal(ask(true), false, undefined, [])).toContain("--enable resume");
 });
 
 test("R3: replay must be a boolean in metadata", () => {

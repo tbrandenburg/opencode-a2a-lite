@@ -119,19 +119,26 @@ try {
       /PRIVATE_PEER_DIAGNOSTIC|unknown-private-input|private-identity|Error:|\n\s+at /,
     );
   };
-  reject([], /trusted absolute workspace/, { A2A_WORKSPACE: "" });
-  reject([], /trusted absolute workspace/);
+  reject([], /A2A_WORKSPACE must be an absolute directory/, { A2A_WORKSPACE: "" });
+  reject([], /A2A_WORKSPACE must be an absolute directory/);
   reject(["--unknown-private-input"], /Use --help/);
   reject(["--unknown-private-input", "--help"], /Use --help/);
   reject(
     ["--workspace", ".", "--port", "0", "--policy", "full-access"],
-    /requires --dangerously-skip-permissions/,
+    /--policy was replaced by --access/,
   );
   reject(
     ["--workspace", ".", "--port", "0", "--dangerously-skip-permissions"],
-    /only with --policy full-access/,
+    /--access danger-full-access is the acknowledgement/,
   );
-  reject(["--workspace", ".", "--port", "0", "--policy", "supervised"], /not available/);
+  reject(
+    ["--workspace", ".", "--port", "0", "--access", "danger-full-access", "--enable", "approve"],
+    /nothing is left to approve/,
+  );
+  reject(
+    ["--workspace", ".", "--port", "0", "--access", "supervised"],
+    /Invalid --access value: use read, edit or danger-full-access/,
+  );
   reject(["--workspace", "--version"], /Use --help/);
   reject(["--workspace"], /Use --help/);
   reject(["--workspace", ".", "--port"], /Use --help/);
@@ -386,6 +393,10 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         const summary = status.splice(0, 5);
         assert(summary.every((line) => line.startsWith("  policy ")));
         assert.match(summary.join("\n"), /read-only[\s\S]*shell: denied[\s\S]*OS isolation: none/);
+        assert.match(
+          status.shift() ?? "",
+          /^ {2}env +(passing FAKE_API_KEY to OpenCode \(names only\)|no provider variables passed to OpenCode)$/,
+        );
         assert.equal(status[0], `  ready      gateway · ${ready.url}`);
         assert.match(status[1]!, /^  workspace  \//);
         assert.ok(status[1]!.endsWith("consumer workspace"));

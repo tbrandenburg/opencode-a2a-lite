@@ -59,13 +59,19 @@ test("repeatable passthrough is explicit and rejects invalid names without revea
   expect(parseOptions(["--help", "--pass-env", "MISSING"], {})).toEqual({ action: "help" });
 });
 
-test("C4: absent and relative environment workspaces never implicitly trust cwd", () => {
-  expect(() => parseOptions([], {})).toThrow(StartupError);
-  expect(() => parseOptions([], {})).toThrow("trusted absolute workspace");
+test("C4: the workspace defaults to the current directory; a relative environment value is rejected", () => {
+  expect(parseOptions([], {}, "/here")).toEqual({
+    action: "run",
+    server: { workspace: "/here", port: 41241 },
+  });
+  expect(parseOptions(["--workspace", "sub"], {}, "/here")).toMatchObject({
+    server: { workspace: "/here/sub" },
+  });
+  expect(parseOptions([], { A2A_WORKSPACE: "/trusted" }, "/here")).toMatchObject({
+    server: { workspace: "/trusted" },
+  });
   expect(() => parseOptions([], { A2A_WORKSPACE: "relative/path" })).toThrow(StartupError);
-  expect(() => parseOptions([], { A2A_WORKSPACE: "relative/path" })).toThrow(
-    "trusted absolute workspace",
-  );
+  expect(() => parseOptions([], { A2A_WORKSPACE: "relative/path" })).toThrow("A2A_WORKSPACE");
 });
 
 test("C5: ports require decimal syntax and the TCP range", () => {
@@ -86,55 +92,46 @@ test("C5: ports require decimal syntax and the TCP range", () => {
   });
 });
 
-test("C4: --publish-activity is a valueless, non-repeatable opt-in", () => {
-  const env = { A2A_WORKSPACE: "/trusted" };
-  expect(parseOptions(["--publish-activity"], env)).toEqual({
-    action: "run",
-    server: { workspace: "/trusted", port: 41241, executor: { activity: true } },
-  });
-  expect(parseOptions(["--port", "0", "--publish-activity"], env)).toMatchObject({
-    server: { port: 0, executor: { activity: true } },
-  });
-  expect(() => parseOptions(["--publish-activity", "--publish-activity"], env)).toThrow(
-    StartupError,
-  );
-  expect(() => parseOptions(["--publish-activity=1"], env)).toThrow(StartupError);
-});
+const run = { workspace: "/trusted", port: 41241 };
+const accepted = (args: string[]) => parseOptions(args, { A2A_WORKSPACE: "/trusted" });
 
-test("C5: --permissions takes exactly reject or ask and combines with --publish-activity", () => {
-  const env = { A2A_WORKSPACE: "/trusted" };
-  const base = { workspace: "/trusted", port: 41241 };
-  expect(parseOptions(["--permissions", "ask"], env)).toEqual({
+test("--enable accepts each extra alone, all together and in any order", () => {
+  expect(accepted(["--enable", "activity"])).toEqual({
     action: "run",
-    server: { ...base, executor: { permissions: "ask" } },
+    server: { ...run, executor: { activity: true } },
   });
-  expect(parseOptions(["--permissions", "reject"], env)).toEqual({ action: "run", server: base });
-  expect(parseOptions(["--publish-activity", "--permissions", "ask"], env)).toEqual({
+  expect(accepted(["--enable", "approve"])).toEqual({
     action: "run",
-    server: { ...base, executor: { activity: true, permissions: "ask" } },
+    server: { ...run, executor: { permissions: "ask" } },
   });
-  for (const bad of [
-    ["--permissions"],
-    ["--permissions", "allow"],
-    ["--permissions", "ASK"],
-    ["--permissions", "ask", "--permissions", "ask"],
-  ])
-    expect(() => parseOptions(bad, env)).toThrow(StartupError);
-});
-
-test("C6: --allow-resume is a valueless, non-repeatable opt-in", () => {
-  const env = { A2A_WORKSPACE: "/trusted" };
-  expect(parseOptions(["--allow-resume"], env)).toEqual({
+  expect(accepted(["--enable", "resume"])).toEqual({
     action: "run",
-    server: { workspace: "/trusted", port: 41241, executor: { resume: true } },
+    server: { ...run, executor: { resume: true } },
   });
+  const all = { server: { executor: { activity: true, permissions: "ask", resume: true } } };
   expect(
-    parseOptions(["--allow-resume", "--permissions", "ask", "--publish-activity"], env),
-  ).toMatchObject({
-    server: { executor: { resume: true, permissions: "ask", activity: true } },
-  });
-  expect(() => parseOptions(["--allow-resume", "--allow-resume"], env)).toThrow(StartupError);
-  expect(() => parseOptions(["--allow-resume=1"], env)).toThrow(StartupError);
+    accepted(["--enable", "activity", "--enable", "approve", "--enable", "resume"]),
+  ).toMatchObject(all);
+  expect(
+    accepted(["--enable", "resume", "--port", "0", "--enable", "approve", "--enable", "activity"]),
+  ).toMatchObject(all);
+  expect(accepted([])).toEqual({ action: "run", server: run });
+});
+
+test("--enable rejects duplicates, unknown, missing and attached values", () => {
+  for (const bad of [
+    ["--enable", "activity", "--enable", "activity"],
+    ["--enable", "Activity"],
+    ["--enable", "shell"],
+  ])
+    expect(() => accepted(bad)).toThrow("Invalid --enable value: use activity, approve or resume");
+  for (const bad of [
+    ["--enable", "activity,resume"],
+    ["--enable"],
+    ["--enable="],
+    ["--enable=activity"],
+  ])
+    expect(() => accepted(bad)).toThrow("Use --help");
 });
 
 test("prompt timeout is a validated startup-only ACP option", () => {

@@ -120,7 +120,12 @@ async function probe(
   child.once("error", () => finished.resolve(null));
   child.once("close", (status) => finished.resolve(status));
   abort.addEventListener("abort", interrupt, { once: true });
-  const timer = setTimeout(interrupt, timeoutMs);
+  const timer = setTimeout(() => {
+    console.error(
+      `Private runtime preflight: OpenCode probe timed out after ${timeoutMs}ms; host appears overloaded; start fewer gateways at once`,
+    );
+    interrupt();
+  }, timeoutMs);
   try {
     const status = await finished.promise;
     if (cleanupError) throw cleanupError;
@@ -148,16 +153,23 @@ export async function verifyRuntime(options: {
   if (process.platform !== "linux") throw new StartupError("runtimePlatform");
   rejectIfPresent("/etc/opencode", "managed", options.root);
   rejectAncestorConfiguration(options.cwd, options.root);
-  const run = (args: string[]) =>
-    probe(
-      options.executable,
-      args,
-      options.cwd,
-      options.env,
-      options.signal,
-      options.onSpawn,
-      args.includes("agents") ? AGENT_PROBE_TIMEOUT_MS : PROBE_TIMEOUT_MS,
-    );
+  let probeMs = 0;
+  const run = async (args: string[]) => {
+    const began = performance.now();
+    try {
+      return await probe(
+        options.executable,
+        args,
+        options.cwd,
+        options.env,
+        options.signal,
+        options.onSpawn,
+        args.includes("agents") ? AGENT_PROBE_TIMEOUT_MS : PROBE_TIMEOUT_MS,
+      );
+    } finally {
+      probeMs = performance.now() - began;
+    }
+  };
   const version = await run(["--version"]);
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
@@ -172,6 +184,7 @@ export async function verifyRuntime(options: {
         options.exceptions,
         options.signal,
         options.agentRetry ?? AGENT_RETRY,
+        () => probeMs,
       );
     }
   } catch (error) {

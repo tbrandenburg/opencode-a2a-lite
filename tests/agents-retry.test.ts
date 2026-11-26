@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import { policyConfig } from "../src/runtime-policy.js";
+import { verifyAgents } from "../src/agent-retry.js";
 import { verifyRuntime } from "../src/runtime-probes.js";
 
 const linux = process.platform === "linux" ? test : test.skip;
@@ -169,5 +170,55 @@ linux("a correct answer needs one attempt and prints no note", async () => {
   } finally {
     note.mockRestore();
     probe.done();
+  }
+});
+
+test("a weakened answer on a slow probe reports overload instead of weakened policy", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const run = async () => JSON.stringify([{ name: "build", permissions: [] }]);
+    await expect(
+      verifyAgents(
+        run,
+        "read-only",
+        undefined,
+        new AbortController().signal,
+        {
+          ...fast,
+          maxAttempts: 2,
+        },
+        () => 9_000,
+      ),
+    ).rejects.toThrow(/host appears overloaded.*start fewer gateways/);
+    expect(note).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /2 agent check attempt\(s\) over \d+ms, last probe took 9000ms; host appears overloaded; start fewer gateways at once/,
+      ),
+    );
+    expect(note).not.toHaveBeenCalledWith(expect.stringMatching(/weakened/));
+  } finally {
+    note.mockRestore();
+  }
+});
+
+test("a weakened answer on a fast probe still reports the policy failure", async () => {
+  const note = spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const run = async () => JSON.stringify([{ name: "build", permissions: [] }]);
+    await expect(
+      verifyAgents(
+        run,
+        "read-only",
+        undefined,
+        new AbortController().signal,
+        {
+          ...fast,
+          maxAttempts: 2,
+        },
+        () => 300,
+      ),
+    ).rejects.toThrow(/capability policy was dropped/);
+  } finally {
+    note.mockRestore();
   }
 });

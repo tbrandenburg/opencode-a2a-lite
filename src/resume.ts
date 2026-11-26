@@ -46,7 +46,7 @@ export function resumeRefusal(
   bound: Iterable<string>,
 ): string | undefined {
   const { wanted, replay } = ask;
-  if (!enabled) return "Session resume is not enabled; start the gateway with --allow-resume";
+  if (!enabled) return "Session resume is not enabled; start the gateway with --enable resume";
   const misuse = replayRefusal(replay, wanted, existing);
   if (misuse || !wanted) return misuse;
   if ("error" in wanted) return wanted.error;

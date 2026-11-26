@@ -48,7 +48,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # The CLI entrypoint (private runtime) owns its ACP process group and releases its private lease.
-bun "$DEMO_REPO/dist/src/cli.js" --workspace "$PWD" --port 0 --pass-env OPENAI_API_KEY \
+bun "$DEMO_REPO/dist/src/cli.js" --workspace "$PWD" --port 0 \
   >"$DEMO_ROOT/gateway.jsonl" 2>"$DEMO_ROOT/gateway.stderr" &
 gateway=$!
 url=''

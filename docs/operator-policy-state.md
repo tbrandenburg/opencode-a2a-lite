@@ -1,6 +1,16 @@
-# Operator policy file and persistent state (issue #89)
+# Advanced options: operator policy file, persistent state, identity (issues #89, #103)
 
-Both options are opt-in, CLI private-runtime only, read once at startup, and never change the
+The main [README](../README.md) covers `--workspace`, `--port`, `--access`, `--pass-env` and
+`--enable`. Everything below is advanced and opt-in.
+
+## Agent card identity
+
+`A2A_NAME` (128 characters), `A2A_DESCRIPTION` (1024) and `A2A_TAGS` (up to 16 comma-separated
+tags, 64 characters each, no escaping) set Agent Card metadata only; they are **not** access
+control. Values are trimmed, nonblank and control-free; tags deduplicate after trimming.
+`A2A_PORT` is the environment form of `--port`.
+
+Both file and state options are opt-in, CLI private-runtime only, read once at startup, and never change the
 launch policy from a prompt, A2A metadata or the workspace. Neither is an OS sandbox.
 
 ## `--policy-file ABSOLUTE_PATH`
@@ -17,9 +27,10 @@ launch policy from a prompt, A2A metadata or the workspace. Neither is an OS san
 }
 ```
 
-- `base` must equal `--policy` (`read-only`, `edit`, `full-access`). A file never selects or
-  upgrades a profile; `full-access` still needs both CLI flags, so a full-access file without them
-  fails before readiness. `supervised` is not shipped and is rejected.
+- `base` must equal the `--access` level (`read` is `"read-only"`, `edit` is `"edit"`,
+  `danger-full-access` is `"full-access"`). A file never selects or upgrades a level;
+  a full-access file without `--access danger-full-access` fails before readiness.
+  `supervised` is not shipped and is rejected.
 - Only `effect: "allow"` and exact resources. Unknown fields, duplicates, more than 32 entries,
   `*`/`?`, `$`, URLs, relative or `..` paths, environment substitution and anything outside the
   character classes below are rejected:
@@ -32,7 +43,7 @@ launch policy from a prompt, A2A metadata or the workspace. Neither is an OS san
   permission names). Without this, `mcp.use external` + `tool.use external_directory:*` lifted the
   outside-workspace denial (reproduced in `make policy-smoke`). Built-in tools
   (`shell`, `edit`, `webfetch` ...) cannot be lifted, so **shell exceptions are rejected** for every
-  base: use `full-access` deliberately instead.
+  base: use `--access danger-full-access` deliberately instead.
 - Trust checks (one file descriptor, `O_NOFOLLOW`, `fstat`): absolute canonical path equal to its
   realpath (no symlink in any component), regular file with one link, owned by the invoking user,
   no group/world write, 64 KiB limit, every ancestor a real directory owned by root or you with no
@@ -89,10 +100,10 @@ the runtime root.
   an OpenCode schema change cannot silently persist grants (verified against the 2.3.2 schema only).
   These are emptied at every launch and at shutdown; the
   `auth.json`/`mcp-auth.json` files fail startup if present. Provider keys therefore only come from
-  `--pass-env`. Session history (`session_*`, messages) is kept.
-- `--allow-resume` is still required to load a stored session; persistence alone restores nothing
+  explicitly passed variables. Session history (`session_*`, messages) is kept.
+- `--enable resume` is still required to load a stored session; persistence alone restores nothing
   and does not restore A2A tasks or contexts.
-- Downgrade: state created under `full-access` and relaunched as `read-only` is enforced by the new
+- Downgrade: state created under `danger-full-access` and relaunched as `read` is enforced by the new
   launch's private config, with approvals cleared (`make policy-smoke` proves shell and edit are
   denied, with side-effect checks, in a fresh and a resumed session).
 

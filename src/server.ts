@@ -21,6 +21,7 @@ import { parseOptions } from "./cli-options.js";
 import { reportStartupError, StartupError } from "./startup-error.js";
 import { validateIdentity, type WorkerIdentity } from "./identity.js";
 import { formatStatus, supportsTerminalColor } from "./terminal-output.js";
+import { acquireLaunchLock } from "./launch-lock.js";
 import { createRuntimeEnvironment } from "./runtime-environment.js";
 import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-probes.js";
 import { removeUnusedRuntime } from "./runtime-processes.js";
@@ -286,6 +287,7 @@ export async function launchGateway(options: ServerOptions) {
   const abort = new AbortController();
   let preparation: Promise<void> = Promise.resolve();
   let cleanup: Promise<void> | undefined;
+  let release = () => {};
   const close = () => {
     if (cleanup) return cleanup;
     abort.abort();
@@ -295,6 +297,7 @@ export async function launchGateway(options: ServerOptions) {
         (error: unknown) => error,
       );
       try {
+        release();
         await gateway.close();
         if (result instanceof ProbeCleanupError) throw result;
         if (runtime) await removeUnusedRuntime(runtime);
@@ -325,6 +328,7 @@ export async function launchGateway(options: ServerOptions) {
   process.once("SIGHUP", stop);
   try {
     if (runtime && executable) {
+      release = await acquireLaunchLock({ signal: abort.signal });
       preparation = verifyRuntime({
         executable,
         cwd: options.workspace,
@@ -341,6 +345,12 @@ export async function launchGateway(options: ServerOptions) {
     if (runtime) {
       if (policy === "full-access") status("WARNING", FULL_ACCESS_WARNING);
       for (const line of policySummary(policy, approvals)) status("policy", line);
+      status(
+        "env",
+        options.passEnv?.length
+          ? `passing ${options.passEnv.join(", ")} to OpenCode (names only)`
+          : "no provider variables passed to OpenCode",
+      );
       if (file)
         status(
           "policy",
@@ -353,6 +363,7 @@ export async function launchGateway(options: ServerOptions) {
         );
     }
     const ready = await gateway.start();
+    release();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
     const cardUrl = new URL(".well-known/agent-card.json", ready.url).href;
     status("ready", `gateway · ${ready.url}`);

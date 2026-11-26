@@ -88,7 +88,7 @@ case ${0##*/} in
     # The CLI strips OPENCODE_*; the profile must arrive as the workspace project config instead.
     [[ ! ${OPENCODE_CONFIG+x} && ! ${OPENCODE_CONFIG_CONTENT+x} && $HOME == */worker.*/home ]]
     [[ $PWD == */worker.*/project && $2 == --workspace && $3 == $PWD && $4 == --port && $5 == 0 ]]
-    [[ $6 == --policy && $7 == read-only && $8 == --policy-file ]]
+    [[ $6 == --access && $7 == read && $8 == --policy-file ]]
     policy=$9
     [[ $policy == */worker.*/policy.json ]]
     [[ $policy != "$PWD"/* && -f $policy && -O $policy && $(stat -c %a "$policy") == 600 ]]
@@ -426,9 +426,9 @@ policy_is docs '["mcp.use:context7","tool.use:context7_query-docs:*","tool.use:c
 policy_is browser '["mcp.use:playwright","tool.use:playwright_browser_click:*","tool.use:playwright_browser_navigate:*","tool.use:playwright_browser_snapshot:*"]'
 jq -e '.policies | map(select(.resource | startswith("devtools_"))) | length == 8' "$fixture/policy-diagnostics.json" >/dev/null
 jq -e '[.policies[].resource | select(startswith("github_"))] | length == 9' "$fixture/policy-repo.json" >/dev/null
-[[ $(tr '\n' ' ' <"$fixture/passenv-scout") == '--pass-env OPENAI_API_KEY ' ]]
-[[ $(tr '\n' ' ' <"$fixture/passenv-docs") == '--pass-env OPENAI_API_KEY --pass-env CONTEXT7_API_KEY ' ]]
-[[ $(tr '\n' ' ' <"$fixture/passenv-repo") == '--pass-env OPENAI_API_KEY --pass-env GITHUB_PERSONAL_ACCESS_TOKEN ' ]]
+[[ $(tr '\n' ' ' <"$fixture/passenv-scout") == '--no-env --pass-env OPENAI_API_KEY ' ]]
+[[ $(tr '\n' ' ' <"$fixture/passenv-docs") == '--no-env --pass-env OPENAI_API_KEY --pass-env CONTEXT7_API_KEY ' ]]
+[[ $(tr '\n' ' ' <"$fixture/passenv-repo") == '--no-env --pass-env OPENAI_API_KEY --pass-env GITHUB_PERSONAL_ACCESS_TOKEN ' ]]
 worker_dirs=("$network.state"/worker.*)
 for dir in "${worker_dirs[@]}"; do
   [[ -f $dir/project/opencode.jsonc && -f $dir/policy.json && $(stat -c %a "$dir/policy.json") == 600 ]]

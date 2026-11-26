@@ -4,8 +4,7 @@ import { StartupError } from "./startup-error.js";
 export const POLICY_PROFILES = ["read-only", "edit", "supervised", "full-access"] as const;
 export type PolicyProfile = (typeof POLICY_PROFILES)[number];
 export const DEFAULT_POLICY: PolicyProfile = "read-only";
-// `supervised` stays unreleased until every shell call is proven to need a fresh approval.
-export const SUPERVISED_AVAILABLE = false;
+// `supervised` is internal only: no CLI value selects it until every shell call needs a fresh approval.
 
 type Effect = "allow" | "deny" | "ask";
 export type Statement = { action: string; resource: string; effect: Effect };
@@ -85,14 +84,6 @@ export function policyConfig(profile: PolicyProfile, exceptions: readonly Except
     permissions,
     agents: { build: { permissions } },
   };
-}
-
-export function parsePolicy(value: string | undefined): PolicyProfile {
-  if (value === undefined) return DEFAULT_POLICY;
-  const profile = POLICY_PROFILES.find((name) => name === value);
-  if (!profile) throw new StartupError("arguments");
-  if (profile === "supervised" && !SUPERVISED_AVAILABLE) throw new StartupError("supervised");
-  return profile;
 }
 
 export function validatePolicyFlags(
