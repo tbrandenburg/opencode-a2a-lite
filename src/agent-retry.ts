@@ -18,6 +18,8 @@ export const AGENT_RETRY: AgentRetry = {
   delayMs: 250,
 };
 const AGENT_RETRY_DELAY_CAP_MS = 4_000;
+// Probes passed in about 5s and failed at 7s or more on a loaded host (#93, #103).
+export const SLOW_PROBE_MS = 7_000;
 
 function pause(ms: number, abort: AbortSignal) {
   return new Promise<void>((done, fail) => {
@@ -44,6 +46,7 @@ export async function verifyAgents(
   exceptions: readonly Exception[] | undefined,
   abort: AbortSignal,
   retry: AgentRetry,
+  lastProbeMs: () => number = () => 0,
 ) {
   const started = performance.now();
   for (let attempt = 1; ; attempt += 1) {
@@ -57,6 +60,14 @@ export async function verifyAgents(
       if (!weakened) throw error;
       const wait = Math.min(retry.delayMs * 2 ** (attempt - 1), AGENT_RETRY_DELAY_CAP_MS);
       if (attempt >= retry.maxAttempts || performance.now() - started + wait >= retry.deadlineMs) {
+        const slow = lastProbeMs() >= SLOW_PROBE_MS;
+        const elapsed = Math.round(performance.now() - started);
+        if (slow) {
+          console.error(
+            `Private runtime preflight: ${attempt} agent check attempt(s) over ${elapsed}ms, last probe took ${Math.round(lastProbeMs())}ms; host appears overloaded; start fewer gateways at once`,
+          );
+          throw new StartupError("overloaded");
+        }
         console.error(
           `Private runtime preflight: the agent check is known to be intermittent on OpenCode 2.3.x and 2.4.x; ${attempt} attempt(s) over ${Math.round(performance.now() - started)}ms none reported the private policy`,
         );
