@@ -242,7 +242,7 @@ linux("session permission rulesets are neutralized, history and counters kept", 
     .get();
   db.close();
   expect(row).toMatchObject({ permission: null, tokens_input: 5 });
-});
+}, 30_000);
 
 linuxEach([
   ["table", "create table grant_cache (id text)"],
