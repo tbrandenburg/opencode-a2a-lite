@@ -149,7 +149,7 @@ An upstream patch, PR title or version bump alone is insufficient evidence.
 
 ## Cancelling an input-required task
 
-`--permissions ask` ends the original SDK event consumer at `INPUT_REQUIRED`, so the
+`--enable approve` ends the original SDK event consumer at `INPUT_REQUIRED`, so the
 adapter's "keep the original consumer" assumption does not hold for that state. The
 adapter delegates cancellation of an `INPUT_REQUIRED` task to the stock SDK `cancelTask`,
 which attaches exactly one consumer and so cannot duplicate appends. The regression is

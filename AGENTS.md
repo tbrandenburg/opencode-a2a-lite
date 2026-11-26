@@ -8,12 +8,14 @@ single-turn admission, stream/context continuity, cancellation, accurate task
 outcomes and owned-resource cleanup. Model reasoning quality is separate from
 adapter correctness. Do not add production schedulers, roles, scorers, model
 profiles, retries or new dependencies to restore the retired managed lab.
-Capability profiles (`--policy`, `src/runtime-policy.ts` is the single source) are startup-only:
-`read-only` default, `edit`, and `full-access` only with `--dangerously-skip-permissions`;
-`supervised` is rejected until one-time shell approval is proven against project agent config.
+Access levels (`--access read|edit|danger-full-access`, mapped in `src/cli-options.ts` to the profiles whose single source is
+`src/runtime-policy.ts`) are startup-only: `read` default, `edit`, and `danger-full-access` (its own acknowledgement; no second flag);
+`supervised` stays internal and unselectable until one-time shell approval is proven against project agent config.
+Provider keys: a fixed allowlist passes automatically when set (never under `danger-full-access`); only names are printed.
+Gateways take a per-user launch lock (`src/launch-lock.ts`) around startup checks; never signal a lock's pid.
 Never auto-answer permissions in the adapter, and keep policy on the CLI private-runtime path only.
-`--policy-file`/`--state-dir` (docs/operator-policy-state.md): exact allow exceptions only, no shell/edit lifting, file base must equal `--policy`; state is workspace-bound, single-owner, and authority tables (approvals, credentials, automations) are cleared every launch. Never persist credentials or signal a lock's pid.
-Extras (`--publish-activity`, `--permissions ask`, `--allow-resume`/replay) stay opt-in:
+`--policy-file`/`--state-dir` (docs/operator-policy-state.md): exact allow exceptions only, no shell/edit lifting, file base must equal the `--access` level; state is workspace-bound, single-owner, and authority tables (approvals, credentials, automations) are cleared every launch. Never persist credentials or signal a lock's pid.
+Extras (`--enable activity|approve|resume`, replay) stay opt-in:
 off by default, own flag and Agent Card extension, README warning, on and off tests.
 
 Start with [README](README.md), [architecture](docs/architecture.md),
@@ -67,8 +69,8 @@ pipeline smoke. For other approved topology investigations, consult the specific
 issue and [portable skill](.opencode/skills/multi-a2a-agent/SKILL.md) rather than
 inventing a new runner.
 
-Workers launch through the CLI private runtime: `--pass-env OPENAI_API_KEY`, the default `read-only`
-profile (no MCP/shell on a worker unless an operator `--policy-file` allows exact MCP servers and
+Workers launch through the CLI private runtime: `OPENAI_API_KEY` (automatic provider allowlist; add `--no-env` plus explicit `--pass-env` for exact credentials), the default `read`
+access level (no MCP/shell on a worker unless an operator `--policy-file` allows exact MCP servers and
 tools; `OPENCODE_CONFIG`/`OPENCODE_*` are never passed through, workspace `opencode.json` is the
 project config). The coordinator is a separate owned `opencode serve`, not the gateway.
 
@@ -94,7 +96,7 @@ ports. Do not infer that an unfinished task was canceled.
   then explicitly closing the listener; draining connections alone does not close it.
 - `prepack` must remove old compiled JS before building; wildcard runtime
   packaging must not include obsolete `dist/src` files.
-- A new context uses a new ACP session (or, with `--allow-resume`, a validated existing one);
+- A new context uses a new ACP session (or, with `--enable resume`, a validated existing one);
   continuation must reuse the actual ACP session binding and reject stale context IDs
   rather than restarting silently.
 - `bounded()` retires the bridge on any failure: client-supplied input (a resume id) may only

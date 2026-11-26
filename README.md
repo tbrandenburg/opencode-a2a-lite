@@ -24,14 +24,14 @@ existing OpenCode sessions and replaying their history; see [Advanced features](
 
 > [!WARNING]
 > The gateway has no authentication (it binds to `127.0.0.1`) and must **never** be
-> exposed through a public proxy. The default `read-only` [capability profile](#capability-profiles)
+> exposed through a public proxy. The default `read` [access level](#access-levels)
 > limits OpenCode's tools but is **not** an OS sandbox: nothing confines files, network or processes.
 > Rejecting ACP permission requests is not a sandbox either, and cancellation does not roll back work.
 
 The operator must trust the OpenCode executable selected on `PATH`: a version
 string does not verify provenance. Preflight probes use the same resolved
-executable and private base environment as ACP, but do not receive `--pass-env`
-values; those values go only to the ACP child.
+executable and private base environment as ACP, but do not receive passed provider
+variables; those values go only to the ACP child.
 
 Choosing a workspace is an explicit trust decision, not a filesystem boundary:
 OpenCode runs as the invoking user and can access resources permitted to that user.
@@ -45,7 +45,7 @@ HOME/configuration, but is not an OS sandbox.
 - [Requirements](#requirements)
 - [Usage](#usage)
 - [Advanced features](#advanced-features)
-- [Capability profiles](#capability-profiles)
+- [Access levels](#access-levels)
 - [Accepted limitations](#accepted-limitations)
 - [Behavior and limitations](#behavior-and-limitations)
 - [Development](#development)
@@ -54,11 +54,16 @@ HOME/configuration, but is not an OS sandbox.
 
 ## Quick start
 
-Run it from any directory outside a checkout of this repository:
+Three inputs, all optional: workspace, port and access level. Run it inside the
+directory you trust, outside a checkout of this repository, with a provider key such as
+`OPENAI_API_KEY` exported (well-known provider keys are passed to OpenCode automatically):
 
 ```sh
-npx --yes @tbrandenburg/opencode-a2a-lite@latest --workspace /absolute/path/to/trusted/workspace --port 0 --pass-env OPENAI_API_KEY
+cd /absolute/path/to/trusted/workspace
+npx --yes @tbrandenburg/opencode-a2a-lite@latest --port 0 --access read
 ```
+
+Upgrading from 0.8? See the [v0.9.0 release notes](docs/release-0.9.0.md) for the old-to-new flag table.
 
 This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
 process over ACP in that workspace. It does not run any task by itself: OpenCode only
@@ -101,30 +106,41 @@ macOS demo results predate this change.
 ## Usage
 
 ```text
-opencode-a2a-lite --workspace <path> [--port <0..65535>]
-                  [--publish-activity] [--permissions <reject|ask>] [--allow-resume] [--pass-env NAME]...
-                  [--policy <read-only|edit|full-access>] [--dangerously-skip-permissions]
+opencode-a2a-lite [--workspace <path>] [--port <0..65535>] [--access <read|edit|danger-full-access>]
+                  [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
                   [--prompt-timeout <duration|unlimited>]
 opencode-a2a-lite --help | --version
 ```
 
-| Option / variable                                                               | Meaning                                                                                                                                                                          |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--workspace`, `A2A_WORKSPACE`                                                  | Explicitly trusted directory. The env var must be an **absolute** path. No implicit current-directory trust.                                                                     |
-| `--port`, `A2A_PORT`                                                            | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port. Flags override env.                                                                         |
-| `--pass-env NAME`                                                               | Pass a named, existing provider variable to OpenCode; repeat for additional variables. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |
-| `--publish-activity`                                                            | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                                              |
-| `--permissions <reject\|ask>`                                                   | `reject` (default) rejects every OpenCode permission request; `ask` lets the client decide. See [below](#permission-requests).                                                   |
-| `--policy <read-only\|edit\|full-access>`                                       | Startup-only [capability profile](#capability-profiles); default `read-only`. `supervised` is rejected as not available.                                                         |
-| `--dangerously-skip-permissions`                                                | Valueless acknowledgement required by, and only accepted with, `--policy full-access`.                                                                                           |
-| `--policy-file ABSOLUTE_PATH`                                                   | Opt-in operator file adding exact MCP, skill or plugin allow exceptions to the profile; see [operator policy and state](docs/operator-policy-state.md).                          |
-| `--state-dir ABSOLUTE_PATH`                                                     | Opt-in private persistent OpenCode session data bound to this workspace; credentials and approvals are cleared every launch; resume still needs `--allow-resume`.                |
-| `--allow-resume`                                                                | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                                           |
-| `A2A_NAME` (128), `A2A_DESCRIPTION` (1024), `A2A_TAGS` (16 tags, 64 chars each) | Agent card metadata only, **not** access control. Nonblank, control-free.                                                                                                        |
+| Option / variable    | Meaning                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--workspace`        | Trusted directory. Defaults to the current directory; `A2A_WORKSPACE` (absolute) is accepted, the flag wins.                                                 |
+| `--port`, `A2A_PORT` | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port.                                                                         |
+| `--access`           | Startup-only [access level](#access-levels): `read` (default), `edit` or `danger-full-access`.                                                               |
+| `--pass-env NAME`    | Also pass a named, existing variable to OpenCode; repeat for more. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |
+| `--no-env`           | Do not pass the automatic provider keys (same as `--pass-env ""`).                                                                                           |
+| `--enable activity`  | Opt-in: also publish tool calls and reasoning as an `activity` artifact. See [below](#tool-and-reasoning-activity).                                          |
+| `--enable approve`   | Opt-in: let the client approve permission requests. See [below](#permission-requests). Rejected with `danger-full-access`.                                   |
+| `--enable resume`    | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                       |
+| `--prompt-timeout`   | Whole prompt deadline, default 60m; see below.                                                                                                               |
 
-The three opt-in flags are independent, off by default, and each adds an Agent Card extension
+`--policy-file`, `--state-dir` and the `A2A_NAME`/`A2A_DESCRIPTION`/`A2A_TAGS` identity variables are
+described on the [advanced page](docs/operator-policy-state.md).
+
+The three `--enable` extras are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
-do, so enable them only for trusted clients on loopback.
+do, so enable them only for trusted clients on loopback. Each may be given once.
+
+### Provider credentials
+
+CLI launches use an ephemeral private HOME and XDG directories, a PATH consisting of absolute
+entries and `LANG=C`. Saved logins, ambient OpenCode overrides and proxy variables are not copied.
+These provider keys are passed automatically when set and non-empty:
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`,
+`OPENROUTER_API_KEY`, `GROQ_API_KEY`. Launch prints the passed **names**, never values. Add more
+with `--pass-env NAME`; disable the automatic ones with `--no-env`. Under `danger-full-access`
+nothing is passed automatically because every command then sees the credentials; name what you
+need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
 
 ### Prompt execution deadline
 
@@ -152,15 +168,6 @@ and accepted tasks independently of HTTP timeouts, and use explicit cancellation
 owned gateway shutdown to stop unwanted work. Remote tool side effects may survive
 local cancellation; verify them before retrying.
 
-CLI launches use an ephemeral private HOME and XDG directories, a PATH consisting of
-absolute entries, `LANG=C`, and explicit `--pass-env` variables. Ambient OpenCode
-overrides, proxy variables, saved logins and unrelated provider keys are not copied.
-For example, export `OPENAI_API_KEY` in the invoking environment and name it with
-`--pass-env OPENAI_API_KEY`; values are not printed. An absent or invalid provider
-credential can cause a sanitized task failure: check provider setup rather than expecting
-fallback to the host login. Review and configure the provider and model in the trusted
-workspace as needed. Persistent login/state is not supported by this CLI mode.
-
 **Cleanup limitation:** Linux cleanup checks process groups and readable `/proc`
 records for a per-launch marker and runtime references. This is not containment:
 unreadable or tag-scrubbing descendants can escape detection and reopen the runtime.
@@ -171,14 +178,13 @@ Preflight rejects managed Linux `/etc/opencode`, configuration in workspace ance
 and unexpected configuration sources; choose a trusted standalone workspace. It checks
 private paths and uses a standalone config probe before starting ACP. The private CLI
 runtime currently fails closed on macOS pending verification of managed preferences.
-Project-local configuration cannot lift the [capability profile](#capability-profiles)'s
+Project-local configuration cannot lift the [access level](#access-levels)'s
 hard denials, but project instructions remain trusted. Library callers explicitly supplying
 `acp.env` retain their environment override, receive **no** gateway policy and are responsible
 for isolation and tool controls. Combining that override with `passEnv` or `policy` is rejected.
 
-Run the compiled CLI with `A2A_WORKSPACE=/absolute/trusted/path make run ARGS='--pass-env OPENAI_API_KEY'`;
-use `make dev` (same `ARGS`) for development. Without `--pass-env` the private runtime has no
-provider credentials.
+Run the compiled CLI with `make run ARGS='--access edit'` from the trusted directory (or set
+`A2A_WORKSPACE`); use `make dev` (same `ARGS`) for development.
 
 ### Package distribution
 
@@ -212,7 +218,7 @@ OpenCode diagnostic is never published.
 ### Continue an existing session
 
 By default each new conversation gets a new OpenCode session, and a follow-up only works while the
-gateway keeps that context in memory. With `--allow-resume` a client can continue **any existing
+gateway keeps that context in memory. With `--enable resume` a client can continue **any existing
 session in the gateway's runtime state for that workspace**:
 
 ```sh
@@ -245,7 +251,7 @@ a boolean and is only valid on the first message that resumes a session.
 
 ### Tool and reasoning activity
 
-`--publish-activity` adds an `activity` artifact of data parts, in order: tool call entries
+`--enable activity` adds an `activity` artifact of data parts, in order: tool call entries
 `{toolCallId, title, kind, status}` and reasoning as `{"thought": "…"}`. Tool inputs and outputs
 are never published. Titles and reasoning may reveal paths, commands or workspace data. Reasoning
 appears only for models and effort settings that emit it (for example Claude Haiku 5.5 with
@@ -258,7 +264,7 @@ with the message "Permission request rejected" and `opencode.permissionDenied: "
 cancellation carries neither. Permissions that OpenCode's own configuration allows are never
 asked, so they are never rejected, so review that configuration.
 
-With `--permissions ask` the client decides. The task pauses as `input-required` with a question
+With `--enable approve` the client decides. The task pauses as `input-required` with a question
 and a data part `{"permission": {requestId, title, kind, options}}`; answer on the **same task**:
 
 ```sh
@@ -276,41 +282,40 @@ Or send a data part `{"permissionResponse": {"requestId": "…", "optionId": "�
 - **Anyone who can reach the port can approve tool runs in this mode.** The Agent Card declares
   `urn:opencode-a2a-lite:permissions:v1`.
 
-## Capability profiles
+## Access levels
 
-`--policy` selects a startup-only profile for the private CLI runtime; it is never request-scoped
+`--access` selects a startup-only capability profile (`read` = `read-only` internally) for the private CLI runtime; it is never request-scoped
 and no A2A message, task metadata or workspace file can change it. The gateway writes it into the
 private global OpenCode config (`0600`, ephemeral HOME) as ordered V2 `policies` (hard denials) plus
 matching agent `permissions`. Launch prints a sanitized summary before readiness: profile, ACP
 approvals, shell behavior, blocked integration classes and `OS isolation: none`.
 
-| Capability                            | `read-only` (default) | `edit`   | `full-access`                       |
-| ------------------------------------- | --------------------- | -------- | ----------------------------------- |
-| read, glob, grep project files        | allow                 | allow    | allow                               |
-| edit, write, patch                    | deny                  | allow\*  | allow                               |
-| shell, Git, tests, builds             | deny                  | deny     | **auto-allow, host-user authority** |
-| webfetch / websearch                  | deny                  | deny     | allow                               |
-| subagents, Code Mode (`execute`)      | deny                  | deny     | allow                               |
-| MCP, plugins, skills                  | deny                  | deny     | deny (not inherited or enabled)     |
-| OS sandbox, filesystem/network limits | **none**              | **none** | **none**                            |
+| Capability                            | `read` (default) | `edit`   | `danger-full-access`                |
+| ------------------------------------- | ---------------- | -------- | ----------------------------------- |
+| read, glob, grep project files        | allow            | allow    | allow                               |
+| edit, write, patch                    | deny             | allow\*  | allow                               |
+| shell, Git, tests, builds             | deny             | deny     | **auto-allow, host-user authority** |
+| webfetch / websearch                  | deny             | deny     | allow                               |
+| subagents, Code Mode (`execute`)      | deny             | deny     | allow                               |
+| MCP, plugins, skills                  | deny             | deny     | deny (not inherited or enabled)     |
+| OS sandbox, filesystem/network limits | **none**         | **none** | **none**                            |
 
 \* `edit` also hard-denies edits to `opencode.json(c)`, `.opencode/`, `.agents/` and `.claude/`
 (best effort; see limits). Reads and edits outside the workspace are denied through
-`external_directory`. Use `--permissions reject|ask` only for requests that reach the ACP
+`external_directory`. Use `--enable approve` only for requests that reach the ACP
 callback; a hard denial is never approvable.
 
-- **`full-access`** needs both `--policy full-access` and `--dangerously-skip-permissions`;
-  `--permissions ask` is rejected, as is the acknowledgement with any other profile, all before
-  readiness. A prominent stderr warning is printed before readiness. Shell, edits and web tools run
+- **`danger-full-access`** is its own acknowledgement; `--enable approve` is rejected with it
+  (nothing is left to approve), before readiness. A prominent stderr warning is printed before readiness. Shell, edits and web tools run
   without any ACP prompt and with the invoking user's filesystem, process and network authority; any
   local client that can reach the unauthenticated port can trigger them. Use only on a disposable
-  user, host or workspace. Credentials passed with `--pass-env` are available to every command. An
+  user, host or workspace. Credentials named with `--pass-env` are available to every command. An
   unexpected ACP permission request is still rejected, never auto-answered.
-- **`supervised` is not available.** OpenCode V2 policies are binary denials and cannot force an
+- **There is no `supervised` level.** OpenCode V2 policies are binary denials and cannot force an
   `ask`; the per-agent `shell: ask` works (verified), but a project agent rule is appended after the
   gateway's and turns it into an unprompted run (verified, see
   [acceptance](docs/acceptance.md)). One-time approval therefore cannot be guaranteed from the private
-  global config alone, so the release gate is not met and `--policy supervised` is rejected.
+  global config alone, so the release gate is not met and no `--access` value selects it.
 - **Fail closed:** startup compares the private config OpenCode reports with what was written
   (OpenCode silently drops invalid statements) and evaluates every effective agent's rules. A project
   agent that re-enables Code Mode (`execute`), which hard policies do not gate and which exposes
@@ -324,12 +329,12 @@ callback; a hard denial is never approvable.
     `package.json` scripts, `.envrc`, test or build files. Review diffs before running anything,
     and treat `edit` output as untrusted code.
   - `grep` rules match the regex, not a search path; provider traffic and file contents sent to the
-    model are outside any boundary; `read-only` does not prevent reading secrets in the workspace.
-  - `.env` files are read-protected by an `ask` rule. Under `--permissions ask` any client of the
+    model are outside any boundary; `read` does not prevent reading secrets in the workspace.
+  - `.env` files are read-protected by an `ask` rule. Under `--enable approve` any client of the
     unauthenticated port can approve such a read; with the default `reject` the read fails.
   - Preflight evaluates the configuration present at launch. For non-full profiles every agent must
     deny `execute` and `external_directory` (any later project rule for them, for any resource,
-    aborts startup); for `full-access` every visible primary agent must keep its allows. Edits made
+    aborts startup); for `danger-full-access` every visible primary agent must keep its allows. Edits made
     after launch are re-evaluated at the next launch. On the tested versions the hard policy alone
     already blocks outside paths even when a project agent allows `external_directory`; the agent
     check is defence in depth.
@@ -345,10 +350,10 @@ Do not rely on the gateway to contain a hostile workspace, model or local client
 
 - **No OS sandbox, no authentication.** The worker runs as the invoking user with ordinary
   filesystem, process and network access; any local client that can reach the loopback port can use
-  whatever the profile allows, including `full-access` shell commands and `--permissions ask`
+  whatever the profile allows, including `danger-full-access` shell commands and `--enable approve`
   approvals. Use a disposable user, host or VM for anything unattended.
-- **`supervised` is not available.** A project agent rule can turn a gateway `shell: ask` into an
-  unprompted run, so one-time shell approval cannot be guaranteed; `--policy supervised` is rejected.
+- **No `supervised` level.** A project agent rule can turn a gateway `shell: ask` into an
+  unprompted run, so one-time shell approval cannot be guaranteed; it is not selectable.
 - **Cleanup is best effort.** Before the private runtime root is deleted the gateway checks that the
   process group is gone and that no readable process carries the launch tag or uses the root. A
   descendant that scrubs its environment, becomes unreadable or reopens the root later can evade this;
@@ -356,14 +361,15 @@ Do not rely on the gateway to contain a hostile workspace, model or local client
   trusted worker, not as containment.
 - **The executable is trusted by the operator.** The first `opencode` on `PATH` (or the library
   caller's `acp.executable`) is resolved once and used for every launch; a version string is not
-  provenance. Probes run without `--pass-env` credentials, but the ACP child receives them.
+  provenance. Probes run without passed credentials, but the ACP child receives them.
 - **Linux only for the CLI.** The CLI private runtime and the state lock use `/proc`, so on macOS the
   CLI fails closed with a clear message; library callers can still supply their own `acp.env`.
 - **Preflight sees one process.** OpenCode 2.3.x and 2.4.x intermittently omit the private global config in
   a single `debug agents` process ([#93](https://github.com/tbrandenburg/opencode-a2a-lite/issues/93));
   2.4.x is accepted but not shown to be more reliable. Startup retries that probe with backoff for up
   to about 180 s (plus one in-flight probe) or 10 attempts, then fails closed and reports the
-  attempt count. The real ACP child is a different process, so in that window only the hard
+  attempt count (or, when the probes were slow, that the host appears overloaded). Gateways started on the same
+  host take a per-user launch lock so their startup checks run one at a time. The real ACP child is a different process, so in that window only the hard
   policies are guaranteed. Configuration changed after launch is re-checked at the next launch.
 - **`edit` risks.** Symlinks inside the workspace that point outside it, and files that run later
   (`.git/hooks/*`, `Makefile`, `package.json` scripts, `.envrc`), are not blocked; see the profile
@@ -375,7 +381,7 @@ Do not rely on the gateway to contain a hostile workspace, model or local client
   approvals, credentials and automations are cleared each launch, verified against OpenCode 2.3.2
   only. Deleting it is the operator's job, see [operator policy and state](docs/operator-policy-state.md).
 - **Evidence scope.** Live acceptance used one provider and model on Linux with OpenCode 2.3.2; other
-  versions, providers and `full-access` against a real model were not exercised, and `make policy-smoke`
+  versions, providers and `danger-full-access` against a real model were not exercised, and `make policy-smoke`
   (real OpenCode, scripted local model) is not part of CI. See [acceptance](docs/acceptance.md).
 
 ## Behavior and limitations
@@ -391,7 +397,7 @@ reusing the ACP session for that context.
   them. No durable recovery, multi-tenancy or parallel model execution.
 - Only ACP `end_turn` means completed; confirmed `cancelled` means canceled.
   Errors and other stop reasons fail the task without publishing private diagnostics.
-- Permission requests are rejected unless `--permissions ask` is set and a client answers.
+- Permission requests are rejected unless `--enable approve` is set and a client answers.
 - Defaults: 30-second startup/session allocation, 120-second prompt, 5-second
   cancellation and 5-second ACP shutdown. Failure retires the unhealthy bridge.
 - Streaming sends stable artifact IDs and ordered append events. Task states are
@@ -411,7 +417,7 @@ Run from source:
 ```sh
 make install             # frozen Bun lockfile
 make check               # format, lint, typecheck, deterministic tests, build
-bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0 --pass-env OPENAI_API_KEY
+bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
 | Command                                                                | Purpose                                                                                                       |
