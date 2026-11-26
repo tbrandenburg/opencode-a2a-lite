@@ -106,13 +106,13 @@ test("S1: a first message with a session id resumes it, follows up on it, and ma
   expect(JSON.stringify(last(run.events))).not.toContain("resumed");
 });
 
-test("S2: without --allow-resume the request fails visibly and nothing is allocated", async () => {
+test("S2: without --enable resume the request fails visibly and nothing is allocated", async () => {
   const run = rig({});
   await run.executor.execute(context("hello", "ctx", meta), run.bus);
   expect(run.calls).toEqual([]);
   expect(failure(run.events)).toEqual({
     state: TaskState.TASK_STATE_FAILED,
-    text: expect.stringContaining("--allow-resume"),
+    text: expect.stringContaining("--enable resume"),
   });
 });
 
@@ -230,7 +230,7 @@ test("S9: replay false or absent never loads; truncation is flagged; misuse fail
   }
   const off = rig({});
   await off.executor.execute(context("go", "ctx", { "opencode.replay": true }), off.bus);
-  expect(failure(off.events).text).toContain("--allow-resume");
+  expect(failure(off.events).text).toContain("--enable resume");
   const missing = rig({ resume: true }, false);
   await missing.executor.execute(context("go", "ctx", replayMeta), missing.bus);
   expect(failure(missing.events).text).toBe("ACP execution failed");

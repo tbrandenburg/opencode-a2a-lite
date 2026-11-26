@@ -89,13 +89,13 @@ test("T2: a rejected or malformed id fails that task only; the gateway keeps ser
   expect(fresh.metadata["opencode.resumed"]).toBeUndefined();
 });
 
-test("T3: without --allow-resume the metadata is refused, never silently ignored", async () => {
+test("T3: without --enable resume the metadata is refused, never silently ignored", async () => {
   const ready = await gateway(false).start();
   const card = await (await fetch(new URL(".well-known/agent-card.json", ready.url))).json();
   expect(card.capabilities.extensions ?? []).toEqual([]);
   const refused = await send(ready.url, "whoami", { metadata: { "opencode.sessionId": session } });
   expect(refused.status.state).toBe("TASK_STATE_FAILED");
-  expect(failed(refused)).toContain("--allow-resume");
+  expect(failed(refused)).toContain("--enable resume");
   expect(answer(refused)).toBe("");
 });
 

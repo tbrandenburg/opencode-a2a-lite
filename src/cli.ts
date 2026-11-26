@@ -1,71 +1,51 @@
 #!/usr/bin/env bun
 import manifest from "../package.json" with { type: "json" };
-import { parseOptions } from "./cli-options.js";
+import { parseOptions, PROVIDER_ENV } from "./cli-options.js";
 import { reportStartupError } from "./startup-error.js";
 
 async function main() {
   const options = parseOptions(process.argv.slice(2), process.env);
   if (options.action === "help") {
-    console.log(`Usage: opencode-a2a-lite --workspace <path> [--port <0..65535>] [--publish-activity]
-                         [--permissions <reject|ask>] [--policy <read-only|edit|full-access>]
-                         [--dangerously-skip-permissions] [--policy-file <absolute path>]
-                         [--state-dir <absolute path>] [--allow-resume] [--pass-env NAME]...
-                         [--prompt-timeout <duration|unlimited>]
+    console.log(`Usage: opencode-a2a-lite [--workspace <path>] [--port <0..65535>]
+                         [--access <read|edit|danger-full-access>]
+                         [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
 
 Start the foreground, unauthenticated A2A gateway.
 Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
 The private CLI runtime currently fails closed on macOS.
 
-  --workspace <path>  Explicitly trust this directory; relative paths are resolved.
+  --workspace <path>  Trusted directory (default: the current directory; or A2A_WORKSPACE, absolute).
   --port <0..65535>   Port (default 41241; 0 selects a free port).
+  --access <read|edit|danger-full-access>
+                      Startup-only capability level, never request-scoped. read (default) reads and
+                      searches; edit also edits project files; neither runs shell, web tools, MCP,
+                      plugins, skills or subagents. danger-full-access auto-approves shell, edits and
+                      web tools with host-user authority and passes no provider keys unless named.
+                      There is no OS isolation at any level.
+  --pass-env NAME     Also pass this variable to OpenCode; repeat as needed. Provider keys
+                      (${PROVIDER_ENV.join(", ")})
+                      are passed automatically when set (names printed, never values), except under
+                      danger-full-access. Reserved runtime/configuration variables are rejected.
+  --no-env            Do not pass the automatic provider keys (same as --pass-env "").
+  --enable <activity|approve|resume>
+                      Opt-in extra, off by default; repeat for several.
+                      activity: also publish tool call ids, titles, kinds and statuses (no inputs or
+                      outputs) and the model's reasoning text; may reveal paths, commands or data.
+                      approve: pause tasks as input-required until a client allows or rejects a
+                      permission request; anyone who can reach this port can approve tool runs.
+                      Not available with danger-full-access.
+                      resume: let clients continue an existing OpenCode session of this workspace
+                      (metadata opencode.sessionId; opencode.replay: true returns earlier messages);
+                      anyone who can reach this port can read that conversation.
   --prompt-timeout <duration|unlimited>
                       Whole ACP prompt deadline (default 60m); integer ms, s, m or h,
                       30ms to 2147483647ms. unlimited disables only this deadline.
-                      Human permission waits suspend it; the full budget restarts on release.
-  --pass-env NAME     Pass one named provider variable to OpenCode; repeat as needed.
-                      Reserved runtime/configuration variables and missing values are rejected.
-  --publish-activity  Also publish an "activity" artifact with tool call ids, titles, kinds and
-                      statuses (no inputs or outputs) and the model's reasoning text.
-                      May reveal paths, commands or workspace data.
-  --permissions <reject|ask>
-                      reject (default) rejects every OpenCode permission request. ask pauses the
-                      task as input-required until a client answers allow or reject; anyone who
-                      can reach this unauthenticated port can then approve tool runs.
-  --policy <read-only|edit|full-access>
-                      Startup-only capability profile, never request-scoped. read-only (default)
-                      reads and searches; edit also edits project files; neither runs shell, web
-                      tools, MCP, plugins, skills or subagents. full-access auto-approves shell,
-                      edits and web tools with host-user authority, needs
-                      --dangerously-skip-permissions and cannot combine with --permissions ask.
-                      supervised is not available. There is no OS isolation in any profile.
-  --dangerously-skip-permissions
-                      Acknowledge full-access; rejected with any other policy.
-  --policy-file <absolute path>
-                      Operator JSON {version:1, base, policies:[{action, resource, effect:"allow"}]}
-                      adding exact mcp.use, skill.use, plugin.use or MCP tool.use (<server>_<tool>:*)
-                      exceptions to the selected profile; base must equal --policy. The file must be
-                      outside the workspace, owned by you, not a symlink or group/world-writable.
-                      Allowlisted MCP servers and plugins run code with host-user authority.
-  --state-dir <absolute path>
-                      Keep OpenCode session history in this private directory (mode 0700, bound to
-                      this workspace, one gateway at a time) across restarts. Saved approvals,
-                      accounts and automations are cleared every launch; history may contain
-                      sensitive content. Restoring a session still needs --allow-resume.
-  --allow-resume      Let clients continue an existing OpenCode session of this workspace by sending
-                      message metadata opencode.sessionId; add opencode.replay: true to also receive the
-                      earlier messages. Sessions hold earlier conversation
-                      content, which any client that can reach this unauthenticated port can then read.
-  --help, -h         Show help without starting OpenCode.
-  --version, -v      Print package version without starting OpenCode.
+  --help, -h          Show help without starting OpenCode.
+  --version, -v       Print package version without starting OpenCode.
 
-Flags override A2A_WORKSPACE (absolute only) and A2A_PORT.
-Optional identity: A2A_NAME (128 characters), A2A_DESCRIPTION (1024),
-and A2A_TAGS (up to 16 comma-separated tags, 64 characters each; no escaping).
-Values are trimmed, nonblank and control-free; tags deduplicate after text.
-Identity describes the worker, not authentication or permissions.
-No implicit current-directory trust. Private ephemeral HOME/XDG does not use saved logins;
-pass provider credentials explicitly. Workspace configuration, instructions, tools, plugins
-and MCP are trusted. This is not a sandbox.
+Advanced (--policy-file, --state-dir, A2A_NAME/DESCRIPTION/TAGS, A2A_PORT): docs/operator-policy-state.md.
+Private ephemeral HOME/XDG does not use saved logins. Workspace configuration, instructions,
+tools, plugins and MCP are trusted. This is not a sandbox.
 Never expose through a public proxy. Use the separate official a2a CLI as client.`);
     return;
   }

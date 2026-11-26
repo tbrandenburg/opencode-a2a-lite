@@ -345,6 +345,12 @@ export async function launchGateway(options: ServerOptions) {
     if (runtime) {
       if (policy === "full-access") status("WARNING", FULL_ACCESS_WARNING);
       for (const line of policySummary(policy, approvals)) status("policy", line);
+      status(
+        "env",
+        options.passEnv?.length
+          ? `passing ${options.passEnv.join(", ")} to OpenCode (names only)`
+          : "no provider variables passed to OpenCode",
+      );
       if (file)
         status(
           "policy",

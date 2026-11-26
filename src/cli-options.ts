@@ -3,22 +3,55 @@ import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
 import { parseIdentity } from "./identity.js";
 import { validatePassEnv } from "./runtime-environment.js";
-import { parsePolicy, validatePolicyFlags } from "./runtime-policy.js";
 
 type Options =
   | { action: "help" }
   | { action: "version" }
   | { action: "run"; server: ServerOptions };
 
-export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): Options {
+export const PROVIDER_ENV = [
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "GEMINI_API_KEY",
+  "GOOGLE_GENERATIVE_AI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "GROQ_API_KEY",
+] as const;
+
+const ACCESS = { read: "read-only", edit: "edit", "danger-full-access": "full-access" } as const;
+const EXTRAS = ["activity", "approve", "resume"] as const;
+
+const REPLACED: Record<string, string> = {
+  "--policy": "--policy was replaced by --access (read|edit|danger-full-access)",
+  "--dangerously-skip-permissions":
+    "--dangerously-skip-permissions was removed; --access danger-full-access is the acknowledgement",
+  "--permissions": "--permissions was replaced by --enable approve",
+  "--publish-activity": "--publish-activity was replaced by --enable activity",
+  "--allow-resume": "--allow-resume was replaced by --enable resume",
+};
+
+export function parseOptions(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  cwd: string = process.cwd(),
+): Options {
   const flags = parseFlags(args);
   if (flags.has("--help")) return { action: "help" };
   if (flags.has("--version")) return { action: "version" };
-  const explicit = flags.get("--workspace");
-  const workspace = explicit === undefined ? env.A2A_WORKSPACE : resolve(explicit);
+  const explicit = flags.get("--workspace")?.[0];
+  const workspace =
+    explicit !== undefined
+      ? resolve(cwd, explicit)
+      : env.A2A_WORKSPACE !== undefined
+        ? env.A2A_WORKSPACE
+        : cwd;
   if (!workspace || !isAbsolute(workspace)) throw new StartupError("workspace");
   const identity = parseIdentity(env);
-  const names = flags.get("--pass-env")?.split(",") ?? [];
+  const access = parseAccess(flags.get("--access")?.[0]);
+  const extras = parseEnable(flags.get("--enable") ?? []);
+  if (access === "danger-full-access" && extras.includes("approve"))
+    throw new StartupError("accessConflict");
+  const names = credentialNames(flags, access, env);
   try {
     validatePassEnv(names, env);
   } catch {
@@ -28,19 +61,52 @@ export function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): O
     action: "run",
     server: {
       workspace,
-      port: parsePort(flags.get("--port") ?? env.A2A_PORT),
+      port: parsePort(flags.get("--port")?.[0] ?? env.A2A_PORT),
       ...(names.length ? { passEnv: names } : {}),
       ...promptOptions(flags),
-      ...executorOptions(flags),
-      ...policyOptions(flags),
+      ...executorOptions(extras),
+      ...(flags.has("--access")
+        ? {
+            policy: ACCESS[access],
+            ...(access === "danger-full-access" ? { dangerouslySkipPermissions: true } : {}),
+          }
+        : {}),
       ...privateOptions(flags),
       ...(identity === undefined ? {} : { identity }),
     },
   };
 }
 
-function promptOptions(flags: Map<string, string>): Pick<ServerOptions, "acp"> {
-  const value = flags.get("--prompt-timeout");
+function parseAccess(value: string | undefined) {
+  if (value === undefined) return "read";
+  if (value === "read" || value === "edit" || value === "danger-full-access") return value;
+  throw new StartupError("arguments");
+}
+
+function parseEnable(values: readonly string[]) {
+  const extras = values.map((value) => {
+    const extra = EXTRAS.find((name) => name === value);
+    if (!extra) throw new StartupError("arguments");
+    return extra;
+  });
+  if (new Set(extras).size !== extras.length) throw new StartupError("arguments");
+  return extras;
+}
+
+// Explicit names always count; the provider allowlist adds only names that are set, and never
+// under danger-full-access. `--no-env` or `--pass-env ""` drops the allowlist, not explicit names.
+function credentialNames(flags: Map<string, string[]>, access: string, env: NodeJS.ProcessEnv) {
+  const given = flags.get("--pass-env") ?? [];
+  const explicit = given.filter((name) => name !== "");
+  const automatic =
+    access === "danger-full-access" || flags.has("--no-env") || given.includes("")
+      ? []
+      : PROVIDER_ENV.filter((name) => env[name] && !explicit.includes(name));
+  return [...explicit, ...automatic];
+}
+
+function promptOptions(flags: Map<string, string[]>): Pick<ServerOptions, "acp"> {
+  const value = flags.get("--prompt-timeout")?.[0];
   if (value === undefined) return {};
   if (value === "unlimited") return { acp: { promptTimeoutMs: null } };
   const match = /^(\d+)(ms|s|m|h)$/.exec(value);
@@ -53,39 +119,20 @@ function promptOptions(flags: Map<string, string>): Pick<ServerOptions, "acp"> {
   return { acp: { promptTimeoutMs: ms } };
 }
 
-function executorOptions(flags: Map<string, string>): Pick<ServerOptions, "executor"> {
-  const permissions = flags.get("--permissions");
-  if (permissions !== undefined && permissions !== "reject" && permissions !== "ask")
-    throw new StartupError("arguments");
+function executorOptions(extras: readonly string[]): Pick<ServerOptions, "executor"> {
   const executor = {
-    ...(flags.has("--publish-activity") ? { activity: true } : {}),
-    ...(permissions === "ask" ? { permissions: "ask" as const } : {}),
-    ...(flags.has("--allow-resume") ? { resume: true } : {}),
+    ...(extras.includes("activity") ? { activity: true } : {}),
+    ...(extras.includes("approve") ? { permissions: "ask" as const } : {}),
+    ...(extras.includes("resume") ? { resume: true } : {}),
   };
   return Object.keys(executor).length ? { executor } : {};
 }
 
-function policyOptions(
-  flags: Map<string, string>,
-): Pick<ServerOptions, "policy" | "dangerouslySkipPermissions"> {
-  const acknowledged = flags.has("--dangerously-skip-permissions");
-  const policy = parsePolicy(flags.get("--policy"));
-  validatePolicyFlags(
-    policy,
-    acknowledged,
-    flags.get("--permissions") === "ask" ? "ask" : "reject",
-  );
-  return {
-    ...(flags.has("--policy") ? { policy } : {}),
-    ...(acknowledged ? { dangerouslySkipPermissions: true } : {}),
-  };
-}
-
 function privateOptions(
-  flags: Map<string, string>,
+  flags: Map<string, string[]>,
 ): Pick<ServerOptions, "policyFile" | "stateDir"> {
-  const policyFile = flags.get("--policy-file");
-  const stateDir = flags.get("--state-dir");
+  const policyFile = flags.get("--policy-file")?.[0];
+  const stateDir = flags.get("--state-dir")?.[0];
   for (const [value, code] of [
     [policyFile, "policyFile"],
     [stateDir, "stateDir"],
@@ -98,48 +145,41 @@ function privateOptions(
   };
 }
 
-const VALUELESS = new Set([
-  "--help",
-  "--version",
-  "--publish-activity",
-  "--allow-resume",
-  "--dangerously-skip-permissions",
+const VALUELESS = new Set(["--help", "--version", "--no-env"]);
+const REPEATABLE = new Set(["--pass-env", "--enable"]);
+const VALUED = new Set([
+  "--workspace",
+  "--port",
+  "--access",
+  "--prompt-timeout",
+  "--policy-file",
+  "--state-dir",
+  ...REPEATABLE,
 ]);
 
 function parseFlags(args: readonly string[]) {
-  const flags = new Map<string, string>();
+  const flags = new Map<string, string[]>();
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
     const flag = token === "-h" ? "--help" : token === "-v" ? "--version" : token;
-    if (flag === undefined || (flag !== "--pass-env" && flags.has(flag)))
+    if (flag !== undefined && REPLACED[flag]) throw new StartupError("replaced", REPLACED[flag]);
+    if (flag === undefined || (flags.has(flag) && !REPEATABLE.has(flag)))
       throw new StartupError("arguments");
     if (VALUELESS.has(flag)) {
-      flags.set(flag, "");
+      flags.set(flag, []);
       continue;
     }
-    if (
-      flag !== "--workspace" &&
-      flag !== "--port" &&
-      flag !== "--prompt-timeout" &&
-      flag !== "--permissions" &&
-      flag !== "--policy" &&
-      flag !== "--policy-file" &&
-      flag !== "--state-dir" &&
-      flag !== "--pass-env"
-    )
-      throw new StartupError("arguments");
+    if (!VALUED.has(flag)) throw new StartupError("arguments");
     const value = flagValue(flag, args[index + 1]);
-    if (flag === "--pass-env" && value.includes(",")) throw new StartupError("arguments");
-    flags.set(
-      flag,
-      flag === "--pass-env" && flags.has(flag) ? `${flags.get(flag)},${value}` : value,
-    );
+    if (REPEATABLE.has(flag) && value.includes(",")) throw new StartupError("arguments");
+    flags.set(flag, [...(flags.get(flag) ?? []), value]);
     index += 1;
   }
   return flags;
 }
 
 function flagValue(flag: string, value: string | undefined) {
+  if (flag === "--pass-env" && value === "") return value;
   if (
     !value ||
     (value.startsWith("-") && flag === "--workspace") ||

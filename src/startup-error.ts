@@ -1,7 +1,10 @@
 const messages = {
   arguments: "Invalid arguments. Use --help for --workspace <path> and --port <0..65535>.",
   workspace:
-    "A trusted absolute workspace is required: pass --workspace <path> or set A2A_WORKSPACE to an absolute directory.",
+    "Invalid workspace: A2A_WORKSPACE must be an absolute directory; otherwise pass --workspace <path> or start in the trusted directory.",
+  replaced: "A removed flag was used; use --help for the current flags.",
+  accessConflict:
+    "--access danger-full-access cannot combine with --enable approve: nothing is left to approve.",
   directory:
     "Workspace must be an existing directory; select a trusted directory with --workspace or A2A_WORKSPACE.",
   port: "Invalid port: use an integer from 0 through 65535 with --port or A2A_PORT.",
@@ -21,8 +24,6 @@ const messages = {
     "Private runtime preflight failed: OpenCode probes were too slow to report the private policy; the host appears overloaded, so start fewer gateways at once and retry.",
   policy:
     "Private runtime preflight failed: the capability policy was dropped, overridden or weakened by configuration; review trusted workspace and OpenCode configuration.",
-  supervised:
-    "--policy supervised is not available: one-time shell approval cannot yet be guaranteed against project agent configuration; use read-only, edit or full-access.",
   policyAcknowledgement:
     "--policy full-access requires --dangerously-skip-permissions, and that flag is accepted only with --policy full-access.",
   policyConflict:
@@ -30,7 +31,7 @@ const messages = {
   policyFile:
     "--policy-file rejected: it must be an absolute, non-symlinked JSON file outside the workspace, owned by you and not group/world-writable, with only reviewed exact version 1 allow statements (see docs/operator-policy-state.md).",
   policyFileBase:
-    "--policy-file base must equal the --policy profile; a policy file never selects or upgrades a profile.",
+    "--policy-file base must equal the --access level (read = read-only); a policy file never selects or upgrades a profile.",
   stateDir:
     "--state-dir rejected: it must be an absolute private directory (mode 0700, owned by you, no symlinks, no shared write access in its parents, outside the workspace), bound to this workspace only, and free of stored credentials.",
   stateBusy:
@@ -42,8 +43,8 @@ const messages = {
 } as const;
 
 export class StartupError extends Error {
-  constructor(code: keyof typeof messages) {
-    super(messages[code]);
+  constructor(code: keyof typeof messages, detail?: string) {
+    super(detail ?? messages[code]);
     this.name = "StartupError";
   }
 }

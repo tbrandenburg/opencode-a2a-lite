@@ -5,7 +5,6 @@ import { parseOptions } from "../src/cli-options.js";
 import { createRuntimeEnvironment } from "../src/runtime-environment.js";
 import {
   POLICY_PROFILES,
-  parsePolicy,
   policyConfig,
   policySummary,
   type PolicyProfile,
@@ -26,48 +25,76 @@ const message = (...args: string[]) => {
 };
 const rejects = (args: string[], text: RegExp) => expect(message(...args)).toMatch(text);
 
-test("CLI: default and explicit profiles, valueless acknowledgement", () => {
-  expect(parse()).toEqual({ action: "run", server: { workspace: "/trusted", port: 41241 } });
-  expect(parse("--policy", "read-only")).toMatchObject({ server: { policy: "read-only" } });
-  expect(parse("--policy", "edit", "--permissions", "ask")).toMatchObject({
-    server: { policy: "edit", executor: { permissions: "ask" } },
-  });
-  expect(parse("--policy", "full-access", "--dangerously-skip-permissions")).toMatchObject({
-    server: { policy: "full-access", dangerouslySkipPermissions: true },
-  });
-  expect(
-    parse("--dangerously-skip-permissions", "--policy", "full-access", "--permissions", "reject"),
-  ).toMatchObject({ server: { policy: "full-access" } });
+test("CLI table: every accepted --access / --enable combination", () => {
+  const table: [string[], object][] = [
+    [[], { workspace: "/trusted", port: 41241 }],
+    [["--access", "read"], { policy: "read-only" }],
+    [["--access", "edit"], { policy: "edit" }],
+    [
+      ["--access", "edit", "--enable", "approve"],
+      { policy: "edit", executor: { permissions: "ask" } },
+    ],
+    [
+      ["--access", "read", "--enable", "approve"],
+      { policy: "read-only", executor: { permissions: "ask" } },
+    ],
+    [
+      ["--access", "danger-full-access"],
+      { policy: "full-access", dangerouslySkipPermissions: true },
+    ],
+    [
+      ["--access", "danger-full-access", "--enable", "activity", "--enable", "resume"],
+      { policy: "full-access", executor: { activity: true, resume: true } },
+    ],
+  ];
+  for (const [args, server] of table) expect(parse(...args)).toMatchObject({ server });
+  expect(parse("--access", "read")).not.toHaveProperty("server.dangerouslySkipPermissions");
 });
 
-test("CLI: contradictory, unknown, duplicate and malformed combinations are rejected", () => {
-  rejects(["--policy", "full-access"], /requires --dangerously-skip-permissions/);
-  rejects(["--dangerously-skip-permissions"], /only with --policy full-access/);
-  rejects(["--policy", "edit", "--dangerously-skip-permissions"], /only with --policy full-access/);
-  rejects(["--policy", "read-only", "--dangerously-skip-permissions"], /only with/);
-  rejects(
-    ["--policy", "full-access", "--dangerously-skip-permissions", "--permissions", "ask"],
-    /cannot combine/,
-  );
-  rejects(["--policy", "supervised", "--permissions", "ask"], /not available/);
-  rejects(["--policy", "supervised"], /not available/);
+test("CLI table: every rejected combination and the two remaining coupling errors", () => {
+  rejects(["--access", "danger-full-access", "--enable", "approve"], /nothing is left to approve/);
+  rejects(["--enable", "approve", "--access", "danger-full-access"], /nothing is left to approve/);
+  rejects(["--pass-env", "PATH"], /--pass-env/);
   for (const bad of [
-    ["--policy"],
-    ["--policy", "yolo"],
-    ["--policy", "unsafe"],
-    ["--policy", "Edit"],
-    ["--policy", "workspace-write"],
-    ["--policy", "edit", "--policy", "edit"],
-    ["--dangerously-skip-permissions", "true"],
-    ["--dangerously-skip-permissions=true"],
-    ["--policy=full-access", "--dangerously-skip-permissions"],
-    ["--policy", "full-access", "--dangerously-skip-permissions", "--dangerously-skip-permissions"],
+    ["--access"],
+    ["--access", "read-only"],
+    ["--access", "full-access"],
+    ["--access", "supervised"],
+    ["--access", "Edit"],
+    ["--access", "yolo"],
+    ["--access", "edit", "--access", "edit"],
+    ["--access=edit"],
+    ["--danger-full-access"],
   ])
-    rejects(bad, /Invalid arguments|requires|only with/);
+    rejects(bad, /Invalid arguments/);
 });
 
-test("CLI: --help and --version stay side-effect free even with policy flags", () => {
-  expect(parse("--help", "--policy", "full-access")).toEqual({ action: "help" });
+test("removed flags fail with one sentence naming the replacement", () => {
+  const replaced: [string[], RegExp][] = [
+    [
+      ["--policy", "edit"],
+      /^--policy was replaced by --access \(read\|edit\|danger-full-access\)$/,
+    ],
+    [["--policy"], /^--policy was replaced by --access/],
+    [["--policy=edit"], /Invalid arguments/],
+    [
+      ["--dangerously-skip-permissions"],
+      /^--dangerously-skip-permissions was removed; --access danger-full-access/,
+    ],
+    [["--permissions", "ask"], /^--permissions was replaced by --enable approve$/],
+    [["--publish-activity"], /^--publish-activity was replaced by --enable activity$/],
+    [["--allow-resume"], /^--allow-resume was replaced by --enable resume$/],
+    [["--port", "0", "--allow-resume"], /^--allow-resume was replaced by --enable resume$/],
+  ];
+  for (const [args, text] of replaced) {
+    const found = message(...args);
+    expect(found).toMatch(text);
+    expect(found.includes("\n")).toBe(false);
+  }
+});
+
+test("CLI: --help and --version stay side-effect free even with access flags", () => {
+  expect(parse("--help", "--access", "danger-full-access")).toEqual({ action: "help" });
   expect(parse("--version")).toEqual({ action: "version" });
 });
 
@@ -113,7 +140,6 @@ test("startup summary names policy, approvals, shell, blocked classes and no iso
     /shell: auto-approved with host-user/,
   );
   expect(policySummary("edit", "ask").join("\n")).toMatch(/any client of this port may approve/);
-  expect(parsePolicy(undefined)).toBe("read-only");
 });
 
 test("private runtime writes the policy as an owner-only global config; none without a policy", () => {
