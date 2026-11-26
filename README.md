@@ -359,9 +359,11 @@ Do not rely on the gateway to contain a hostile workspace, model or local client
   provenance. Probes run without `--pass-env` credentials, but the ACP child receives them.
 - **Linux only for the CLI.** The CLI private runtime and the state lock use `/proc`, so on macOS the
   CLI fails closed with a clear message; library callers can still supply their own `acp.env`.
-- **Preflight sees one process.** OpenCode 2.3.2 intermittently omits the private global config in a
-  single process ([#93](https://github.com/tbrandenburg/opencode-a2a-lite/issues/93)). Startup retries
-  and fails closed, but the real ACP child is a different process, so in that window only the hard
+- **Preflight sees one process.** OpenCode 2.3.x and 2.4.x intermittently omit the private global config in
+  a single `debug agents` process ([#93](https://github.com/tbrandenburg/opencode-a2a-lite/issues/93));
+  2.4.x is accepted but not shown to be more reliable. Startup retries that probe with backoff for up
+  to about 180 s (plus one in-flight probe) or 10 attempts, then fails closed and reports the
+  attempt count. The real ACP child is a different process, so in that window only the hard
   policies are guaranteed. Configuration changed after launch is re-checked at the next launch.
 - **`edit` risks.** Symlinks inside the workspace that point outside it, and files that run later
   (`.git/hooks/*`, `Makefile`, `package.json` scripts, `.envrc`), are not blocked; see the profile

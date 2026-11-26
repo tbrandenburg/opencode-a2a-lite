@@ -3,7 +3,8 @@ import { accessSync, constants, lstatSync, realpathSync, statSync } from "node:f
 import { dirname, join, resolve } from "node:path";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
-import { validateAgentPermissions, validatePolicyDocument } from "./runtime-policy-check.js";
+import { validatePolicyDocument } from "./runtime-policy-check.js";
+import { AGENT_RETRY, verifyAgents, type AgentRetry } from "./agent-retry.js";
 import type { Exception } from "./policy-file.js";
 import type { PolicyProfile } from "./runtime-policy.js";
 import {
@@ -73,6 +74,9 @@ async function drain(pid: number) {
   throw new ProbeCleanupError("Private runtime process cleanup unconfirmed");
 }
 
+const PROBE_TIMEOUT_MS = 45_000;
+const AGENT_PROBE_TIMEOUT_MS = 120_000;
+
 async function probe(
   executable: string,
   args: string[],
@@ -80,6 +84,7 @@ async function probe(
   env: NodeJS.ProcessEnv,
   abort: AbortSignal,
   onSpawn?: () => void,
+  timeoutMs = PROBE_TIMEOUT_MS,
 ) {
   if (abort.aborted) throw new StartupError("runtime");
   const child = spawn(executable, args, {
@@ -115,7 +120,7 @@ async function probe(
   child.once("error", () => finished.resolve(null));
   child.once("close", (status) => finished.resolve(status));
   abort.addEventListener("abort", interrupt, { once: true });
-  const timer = setTimeout(interrupt, 45_000);
+  const timer = setTimeout(interrupt, timeoutMs);
   try {
     const status = await finished.promise;
     if (cleanupError) throw cleanupError;
@@ -125,36 +130,6 @@ async function probe(
   } finally {
     clearTimeout(timer);
     abort.removeEventListener("abort", interrupt);
-  }
-}
-
-const AGENT_ATTEMPTS = 3;
-const POLICY_MESSAGE = new StartupError("policy").message;
-
-// OpenCode 2.3.2 intermittently reports `debug agents` without the private global config for one
-// process. Only this probe is retried, each time in a fresh process; a deterministic weakening
-// fails every attempt and keeps the sanitized policy error.
-async function verifyAgents(
-  run: (args: string[]) => Promise<string>,
-  policy: PolicyProfile,
-  exceptions: readonly Exception[] | undefined,
-) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), policy, exceptions);
-      if (attempt > 1)
-        console.error(
-          `Private runtime preflight: agent check passed on attempt ${attempt} of ${AGENT_ATTEMPTS}`,
-        );
-      return;
-    } catch (error) {
-      const weakened = error instanceof StartupError && error.message === POLICY_MESSAGE;
-      if (!weakened || attempt === AGENT_ATTEMPTS) throw error;
-      console.error(
-        `Private runtime preflight: agent check attempt ${attempt} of ${AGENT_ATTEMPTS} did not report the private policy; retrying`,
-      );
-      await new Promise((done) => setTimeout(done, 100 * attempt));
-    }
   }
 }
 
@@ -168,12 +143,21 @@ export async function verifyRuntime(options: {
   data?: string;
   signal: AbortSignal;
   onSpawn?: () => void;
+  agentRetry?: AgentRetry;
 }) {
   if (process.platform !== "linux") throw new StartupError("runtimePlatform");
   rejectIfPresent("/etc/opencode", "managed", options.root);
   rejectAncestorConfiguration(options.cwd, options.root);
   const run = (args: string[]) =>
-    probe(options.executable, args, options.cwd, options.env, options.signal, options.onSpawn);
+    probe(
+      options.executable,
+      args,
+      options.cwd,
+      options.env,
+      options.signal,
+      options.onSpawn,
+      args.includes("agents") ? AGENT_PROBE_TIMEOUT_MS : PROBE_TIMEOUT_MS,
+    );
   const version = await run(["--version"]);
   if (!supportedOpenCode(version.trim())) throw new StartupError("version");
   try {
@@ -182,7 +166,13 @@ export async function verifyRuntime(options: {
     validateRuntimeSources(sources, options.root, options.cwd);
     if (options.policy) {
       validatePolicyDocument(sources, options.root, options.policy, options.exceptions);
-      await verifyAgents(run, options.policy, options.exceptions);
+      await verifyAgents(
+        run,
+        options.policy,
+        options.exceptions,
+        options.signal,
+        options.agentRetry ?? AGENT_RETRY,
+      );
     }
   } catch (error) {
     if (

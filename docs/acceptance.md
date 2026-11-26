@@ -88,11 +88,15 @@ Not probed with a real plugin: `plugin.use` is covered by schema/config tests on
 
 ### Intermittent `debug agents` result
 
-OpenCode 2.3.2 intermittently (about 1 in 25 `debug agents` calls, also on `main`) omits the private
-global config for a single process. Preflight therefore retries only the `debug agents` probe up to
-three times in fresh processes (short backoff) and prints a sanitized note when a retry was needed; a
-deterministic project weakening fails all three. Preflight observes one process while the ACP child
-is another, so in such a window only the hard `policies` layer is guaranteed. A red `make
+OpenCode 2.3.x and 2.4.x intermittently omit the private global config for a single `debug agents`
+process: about 1 in 25 calls on a fast host, and 1/12 to 5/12 passes on a slow 2-CPU host with
+cold private dirs (#93; 2.4.1 measured 3/12, not better). Probes can take 10-36 s there. Preflight
+therefore retries only the `debug agents` probe in fresh processes with capped exponential backoff
+(250 ms doubling to 4 s) until an approximate 180 s monotonic deadline (plus one in-flight probe, itself limited to 120 s) or 10 attempts, honours abort, and prints
+a sanitized note when a retry was needed. A deterministic weakening fails every attempt; the final
+log line says the check is known to be intermittent and how many attempts none of which reported the
+private policy. Preflight observes one process while the ACP child is another, so in such a window
+only the hard `policies` layer is guaranteed. A red `make
 policy-smoke` should be re-run once before investigating.
 
 ## Runtime upgrade verification (issues #60 and #61)
