@@ -119,19 +119,23 @@ try {
       /PRIVATE_PEER_DIAGNOSTIC|unknown-private-input|private-identity|Error:|\n\s+at /,
     );
   };
-  reject([], /trusted absolute workspace/, { A2A_WORKSPACE: "" });
-  reject([], /trusted absolute workspace/);
+  reject([], /A2A_WORKSPACE must be an absolute directory/, { A2A_WORKSPACE: "" });
+  reject([], /A2A_WORKSPACE must be an absolute directory/);
   reject(["--unknown-private-input"], /Use --help/);
   reject(["--unknown-private-input", "--help"], /Use --help/);
   reject(
     ["--workspace", ".", "--port", "0", "--policy", "full-access"],
-    /requires --dangerously-skip-permissions/,
+    /--policy was replaced by --access/,
   );
   reject(
     ["--workspace", ".", "--port", "0", "--dangerously-skip-permissions"],
-    /only with --policy full-access/,
+    /--access danger-full-access is the acknowledgement/,
   );
-  reject(["--workspace", ".", "--port", "0", "--policy", "supervised"], /not available/);
+  reject(
+    ["--workspace", ".", "--port", "0", "--access", "danger-full-access", "--enable", "approve"],
+    /nothing is left to approve/,
+  );
+  reject(["--workspace", ".", "--port", "0", "--access", "supervised"], /Use --help/);
   reject(["--workspace", "--version"], /Use --help/);
   reject(["--workspace"], /Use --help/);
   reject(["--workspace", ".", "--port"], /Use --help/);

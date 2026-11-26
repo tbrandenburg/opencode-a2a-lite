@@ -7,13 +7,13 @@ help: ## Show available commands
 install: ## Install locked Bun dependencies
 	bun install --frozen-lockfile
 
-dev: ## Start the gateway in foreground watch mode (requires A2A_WORKSPACE; flags via ARGS='--pass-env OPENAI_API_KEY')
+dev: ## Start the gateway in foreground watch mode (workspace defaults to the current directory; flags via ARGS='--access edit')
 	bun run dev $(ARGS)
 
 build: ## Build the TypeScript project
 	bun run build
 
-run: build ## Run the compiled gateway in the foreground (requires A2A_WORKSPACE; flags via ARGS='--pass-env OPENAI_API_KEY')
+run: build ## Run the compiled gateway in the foreground (workspace defaults to the current directory; flags via ARGS='--access edit')
 	bun run start $(ARGS)
 
 fmt: ## Format source files

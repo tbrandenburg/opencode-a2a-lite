@@ -477,11 +477,11 @@ spawn() {
   derive_policy <<<"$report" >"$state/policy.json" ||
     die "The profile needs tools the gateway policy file cannot express; list exact MCP tool names."
   unset report
-  pass_args=()
+  pass_args=(--no-env)
   for key in "${profile_env[@]}"; do pass_args+=(--pass-env "$key"); done
 
   launch_child worker private setsid "$bun" "$repo/dist/src/cli.js" --workspace "$state/project" --port 0 \
-    --policy read-only --policy-file "$state/policy.json" "${pass_args[@]}" \
+    --access read --policy-file "$state/policy.json" "${pass_args[@]}" \
     </dev/null >"$state/ready.jsonl" 2>"$state/worker.err" || die "Could not record worker $name."
   worker_pid=$child_pid
   [[ -f $state/worker.process ]] || die "Worker $name exited during launch."
