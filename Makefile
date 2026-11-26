@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke runtime-smoke policy-smoke release doctor demo interop-test e2e e2e-tck clean
+.PHONY: help install dev build run fmt fmt-check lint typecheck test check package-smoke runtime-smoke policy-smoke launch-scenarios release doctor demo interop-test e2e e2e-tck clean
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -38,6 +38,9 @@ package-smoke: ## Pack and test the installed tarball outside the checkout (npm 
 
 runtime-smoke: ## Check the gateway with isolated real OpenCode (no provider)
 	bun scripts/gateway-runtime-smoke.ts
+
+launch-scenarios: build ## Time startup and error ergonomics with real OpenCode (no provider, Linux)
+	bun scripts/launch-scenarios.ts
 
 policy-smoke: ## Probe profiles, operator exceptions and persistent state with real OpenCode and a scripted local model (no provider)
 	bun scripts/policy-probes.ts

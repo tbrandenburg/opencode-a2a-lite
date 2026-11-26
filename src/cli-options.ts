@@ -80,16 +80,16 @@ export function parseOptions(
 function parseAccess(value: string | undefined) {
   if (value === undefined) return "read";
   if (value === "read" || value === "edit" || value === "danger-full-access") return value;
-  throw new StartupError("arguments");
+  throw new StartupError("access");
 }
 
 function parseEnable(values: readonly string[]) {
   const extras = values.map((value) => {
     const extra = EXTRAS.find((name) => name === value);
-    if (!extra) throw new StartupError("arguments");
+    if (!extra) throw new StartupError("enable");
     return extra;
   });
-  if (new Set(extras).size !== extras.length) throw new StartupError("arguments");
+  if (new Set(extras).size !== extras.length) throw new StartupError("enable");
   return extras;
 }
 

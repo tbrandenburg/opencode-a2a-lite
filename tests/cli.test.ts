@@ -123,6 +123,9 @@ test("--enable rejects duplicates, unknown, missing and attached values", () => 
     ["--enable", "activity", "--enable", "activity"],
     ["--enable", "Activity"],
     ["--enable", "shell"],
+  ])
+    expect(() => accepted(bad)).toThrow("Invalid --enable value: use activity, approve or resume");
+  for (const bad of [
     ["--enable", "activity,resume"],
     ["--enable"],
     ["--enable="],

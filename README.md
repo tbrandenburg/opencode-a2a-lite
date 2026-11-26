@@ -427,18 +427,19 @@ make check               # format, lint, typecheck, deterministic tests, build
 bun src/cli.ts --workspace /absolute/path/to/trusted/workspace --port 0
 ```
 
-| Command                                                                | Purpose                                                                                                       |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build                                              |
-| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider                                           |
-| `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt                                         |
-| `make policy-smoke`                                                    | Profiles, operator exceptions and persistent-state downgrade against real OpenCode and a scripted local model |
-| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance                                                   |
-| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)                                                 |
-| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                                                         |
-| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                                                            |
-| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release.                                          |
-| `make clean`                                                           | Remove build, coverage and test results                                                                       |
+| Command                                                                | Purpose                                                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `make check`                                                           | Formatting, lint, strict types, deterministic regressions, build                                                         |
+| `make package-smoke`                                                   | Installed-tarball and subprocess lifecycle checks, without provider                                                      |
+| `make runtime-smoke`                                                   | Linux-only private runtime and real OpenCode startup, no model prompt                                                    |
+| `make launch-scenarios`                                                | Linux-only startup and shutdown timing for 1, 3 and 6 gateways plus error-message checks, real OpenCode, no model prompt |
+| `make policy-smoke`                                                    | Profiles, operator exceptions and persistent-state downgrade against real OpenCode and a scripted local model            |
+| `A2ABRIDGE_BIN=/absolute/path/to/verified/a2abridge make interop-test` | Pinned, provider-free guarded MCP/bridge/gateway acceptance                                                              |
+| `make demo`                                                            | Isolated official A2A CLI two-turn smoke (**live, billable**)                                                            |
+| `make e2e`                                                             | Production live-model acceptance (**live, billable**)                                                                    |
+| `TCK_DIR=/absolute/path/to/pinned/a2a-tck make e2e-tck`                | Applicable external A2A TCK checks                                                                                       |
+| `make release BUMP=patch`                                              | Check, commit and push tag for npm publication and a GitHub release.                                                     |
+| `make clean`                                                           | Remove build, coverage and test results                                                                                  |
 
 CI is configured to check core deterministic tests and installed packaging on Linux and macOS;
 the provider-free team launcher fixtures and checksummed MCP bridge run on Linux.

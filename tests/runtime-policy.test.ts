@@ -56,12 +56,15 @@ test("CLI table: every rejected combination and the two remaining coupling error
   rejects(["--enable", "approve", "--access", "danger-full-access"], /nothing is left to approve/);
   rejects(["--pass-env", "PATH"], /--pass-env/);
   for (const bad of [
-    ["--access"],
     ["--access", "read-only"],
     ["--access", "full-access"],
     ["--access", "supervised"],
     ["--access", "Edit"],
     ["--access", "yolo"],
+  ])
+    rejects(bad, /Invalid --access value: use read, edit or danger-full-access/);
+  for (const bad of [
+    ["--access"],
     ["--access", "edit", "--access", "edit"],
     ["--access=edit"],
     ["--danger-full-access"],
@@ -321,7 +324,7 @@ test("full-access summary names shell and web; others do not claim them", () => 
 test("launchGateway rejects contradictory policy options before any runtime exists", async () => {
   const workspace = "/tmp";
   await expect(launchGateway({ workspace, policy: "full-access" })).rejects.toThrow(
-    /requires --dangerously/,
+    /requires dangerouslySkipPermissions/,
   );
   await expect(launchGateway({ workspace, dangerouslySkipPermissions: true })).rejects.toThrow(
     /only with/,

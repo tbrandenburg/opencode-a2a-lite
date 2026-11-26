@@ -1,5 +1,7 @@
 const messages = {
-  arguments: "Invalid arguments. Use --help for --workspace <path> and --port <0..65535>.",
+  arguments: "Invalid arguments. Use --help for the supported flags.",
+  access: "Invalid --access value: use read, edit or danger-full-access.",
+  enable: "Invalid --enable value: use activity, approve or resume, each at most once.",
   workspace:
     "Invalid workspace: A2A_WORKSPACE must be an absolute directory; otherwise pass --workspace <path> or start in the trusted directory.",
   replaced: "A removed flag was used; use --help for the current flags.",
@@ -25,9 +27,9 @@ const messages = {
   policy:
     "Private runtime preflight failed: the capability policy was dropped, overridden or weakened by configuration; review trusted workspace and OpenCode configuration.",
   policyAcknowledgement:
-    "--policy full-access requires --dangerously-skip-permissions, and that flag is accepted only with --policy full-access.",
+    "Library option policy full-access requires dangerouslySkipPermissions, and that option is accepted only with policy full-access.",
   policyConflict:
-    "--policy full-access cannot combine with --permissions ask or a caller-supplied ACP environment.",
+    "Library option policy full-access cannot combine with permissions ask or a caller-supplied ACP environment.",
   policyFile:
     "--policy-file rejected: it must be an absolute, non-symlinked JSON file outside the workspace, owned by you and not group/world-writable, with only reviewed exact version 1 allow statements (see docs/operator-policy-state.md).",
   policyFileBase:

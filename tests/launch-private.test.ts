@@ -33,7 +33,9 @@ const fails = (options: object) =>
 test("a full-access policy file without the CLI profile fails before any runtime exists", async () => {
   const file = policyFile({ version: 1, base: "full-access", policies: [] });
   expect(await fails({ policyFile: file })).toMatch(/base must equal/);
-  expect(await fails({ policyFile: file, policy: "full-access" })).toMatch(/--dangerously-skip/);
+  expect(await fails({ policyFile: file, policy: "full-access" })).toMatch(
+    /dangerouslySkipPermissions/,
+  );
 });
 
 test("unsafe policy files fail before readiness on every platform", async () => {
