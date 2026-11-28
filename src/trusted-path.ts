@@ -15,7 +15,7 @@ export type TrustCode = "policyFile" | "stateDir";
 
 export const contains = (root: string, candidate: string) => {
   const tail = relative(root, candidate);
-  return tail === "" || (!tail.startsWith("..") && !isAbsolute(tail));
+  return tail === "" || (tail !== ".." && !tail.startsWith("../") && !isAbsolute(tail));
 };
 
 const uid = () => process.getuid?.() ?? -1;

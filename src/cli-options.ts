@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
 import { parseIdentity } from "./identity.js";
@@ -47,7 +47,11 @@ export function parseOptions(
         ? env.A2A_WORKSPACE
         : cwd;
   if (!workspace || !isAbsolute(workspace)) throw new StartupError("workspace");
-  const identity = parseIdentity(env);
+  const identity = parseIdentity({
+    ...env,
+    A2A_NAME: flags.get("--name")?.[0] ?? env.A2A_NAME,
+    A2A_DESCRIPTION: flags.get("--description")?.[0] ?? env.A2A_DESCRIPTION,
+  });
   const access = parseAccess(flags.get("--access")?.[0]);
   const extras = parseEnable(flags.get("--enable") ?? []);
   const agent = flags.get("--agent")?.[0];
@@ -77,7 +81,7 @@ export function parseOptions(
             ...(access === "danger-full-access" ? { dangerouslySkipPermissions: true } : {}),
           }
         : {}),
-      ...privateOptions(flags),
+      ...privateOptions(flags, cwd),
       ...(identity === undefined ? {} : { identity }),
     },
   };
@@ -136,15 +140,22 @@ function executorOptions(extras: readonly string[]): Pick<ServerOptions, "execut
 
 function privateOptions(
   flags: Map<string, string[]>,
+  cwd: string,
 ): Pick<ServerOptions, "policyFile" | "stateDir"> {
-  const policyFile = flags.get("--policy-file")?.[0];
+  const input = flags.get("--policy-file")?.[0];
+  const policyFile = input === undefined ? undefined : resolve(cwd, input);
+  // Never normalize away components that the trusted-file checks must inspect.
+  if (
+    input !== undefined &&
+    (input.split("/").includes("..") ||
+      (isAbsolute(input)
+        ? policyFile !== input
+        : relative(cwd, policyFile!) !== input.replace(/^\.\//, "")))
+  )
+    throw new StartupError("policyFile");
   const stateDir = flags.get("--state-dir")?.[0];
-  for (const [value, code] of [
-    [policyFile, "policyFile"],
-    [stateDir, "stateDir"],
-  ] as const)
-    if (value !== undefined && (!isAbsolute(value) || resolve(value) !== value))
-      throw new StartupError(code);
+  if (stateDir !== undefined && (!isAbsolute(stateDir) || resolve(stateDir) !== stateDir))
+    throw new StartupError("stateDir");
   return {
     ...(policyFile === undefined ? {} : { policyFile }),
     ...(stateDir === undefined ? {} : { stateDir }),
@@ -154,6 +165,8 @@ function privateOptions(
 const VALUELESS = new Set(["--help", "--version", "--no-env"]);
 const REPEATABLE = new Set(["--pass-env", "--enable"]);
 const VALUED = new Set([
+  "--name",
+  "--description",
   "--agent",
   "--system-prompt-file",
   "--workspace",

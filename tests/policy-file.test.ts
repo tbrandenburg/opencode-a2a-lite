@@ -135,13 +135,18 @@ test("trust: accepts a private file and rejects unsafe placements", () => {
   ).toMatch(/reject/);
 });
 
-test("CLI: file flag needs an absolute path; a full-access base never upgrades the profile", () => {
+test("CLI: explicit canonical absolute or cwd-relative paths; no profile upgrade", () => {
   const env = { A2A_WORKSPACE: "/trusted" };
   expect(parseOptions(["--policy-file", "/etc/x.json"], env)).toMatchObject({
     server: { policyFile: "/etc/x.json" },
   });
-  for (const value of ["x.json", "/a/../b.json"])
-    expect(code(() => parseOptions(["--policy-file", value], env))).toMatch(/reject/);
+  for (const value of ["admin/x.json", "./admin/x.json"])
+    expect(parseOptions(["--policy-file", value], env, base)).toMatchObject({
+      server: { policyFile: join(admin, "x.json") },
+    });
+  for (const value of ["../x.json", "admin/../x.json", "/a/../b.json", "admin//x.json"])
+    expect(code(() => parseOptions(["--policy-file", value], env, base))).toMatch(/reject/);
+  expect(() => parseOptions(["--state-dir", "relative"], env)).toThrow(StartupError);
   expect(() => parseOptions(["--policy-file"], env)).toThrow();
   expect(() => parseOptions(["--policy-file", "/a", "--policy-file", "/b"], env)).toThrow();
   const full = write("full.json", doc([], { base: "full-access" }));
@@ -209,4 +214,35 @@ test("a non-colliding composed tool name is still accepted", () => {
       workspace,
     ).exceptions,
   ).toHaveLength(2);
+});
+
+test("relative CLI policy paths retain trusted-file checks", () => {
+  const policy = (path: string) => {
+    const options = parseOptions(["--workspace", "ws", "--policy-file", path], {}, base);
+    if (options.action !== "run") throw new Error("expected run");
+    return loadPolicyFile(options.server.policyFile!, options.server.workspace, "read-only");
+  };
+  const good = write("relative-good.json", doc([]));
+  expect(policy("admin/relative-good.json")).toEqual(loadPolicyFile(good, workspace, "read-only"));
+  expect(policy("./admin/relative-good.json")).toEqual(policy("admin/relative-good.json"));
+  symlinkSync(good, join(admin, "relative-link.json"));
+  symlinkSync(admin, join(base, "relative-alias"));
+  write("relative-writable.json", doc([]), 0o666);
+  const shared = join(base, "relative-shared");
+  mkdirSync(shared);
+  chmodSync(shared, 0o777);
+  writeFileSync(join(shared, "policy.json"), doc([]));
+  const hidden = join(workspace, "..hidden");
+  mkdirSync(hidden);
+  writeFileSync(join(hidden, "policy.json"), doc([]));
+  for (const path of [
+    "admin/relative-link.json",
+    "relative-alias/relative-good.json",
+    "relative-alias/../admin/relative-good.json",
+    "admin/relative-writable.json",
+    "relative-shared/policy.json",
+    "ws/..hidden/policy.json",
+    "admin/absent.json",
+  ])
+    expect(() => policy(path)).toThrow("--policy-file rejected");
 });
