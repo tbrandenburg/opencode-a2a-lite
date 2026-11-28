@@ -59,6 +59,23 @@ test("only an absolute operator CA path is inherited, never other trust override
   ).toThrow();
 });
 
+test("system CA trust is inherited only with the explicit value 1", () => {
+  for (const value of [undefined, "", "0", "true", "1"]) {
+    const source = {
+      PATH: "/usr/bin:/bin",
+      ...(value === undefined ? {} : { NODE_USE_SYSTEM_CA: value }),
+    };
+    const runtime = createRuntimeEnvironment([], source);
+    try {
+      expect(runtime.env.NODE_USE_SYSTEM_CA).toBe(value === "1" ? "1" : undefined);
+      expect(Object.hasOwn(runtime.env, "NODE_USE_SYSTEM_CA")).toBe(value === "1");
+    } finally {
+      runtime.remove();
+    }
+  }
+  expect(() => validatePassEnv(["NODE_USE_SYSTEM_CA"], { NODE_USE_SYSTEM_CA: "1" })).toThrow();
+});
+
 test("runtime markers are newly generated rather than inherited", () => {
   const source = { PATH: "/usr/bin:/bin", A2A_LITE_RUNTIME_ID: "ambient" };
   const first = createRuntimeEnvironment([], source);

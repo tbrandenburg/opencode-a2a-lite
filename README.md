@@ -140,10 +140,10 @@ with `--pass-env NAME`; disable the automatic ones with `--no-env`. Under `dange
 no provider keys are passed automatically because every command then sees the credentials; name
 what you need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
 
-For private CA trust, set `NODE_EXTRA_CA_CERTS=/absolute/path/to/ca.crt` in the gateway's
-environment (not via `--pass-env`). Only absolute paths are forwarded, including with `--no-env`.
-Use an operator-controlled bundle and path not writable by untrusted agents; it extends trust for
-the entire OpenCode process without disabling TLS verification.
+For additional TLS trust, set `NODE_EXTRA_CA_CERTS=/absolute/path/to/ca.crt` (operator-controlled
+and not writable by untrusted agents) and/or `NODE_USE_SYSTEM_CA=1` in the gateway environment.
+Only absolute CA paths and the exact system CA value `1` are forwarded, even with `--no-env`,
+not via `--pass-env`. These extend process-wide trust without disabling TLS verification.
 
 ### Startup with several gateways
 

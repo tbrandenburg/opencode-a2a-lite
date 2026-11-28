@@ -72,12 +72,14 @@ test("reserved, endpoint and missing names are still rejected without revealing 
     OPENAI_BASE_URL: "http://x",
     NODE_OPTIONS: "--inspect",
     NODE_EXTRA_CA_CERTS: "/operator/ca.crt",
+    NODE_USE_SYSTEM_CA: "1",
     NODE_TLS_REJECT_UNAUTHORIZED: "0",
   };
   for (const name of [
     "PATH",
     "NODE_OPTIONS",
     "NODE_EXTRA_CA_CERTS",
+    "NODE_USE_SYSTEM_CA",
     "NODE_TLS_REJECT_UNAUTHORIZED",
     "OPENAI_BASE_URL",
     "MISSING_KEY",
@@ -174,14 +176,17 @@ linux(
       SYNTHETIC_PROVIDER_KEY: process.env.SYNTHETIC_PROVIDER_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
+      NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA,
     };
     process.env.SYNTHETIC_PROVIDER_KEY = SECRET;
     process.env.OPENAI_API_KEY = SECRET;
     process.env.NODE_EXTRA_CA_CERTS = ca;
+    process.env.NODE_USE_SYSTEM_CA = "1";
     try {
       const options = parse(["--no-env"], {
         OPENAI_API_KEY: SECRET,
         NODE_EXTRA_CA_CERTS: ca,
+        NODE_USE_SYSTEM_CA: "1",
       });
       if (options.action !== "run") throw new Error("expected run options");
       expect(options.server.passEnv).toBeUndefined();
@@ -204,6 +209,7 @@ linux(
       expect(calls.every((call) => call.split("\n").includes(`NODE_EXTRA_CA_CERTS=${ca}`))).toBe(
         true,
       );
+      expect(calls.every((call) => call.split("\n").includes("NODE_USE_SYSTEM_CA=1"))).toBe(true);
     } finally {
       for (const [name, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[name];
