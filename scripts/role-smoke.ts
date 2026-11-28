@@ -190,7 +190,10 @@ function verifyReceipt(
         JSON.stringify(user?.content) === JSON.stringify([{ type: "text", text }]),
       "incoming user task changed",
     );
-    assert(otherRoles.every((role) => !systems.includes(role)), "roles crossed runtime boundary");
+    assert(
+      otherRoles.every((role) => !systems.includes(role)),
+      "roles crossed runtime boundary",
+    );
   }
 }
 

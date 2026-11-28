@@ -86,11 +86,6 @@ jobs:
           test -s .test-results/interop.json
           jq -e '.evidenceClass == "provider-free-controlled-ACP" and .failed == false and .cleanup == true' \
             .test-results/interop.json
-      - name: Show formatting diff on failure
-        if: failure()
-        run: |
-          bun run fmt
-          git diff -- scripts/role-smoke.ts
       - name: Summarize quality measurements
         if: always()
         run: bun scripts/quality-report.ts
