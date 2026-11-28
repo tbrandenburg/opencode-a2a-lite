@@ -68,6 +68,10 @@ export function createRuntimeEnvironment(
       XDG_STATE_HOME: join(home, ".local", "state"),
       XDG_RUNTIME_DIR: temporary,
       TMPDIR: temporary,
+      // Operator trust setting, not a credential passthrough exception.
+      ...(isAbsolute(source.NODE_EXTRA_CA_CERTS ?? "")
+        ? { NODE_EXTRA_CA_CERTS: source.NODE_EXTRA_CA_CERTS }
+        : {}),
       ...passed,
       A2A_LITE_RUNTIME_ID: randomBytes(32).toString("hex"),
     };

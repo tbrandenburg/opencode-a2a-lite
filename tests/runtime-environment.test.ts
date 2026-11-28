@@ -25,6 +25,40 @@ test("private environment contains only runtime paths and named credentials", ()
   expect(existsSync(runtime.root)).toBe(false);
 });
 
+test("only an absolute operator CA path is inherited, never other trust overrides", () => {
+  for (const ca of [undefined, "", "relative/ca.crt", "/operator/ca.crt"]) {
+    const source = {
+      PATH: "/usr/bin:/bin",
+      ...(ca === undefined ? {} : { NODE_EXTRA_CA_CERTS: ca }),
+      NODE_TLS_REJECT_UNAUTHORIZED: "0",
+      NODE_OPTIONS: "--inspect",
+      SSL_CERT_FILE: "/other/ca.crt",
+      BUN_TLS_REJECT_UNAUTHORIZED: "0",
+      OPENSSL_CONF: "/other/openssl.cnf",
+    };
+    const runtime = createRuntimeEnvironment([], source);
+    try {
+      expect(runtime.env.NODE_EXTRA_CA_CERTS).toBe(ca === "/operator/ca.crt" ? ca : undefined);
+      expect(Object.hasOwn(runtime.env, "NODE_EXTRA_CA_CERTS")).toBe(ca === "/operator/ca.crt");
+      for (const name of [
+        "NODE_TLS_REJECT_UNAUTHORIZED",
+        "NODE_OPTIONS",
+        "SSL_CERT_FILE",
+        "BUN_TLS_REJECT_UNAUTHORIZED",
+        "OPENSSL_CONF",
+      ]) {
+        expect(runtime.env[name]).toBeUndefined();
+        expect(() => validatePassEnv([name], source)).toThrow();
+      }
+    } finally {
+      runtime.remove();
+    }
+  }
+  expect(() =>
+    validatePassEnv(["NODE_EXTRA_CA_CERTS"], { NODE_EXTRA_CA_CERTS: "/operator/ca.crt" }),
+  ).toThrow();
+});
+
 test("runtime markers are newly generated rather than inherited", () => {
   const source = { PATH: "/usr/bin:/bin", A2A_LITE_RUNTIME_ID: "ambient" };
   const first = createRuntimeEnvironment([], source);

@@ -71,8 +71,18 @@ test("reserved, endpoint and missing names are still rejected without revealing 
     OPENAI_API_KEY: "sk-secret",
     OPENAI_BASE_URL: "http://x",
     NODE_OPTIONS: "--inspect",
+    NODE_EXTRA_CA_CERTS: "/operator/ca.crt",
+    NODE_TLS_REJECT_UNAUTHORIZED: "0",
   };
-  for (const name of ["PATH", "NODE_OPTIONS", "OPENAI_BASE_URL", "MISSING_KEY", "A2A_X"])
+  for (const name of [
+    "PATH",
+    "NODE_OPTIONS",
+    "NODE_EXTRA_CA_CERTS",
+    "NODE_TLS_REJECT_UNAUTHORIZED",
+    "OPENAI_BASE_URL",
+    "MISSING_KEY",
+    "A2A_X",
+  ])
     expect(() => parse(["--pass-env", name], env)).toThrow(StartupError);
   expect(() => parse(["--pass-env", "NODE_OPTIONS"], env)).not.toThrow("--inspect");
 });
@@ -153,23 +163,52 @@ linux(
 );
 
 linux(
-  "a launch with no passed variables says so and the child receives no provider values",
+  "a launch with --no-env keeps operator CA trust in probes and ACP but passes no credentials",
   async () => {
     const fake = fakeOpenCode();
     const workspace = join(base, "ws");
+    const ca = join(base, "operator-ca.crt");
     mkdirSync(workspace, { recursive: true });
     const err = spyOn(console, "error").mockImplementation(() => undefined);
+    const previous = {
+      SYNTHETIC_PROVIDER_KEY: process.env.SYNTHETIC_PROVIDER_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
+    };
     process.env.SYNTHETIC_PROVIDER_KEY = SECRET;
+    process.env.OPENAI_API_KEY = SECRET;
+    process.env.NODE_EXTRA_CA_CERTS = ca;
     try {
-      await launchGateway({ workspace, port: 0, acp: { executable: fake.file } }).catch(
-        () => undefined,
-      );
+      const options = parse(["--no-env"], {
+        OPENAI_API_KEY: SECRET,
+        NODE_EXTRA_CA_CERTS: ca,
+      });
+      if (options.action !== "run") throw new Error("expected run options");
+      expect(options.server.passEnv).toBeUndefined();
+      await launchGateway({
+        ...options.server,
+        workspace,
+        port: 0,
+        acp: { executable: fake.file },
+      }).catch(() => undefined);
       expect(err.mock.calls.flat().join("\n")).toContain(
         "no provider variables passed to OpenCode",
       );
-      expect(fake.calls()).not.toContain(SECRET);
+      const recorded = fake.calls();
+      expect(recorded).not.toContain(SECRET);
+      const calls = recorded.split(/^CALL /m).filter(Boolean);
+      const probes = calls.filter((call) => /^(--version|--standalone|debug)/.test(call));
+      const children = calls.filter((call) => !/^(--version|--standalone|debug)/.test(call));
+      expect(probes.length).toBeGreaterThanOrEqual(4);
+      expect(children.length).toBeGreaterThanOrEqual(1);
+      expect(calls.every((call) => call.split("\n").includes(`NODE_EXTRA_CA_CERTS=${ca}`))).toBe(
+        true,
+      );
     } finally {
-      delete process.env.SYNTHETIC_PROVIDER_KEY;
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
       err.mockRestore();
     }
   },
