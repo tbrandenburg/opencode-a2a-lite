@@ -140,24 +140,10 @@ with `--pass-env NAME`; disable the automatic ones with `--no-env`. Under `dange
 no provider keys are passed automatically because every command then sees the credentials; name
 what you need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
 
-### Private CA trust
-
-For HTTPS endpoints using an operator-controlled private CA, set the existing
-`NODE_EXTRA_CA_CERTS` environment variable when starting the gateway:
-
-```sh
-NODE_EXTRA_CA_CERTS=/etc/private-ca/ca.crt opencode-a2a-lite --workspace /abs/workspace
-```
-
-Only an absolute path is forwarded to OpenCode, including its startup probes. Unset, empty or
-relative paths are omitted. This is a runtime trust setting, independent of `--no-env` and the
-provider credential allowlist; `--pass-env NODE_EXTRA_CA_CERTS` remains rejected. Other reserved
-runtime and trust variables remain blocked.
-
-Use a CA bundle and path controlled by the operator and not writable by untrusted agents. The CA
-extends trust for the entire OpenCode process, not just one MCP server. TLS and hostname
-verification remain enabled; OpenCode/Bun handles certificate loading and verification. Explicit
-library `acp.env` overrides remain caller-owned.
+For private CA trust, set `NODE_EXTRA_CA_CERTS=/absolute/path/to/ca.crt` in the gateway's
+environment (not via `--pass-env`). Only absolute paths are forwarded, including with `--no-env`.
+Use an operator-controlled bundle and path not writable by untrusted agents; it extends trust for
+the entire OpenCode process without disabling TLS verification.
 
 ### Startup with several gateways
 
