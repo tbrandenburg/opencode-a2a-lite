@@ -72,3 +72,15 @@ Default launches retain their existing command behavior.
 
 The role probe is provider-free protocol/configuration evidence, not live-model reasoning-quality
 evidence. Release/publication remains a separate step after review and merge.
+
+## Relative-path discussion regression (issue #113)
+
+The extended `make role-smoke` also launches three independent standalone native roles from
+one prepared private directory using cwd-relative workspace, role and policy flags. It uses
+one shared workspace and an isolated scripted provider and harmless local MCP fixture. It
+checks distinct card identities/default descriptions, no inference at readiness, actual system
+and unchanged user messages for the scripted task requests, exact coordinator/worker tool
+side effects and no shell/edit side effects. Existing prepared-agent and absolute-path checks
+remain. The earlier evidence above predates this extension; the new smoke must be run on the
+pinned Linux runtime before claiming acceptance. The independent Agentiplex discussion live
+run is a separate acceptance step.

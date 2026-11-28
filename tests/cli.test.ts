@@ -168,3 +168,75 @@ test("prompt timeout is a validated startup-only ACP option", () => {
   const duplicate = ["--prompt-timeout", "1m", "--prompt-timeout", "2m"];
   expect(() => parseOptions(duplicate, env)).toThrow(StartupError);
 });
+
+test("identity flags override only their corresponding environment values", () => {
+  const env = {
+    A2A_NAME: "\ninvalid",
+    A2A_DESCRIPTION: " original description ",
+    A2A_TAGS: "one, two",
+  };
+  expect(parseOptions(["--name", " lead "], env)).toMatchObject({
+    server: {
+      identity: { name: "lead", description: "original description", tags: ["one", "two"] },
+    },
+  });
+  expect(
+    parseOptions(["--description", " reviewed "], { A2A_NAME: "expert", A2A_DESCRIPTION: "" }),
+  ).toMatchObject({ server: { identity: { name: "expert", description: "reviewed" } } });
+  expect(parseOptions(["--name", "critic"], {})).toMatchObject({
+    server: { identity: { name: "critic" } },
+  });
+  for (const args of [
+    ["--name", " "],
+    ["--description", "bad\nvalue"],
+    ["--name", "n".repeat(129)],
+    ["--description", "d".repeat(1025)],
+    ["--name"],
+    ["--description", ""],
+    ["--name", "a", "--name", "b"],
+  ])
+    expect(() => parseOptions(args, {})).toThrow(StartupError);
+  expect(() => parseOptions(["--name", "lead"], { A2A_TAGS: "a,,b" })).toThrow(StartupError);
+});
+
+test("discussion flags resolve against the invoking directory, not the workspace", () => {
+  const args = ["--name", "lead", "--port", "8001", "--no-env"];
+  const relative = parseOptions(
+    [
+      ...args,
+      "--workspace",
+      "workspace",
+      "--system-prompt-file",
+      "roles/lead.md",
+      "--policy-file",
+      "policies/coordinator.json",
+    ],
+    { OPENAI_API_KEY: "synthetic" },
+    "/example",
+  );
+  expect(relative).toEqual(
+    parseOptions(
+      [
+        ...args,
+        "--workspace",
+        "/example/workspace",
+        "--system-prompt-file",
+        "/example/roles/lead.md",
+        "--policy-file",
+        "/example/policies/coordinator.json",
+      ],
+      {},
+      "/example",
+    ),
+  );
+  expect(relative).toEqual({
+    action: "run",
+    server: {
+      workspace: "/example/workspace",
+      systemPromptFile: "/example/roles/lead.md",
+      port: 8001,
+      policyFile: "/example/policies/coordinator.json",
+      identity: { name: "lead" },
+    },
+  });
+});

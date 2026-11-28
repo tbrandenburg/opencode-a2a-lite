@@ -38,7 +38,7 @@ const messages = {
   policyConflict:
     "Library option policy full-access cannot combine with permissions ask or a caller-supplied ACP environment.",
   policyFile:
-    "--policy-file rejected: it must be an absolute, non-symlinked JSON file outside the workspace, owned by you and not group/world-writable, with only reviewed exact version 1 allow statements (see docs/operator-policy-state.md).",
+    "--policy-file rejected: use a canonical absolute or cwd-relative JSON file outside the workspace, no traversal or symlinks, owned by you with safe ancestors and not group/world-writable, with only reviewed exact version 1 allow statements (see docs/operator-policy-state.md).",
   policyFileBase:
     "--policy-file base must equal the --access level (read = read-only); a policy file never selects or upgrades a profile.",
   stateDir:

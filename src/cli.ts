@@ -8,6 +8,7 @@ async function main() {
   if (options.action === "help") {
     console.log(`Usage: opencode-a2a-lite [--workspace <path>] [--port <0..65535>]
                          [--access <read|edit|danger-full-access>]
+                         [--name NAME] [--description TEXT] [--policy-file PATH]
                          [--agent NAME | --system-prompt-file PATH]
                          [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
 
@@ -15,18 +16,26 @@ Start the foreground, unauthenticated A2A gateway.
 Linux, Bun 1.4.4, stable OpenCode 2.2.7 or newer on PATH, and configured provider required.
 The private CLI runtime currently fails closed on macOS.
 
-  --workspace <path>  Trusted directory (default: the current directory; or A2A_WORKSPACE, absolute).
+  --workspace <path>  Trusted directory, absolute or relative to cwd (default: cwd; A2A_WORKSPACE
+                      must be absolute).
+  --name NAME         Agent Card name (overrides A2A_NAME; default: OpenCode A2A Lite).
+  --description TEXT  Agent Card description (overrides A2A_DESCRIPTION; defaults to gateway description).
+                      Identity is metadata only; names <=128, descriptions <=1024.
+  --policy-file PATH  Explicit trusted operator JSON outside the workspace (absolute or cwd-relative).
+                      Exact reviewed exceptions only; no traversal or symlinks, no access upgrade.
   --port <0..65535>   Port (default 41241; 0 selects a free port).
   --agent NAME       Startup-only visible native primary agent from trusted workspace configuration.
   --system-prompt-file PATH
                       Standalone native primary agent with a nonempty UTF-8 system prompt (<=64KiB).
+                      Absolute or relative to cwd.
                       Mutually exclusive with --agent; neither permits --enable resume.
                       Card identity is metadata, not model instructions; task text stays unchanged.
                       Slash-prefixed tasks are rejected with explicit roles (native commands can switch agents).
   --access <read|edit|danger-full-access>
                       Startup-only capability level, never request-scoped. read (default) reads and
                       searches; edit also edits project files; neither runs shell, web tools, MCP,
-                      plugins, skills or subagents. danger-full-access auto-approves shell, edits and
+                      plugins, skills or subagents by default; exact operator exceptions only via
+                      --policy-file. danger-full-access auto-approves shell, edits and
                       web tools with host-user authority and passes no provider keys unless named.
                       There is no OS isolation at any level.
   --pass-env NAME     Also pass this variable to OpenCode; repeat as needed. Provider keys
@@ -50,7 +59,7 @@ The private CLI runtime currently fails closed on macOS.
   --help, -h          Show help without starting OpenCode.
   --version, -v       Print package version without starting OpenCode.
 
-Advanced (--policy-file, --state-dir, A2A_NAME/DESCRIPTION/TAGS, A2A_PORT): docs/operator-policy-state.md.
+Advanced (--state-dir, A2A_TAGS, identity and policy details): docs/operator-policy-state.md.
 Private ephemeral HOME/XDG does not use saved logins. Workspace configuration, instructions,
 tools, plugins and MCP are trusted. This is not a sandbox.
 Never expose through a public proxy. Use the separate official a2a CLI as client.`);
