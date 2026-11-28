@@ -3,6 +3,7 @@ import { isAbsolute, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { Exception } from "./policy-file.js";
 import { policyConfig, type PolicyProfile } from "./runtime-policy.js";
+import type { NativeRole } from "./native-role.js";
 
 // Names affecting process startup, executable discovery, configuration, trust or
 // network routing cannot be delegated through the credential passthrough.
@@ -34,7 +35,7 @@ export function createRuntimeEnvironment(
   names: readonly string[],
   source: NodeJS.ProcessEnv,
   policy?: PolicyProfile,
-  extra: { exceptions?: readonly Exception[]; data?: string } = {},
+  extra: { exceptions?: readonly Exception[]; data?: string; role?: NativeRole } = {},
 ) {
   const passed = validatePassEnv(names, source);
   const path = source.PATH;
@@ -52,7 +53,7 @@ export function createRuntimeEnvironment(
       mkdirSync(config, { recursive: true, mode: 0o700 });
       writeFileSync(
         join(config, "opencode.json"),
-        JSON.stringify(policyConfig(policy, extra.exceptions)),
+        JSON.stringify(policyConfig(policy, extra.exceptions, extra.role)),
         {
           mode: 0o600,
         },

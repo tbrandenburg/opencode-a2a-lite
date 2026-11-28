@@ -1,4 +1,11 @@
 const messages = {
+  roleConflict: "--agent and --system-prompt-file are mutually exclusive.",
+  roleResume: "Explicit native role selection cannot combine with --enable resume.",
+  role: "Native role rejected: select an available visible primary agent; standalone roles must not be overridden or collide with workspace configuration.",
+  systemPromptFile:
+    "--system-prompt-file rejected: use a readable regular file with nonempty, valid UTF-8 text, no NUL bytes and at most 65536 bytes.",
+  roleEnvironment:
+    "Native role startup options require the private runtime; do not combine with acp.env or acp.agent.",
   arguments: "Invalid arguments. Use --help for the supported flags.",
   access: "Invalid --access value: use read, edit or danger-full-access.",
   enable: "Invalid --enable value: use activity, approve or resume, each at most once.",

@@ -32,6 +32,22 @@ let turns = 0;
 let release: (() => void) | undefined;
 let current: AgentContext | undefined;
 let activeSession = "";
+const selectedRoles = new Set<string>();
+const roleOptions = (
+  selected = false,
+): import("@agentclientprotocol/sdk").SessionConfigOption[] => [
+  {
+    id: "mode",
+    name: "Mode",
+    category: "mode",
+    type: "select",
+    currentValue: selected ? "architect" : "build",
+    options: [
+      { value: "build", name: "Build" },
+      { value: "architect", name: "Architect" },
+    ],
+  },
+];
 const forever = () => new Promise<never>(() => undefined);
 
 agent.onRequest(acp.methods.agent.initialize, async (request) => {
@@ -49,7 +65,18 @@ agent.onRequest(acp.methods.agent.session.new, async (request) => {
   // Session creation must not be counted against the completed startup phase.
   if (mode === "cancel-hang-slow-start") await Bun.sleep(4_000);
   if (current) await chunk(current, activeSession, "late-idle");
-  return { sessionId: `session-${++sessions}` };
+  return {
+    sessionId: `session-${++sessions}`,
+    ...(mode?.startsWith("role-") ? { configOptions: roleOptions() } : {}),
+  };
+});
+agent.onRequest(acp.methods.agent.session.setConfigOption, async (request) => {
+  if (mode === "role-error") throw new Error("secret role prompt");
+  if (mode === "role-new-session-failure" && sessions > 1) return { configOptions: roleOptions() };
+  if (request.params.configId !== "mode" || request.params.value !== "architect")
+    throw new Error("bad selection");
+  if (mode !== "role-fallback") selectedRoles.add(request.params.sessionId);
+  return { configOptions: roleOptions(mode !== "role-fallback") };
 });
 
 agent.onRequest(acp.methods.agent.session.resume, async (request) => {
@@ -130,6 +157,30 @@ agent.onRequest(acp.methods.agent.session.prompt, async (request) => {
   current = ctx;
   activeSession = request.params.sessionId;
   const text = request.params.prompt[0];
+  if (mode?.startsWith("role-") && !selectedRoles.has(activeSession))
+    throw new Error("unselected prompt must never be sent");
+  if (mode === "role-ok") {
+    await ctx.notify(acp.methods.client.session.update, {
+      sessionId: activeSession,
+      _meta: { "opencode/child-session": true },
+      update: { sessionUpdate: "config_option_update", configOptions: roleOptions() },
+    });
+    await ctx.notify(acp.methods.client.session.update, {
+      sessionId: activeSession,
+      update: {
+        sessionUpdate: "config_option_update",
+        configOptions: roleOptions(),
+        _meta: { "opencode/child-session": { id: "ses_child" } },
+      },
+    });
+  }
+  if (mode === "role-drift") {
+    await ctx.notify(acp.methods.client.session.update, {
+      sessionId: activeSession,
+      update: { sessionUpdate: "config_option_update", configOptions: roleOptions() },
+    });
+    return forever();
+  }
   if (text?.type !== "text") throw new Error("bad prompt");
   if (text.text === "exit") process.exit(13);
   if (text.text === "slow-prompt") await Bun.sleep(2_300);

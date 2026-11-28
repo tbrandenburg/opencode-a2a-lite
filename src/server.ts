@@ -27,6 +27,7 @@ import { ProbeCleanupError, resolveOpenCode, verifyRuntime } from "./runtime-pro
 import { removeUnusedRuntime } from "./runtime-processes.js";
 import { exceptionNames, loadPolicyFile } from "./policy-file.js";
 import { acquireState } from "./state-dir.js";
+import { loadNativeRole, validateRoleOptions } from "./native-role.js";
 import {
   FULL_ACCESS_WARNING,
   policySummary,
@@ -36,6 +37,8 @@ import {
 
 type AcpBridge = ReturnType<typeof createAcpBridge>;
 export interface ServerOptions {
+  agent?: string;
+  systemPromptFile?: string;
   workspace: string;
   passEnv?: readonly string[];
   policy?: PolicyProfile;
@@ -51,6 +54,10 @@ export interface ServerOptions {
 }
 
 export function createGateway(options: ServerOptions) {
+  if (options.agent !== undefined || options.systemPromptFile !== undefined)
+    throw new StartupError("roleEnvironment");
+  if (options.acp?.agent !== undefined && options.executor?.resume)
+    throw new StartupError("roleResume");
   const identity = validateIdentity(options.identity);
   if (!isAbsolute(options.workspace)) throw new StartupError("workspace");
   const host = options.host ?? "127.0.0.1";
@@ -237,6 +244,13 @@ export function createGateway(options: ServerOptions) {
 }
 
 export async function launchGateway(options: ServerOptions) {
+  validateRoleOptions(options.agent, options.systemPromptFile, options.executor?.resume);
+  if (
+    (options.agent !== undefined || options.systemPromptFile !== undefined) &&
+    (options.acp?.env || options.acp?.agent !== undefined)
+  )
+    throw new StartupError("roleEnvironment");
+  const role = loadNativeRole(options.agent, options.systemPromptFile);
   if (options.acp?.env && options.passEnv?.length) throw new StartupError("passEnvConflict");
   if (options.acp?.env && options.policy) throw new StartupError("policyConflict");
   const policy = options.policy ?? "read-only";
@@ -258,6 +272,7 @@ export async function launchGateway(options: ServerOptions) {
       return createRuntimeEnvironment(options.passEnv ?? [], process.env, policy, {
         ...(file ? { exceptions: file.exceptions } : {}),
         ...(state ? { data: state.data } : {}),
+        ...(role ? { role } : {}),
       });
     } catch (error) {
       state?.release();
@@ -273,10 +288,21 @@ export async function launchGateway(options: ServerOptions) {
     executable = runtime
       ? resolveOpenCode(runtime.env.PATH!, options.acp?.executable, options.workspace)
       : undefined;
+    const gatewayOptions = { ...options };
+    delete gatewayOptions.agent;
+    delete gatewayOptions.systemPromptFile;
     gateway = createGateway({
-      ...options,
+      ...gatewayOptions,
       ...(runtime && executable && probeEnv
-        ? { acp: { ...options.acp, env: runtime.env, versionEnv: probeEnv, executable } }
+        ? {
+            acp: {
+              ...options.acp,
+              env: runtime.env,
+              versionEnv: probeEnv,
+              executable,
+              ...(role ? { agent: role.id } : {}),
+            },
+          }
         : {}),
     });
   } catch (error) {
@@ -337,6 +363,7 @@ export async function launchGateway(options: ServerOptions) {
         policy,
         ...(file ? { exceptions: file.exceptions } : {}),
         ...(state ? { data: state.data } : {}),
+        ...(role ? { role } : {}),
         signal: abort.signal,
       });
       await preparation;
