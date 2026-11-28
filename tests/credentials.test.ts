@@ -74,6 +74,9 @@ test("reserved, endpoint and missing names are still rejected without revealing 
     NODE_EXTRA_CA_CERTS: "/operator/ca.crt",
     NODE_USE_SYSTEM_CA: "1",
     NODE_TLS_REJECT_UNAUTHORIZED: "0",
+    HTTP_PROXY: "http://proxy.example:8080",
+    HTTPS_PROXY: "http://proxy.example:8080",
+    NO_PROXY: "localhost",
   };
   for (const name of [
     "PATH",
@@ -81,6 +84,9 @@ test("reserved, endpoint and missing names are still rejected without revealing 
     "NODE_EXTRA_CA_CERTS",
     "NODE_USE_SYSTEM_CA",
     "NODE_TLS_REJECT_UNAUTHORIZED",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
     "OPENAI_BASE_URL",
     "MISSING_KEY",
     "A2A_X",
@@ -170,6 +176,7 @@ linux(
     const fake = fakeOpenCode();
     const workspace = join(base, "ws");
     const ca = join(base, "operator-ca.crt");
+    const proxy = "http://user:synthetic-proxy-secret@proxy.example:8080";
     mkdirSync(workspace, { recursive: true });
     const err = spyOn(console, "error").mockImplementation(() => undefined);
     const previous = {
@@ -177,11 +184,23 @@ linux(
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
       NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA,
+      HTTP_PROXY: process.env.HTTP_PROXY,
+      HTTPS_PROXY: process.env.HTTPS_PROXY,
+      NO_PROXY: process.env.NO_PROXY,
+      http_proxy: process.env.http_proxy,
+      https_proxy: process.env.https_proxy,
+      no_proxy: process.env.no_proxy,
     };
     process.env.SYNTHETIC_PROVIDER_KEY = SECRET;
     process.env.OPENAI_API_KEY = SECRET;
     process.env.NODE_EXTRA_CA_CERTS = ca;
     process.env.NODE_USE_SYSTEM_CA = "1";
+    process.env.HTTP_PROXY = proxy;
+    process.env.HTTPS_PROXY = proxy;
+    process.env.NO_PROXY = ".internal.example";
+    delete process.env.http_proxy;
+    delete process.env.https_proxy;
+    delete process.env.no_proxy;
     try {
       const options = parse(["--no-env"], {
         OPENAI_API_KEY: SECRET,
@@ -210,6 +229,12 @@ linux(
         true,
       );
       expect(calls.every((call) => call.split("\n").includes("NODE_USE_SYSTEM_CA=1"))).toBe(true);
+      for (const call of calls) {
+        expect(call.split("\n")).toContain(`HTTP_PROXY=${proxy}`);
+        expect(call.split("\n")).toContain(`HTTPS_PROXY=${proxy}`);
+        expect(call.split("\n")).toContain("NO_PROXY=.internal.example,localhost,127.0.0.1,::1");
+      }
+      expect(err.mock.calls.flat().join("\n")).not.toContain("synthetic-proxy-secret");
     } finally {
       for (const [name, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[name];

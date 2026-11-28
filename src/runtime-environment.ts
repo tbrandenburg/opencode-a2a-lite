@@ -58,6 +58,10 @@ export function createRuntimeEnvironment(
         },
       );
     }
+    const httpProxy = source.http_proxy || source.HTTP_PROXY;
+    const httpsProxy = source.https_proxy || source.HTTPS_PROXY;
+    const noProxy = source.no_proxy || source.NO_PROXY;
+    const bypass = [noProxy, "localhost", "127.0.0.1", "::1"].filter(Boolean).join(",");
     const env: NodeJS.ProcessEnv = {
       PATH: path,
       LANG: "C",
@@ -68,11 +72,14 @@ export function createRuntimeEnvironment(
       XDG_STATE_HOME: join(home, ".local", "state"),
       XDG_RUNTIME_DIR: temporary,
       TMPDIR: temporary,
-      // Operator trust settings, not credential passthrough exceptions.
+      // Operator trust and routing settings, not credential passthrough exceptions.
       ...(isAbsolute(source.NODE_EXTRA_CA_CERTS ?? "")
         ? { NODE_EXTRA_CA_CERTS: source.NODE_EXTRA_CA_CERTS }
         : {}),
       ...(source.NODE_USE_SYSTEM_CA === "1" ? { NODE_USE_SYSTEM_CA: "1" } : {}),
+      ...(httpProxy ? { HTTP_PROXY: httpProxy, http_proxy: httpProxy } : {}),
+      ...(httpsProxy ? { HTTPS_PROXY: httpsProxy, https_proxy: httpsProxy } : {}),
+      ...(httpProxy || httpsProxy || noProxy ? { NO_PROXY: bypass, no_proxy: bypass } : {}),
       ...passed,
       A2A_LITE_RUNTIME_ID: randomBytes(32).toString("hex"),
     };

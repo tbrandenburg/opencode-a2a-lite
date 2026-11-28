@@ -8,7 +8,7 @@ test("private environment contains only runtime paths and named credentials", ()
     OPENAI_API_KEY: "test-key",
     OPENCODE_CONFIG_CONTENT: "private-marker",
     UNRELATED_TOKEN: "other-marker",
-    HTTPS_PROXY: "proxy-marker",
+    ALL_PROXY: "proxy-marker",
   });
   try {
     expect(statSync(runtime.root).mode & 0o777).toBe(0o700);
@@ -18,7 +18,7 @@ test("private environment contains only runtime paths and named credentials", ()
     expect(runtime.env.A2A_LITE_RUNTIME_ID).toMatch(/^[a-f0-9]{64}$/);
     expect(runtime.env.OPENCODE_CONFIG_CONTENT).toBeUndefined();
     expect(runtime.env.UNRELATED_TOKEN).toBeUndefined();
-    expect(runtime.env.HTTPS_PROXY).toBeUndefined();
+    expect(runtime.env.ALL_PROXY).toBeUndefined();
   } finally {
     runtime.remove();
   }
@@ -74,6 +74,83 @@ test("system CA trust is inherited only with the explicit value 1", () => {
     }
   }
   expect(() => validatePassEnv(["NODE_USE_SYSTEM_CA"], { NODE_USE_SYSTEM_CA: "1" })).toThrow();
+});
+
+test("operator proxy settings preserve loopback bypasses and block credential passthrough", () => {
+  const source = {
+    PATH: "/usr/bin:/bin",
+    HTTP_PROXY: "http://proxy.example:8080",
+    HTTPS_PROXY: "http://unused.example:8080",
+    https_proxy: "http://secure.example:8080",
+    NO_PROXY: ".internal.example",
+    ALL_PROXY: "http://blocked.example:8080",
+  };
+  const runtime = createRuntimeEnvironment([], source);
+  try {
+    expect(runtime.env.HTTP_PROXY).toBe(source.HTTP_PROXY);
+    expect(runtime.env.http_proxy).toBe(source.HTTP_PROXY);
+    expect(runtime.env.HTTPS_PROXY).toBe(source.https_proxy);
+    expect(runtime.env.https_proxy).toBe(source.https_proxy);
+    expect(runtime.env.NO_PROXY).toBe(".internal.example,localhost,127.0.0.1,::1");
+    expect(runtime.env.no_proxy).toBe(runtime.env.NO_PROXY);
+    expect(runtime.env.ALL_PROXY).toBeUndefined();
+    for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "ALL_PROXY"]) {
+      expect(() => validatePassEnv([name], source)).toThrow();
+    }
+  } finally {
+    runtime.remove();
+  }
+  const empty = createRuntimeEnvironment([], {
+    PATH: "/usr/bin:/bin",
+    HTTP_PROXY: "",
+    HTTPS_PROXY: "",
+    NO_PROXY: "",
+  });
+  try {
+    for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"]) {
+      expect(Object.hasOwn(empty.env, name)).toBe(false);
+    }
+  } finally {
+    empty.remove();
+  }
+});
+
+test("loopback fetch bypasses the operator HTTP proxy", async () => {
+  const origin = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: () => new Response("direct"),
+  });
+  let proxyHits = 0;
+  const proxy = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: () => {
+      proxyHits++;
+      return new Response("proxy");
+    },
+  });
+  const runtime = createRuntimeEnvironment([], {
+    PATH: "/usr/bin:/bin",
+    HTTP_PROXY: proxy.url.href,
+  });
+  try {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `console.log(await (await fetch(${JSON.stringify(origin.url.href)}, { signal: AbortSignal.timeout(3000) })).text())`,
+      ],
+      { env: runtime.env, stdout: "pipe", stderr: "pipe" },
+    );
+    expect((await new Response(child.stdout).text()).trim()).toBe("direct");
+    expect(await child.exited).toBe(0);
+    expect(proxyHits).toBe(0);
+  } finally {
+    runtime.remove();
+    origin.stop(true);
+    proxy.stop(true);
+  }
 });
 
 test("runtime markers are newly generated rather than inherited", () => {

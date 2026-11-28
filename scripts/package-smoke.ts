@@ -173,7 +173,7 @@ if (process.argv[2] === "--version" || process.argv[2] === "acp")
     phase:process.argv[2],
     home:process.env.HOME,
     approved:process.env.FAKE_API_KEY === "approved-sentinel",
-    clean:!process.env.UNRELATED_TOKEN && !process.env.OPENCODE_CONFIG_CONTENT && !process.env.HTTPS_PROXY
+    clean:!process.env.UNRELATED_TOKEN && !process.env.OPENCODE_CONFIG_CONTENT && !process.env.ALL_PROXY
   }) + "\\n");
 if (process.argv[2] === "debug" && process.argv[3] === "paths") {
   for (const name of ["home", "data", "cache", "config", "state", "tmp", "db"])
@@ -282,7 +282,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
           FAKE_API_KEY: "approved-sentinel",
           UNRELATED_TOKEN: "hidden-sentinel",
           OPENCODE_CONFIG_CONTENT: "hidden-sentinel",
-          HTTPS_PROXY: "hidden-sentinel",
+          ALL_PROXY: "hidden-sentinel",
         },
         port: undefined,
       },
