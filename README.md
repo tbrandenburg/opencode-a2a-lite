@@ -132,13 +132,20 @@ do, so enable them only for trusted clients on loopback. Each may be given once.
 ### Provider credentials
 
 CLI launches use an ephemeral private HOME and XDG directories, a PATH consisting of absolute
-entries and `LANG=C`. Saved logins, ambient OpenCode overrides and proxy variables are not copied.
+entries and `LANG=C`. Saved logins and ambient OpenCode overrides are not copied.
 These provider keys are passed automatically when set and non-empty:
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`,
 `OPENROUTER_API_KEY`, `GROQ_API_KEY`. Launch prints the passed **names**, never values. Add more
 with `--pass-env NAME`; disable the automatic ones with `--no-env`. Under `danger-full-access`
-nothing is passed automatically because every command then sees the credentials; name what you
-need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
+no provider keys are passed automatically because every command then sees the credentials; name
+what you need with `--pass-env`. An absent or invalid credential can cause a sanitized task failure.
+
+For additional TLS trust, set `NODE_EXTRA_CA_CERTS=/absolute/path/to/ca.crt` (operator-controlled
+and not writable by untrusted agents) and/or `NODE_USE_SYSTEM_CA=1` in the gateway environment.
+Only absolute CA paths and the exact system CA value `1` are forwarded, even with `--no-env`,
+not via `--pass-env`. These extend process-wide trust without disabling TLS verification.
+`HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` (lowercase aliases take precedence) are also
+forwarded when set, with loopback bypasses added. Use only trusted proxies; URLs may contain secrets.
 
 ### Startup with several gateways
 
