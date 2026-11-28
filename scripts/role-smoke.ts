@@ -185,7 +185,8 @@ function verifyReceipt(
     const systems = JSON.stringify(messages.filter((message) => message.role === "system"));
     assert(
       messages.some(
-        (message) => message.role === "system" && JSON.stringify(message.content).includes(expected),
+        (message) =>
+          message.role === "system" && JSON.stringify(message.content).includes(expected),
       ),
       "native system prompt not observed",
     );
@@ -249,11 +250,7 @@ async function discussion() {
       mcp: {
         fx: {
           type: "local",
-          command: [
-            process.execPath,
-            resolve("tests/fixtures/mcp-fixture.ts"),
-            sentinel,
-          ],
+          command: [process.execPath, resolve("tests/fixtures/mcp-fixture.ts"), sentinel],
         },
       },
     });

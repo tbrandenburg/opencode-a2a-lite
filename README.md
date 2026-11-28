@@ -158,7 +158,7 @@ opencode-a2a-lite --help | --version
 
 | Option / variable    | Meaning                                                                                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--workspace`        | Trusted directory, absolute or cwd-relative. Defaults to cwd; `A2A_WORKSPACE` (absolute) is accepted, the flag wins.                                                 |
+| `--workspace`        | Trusted directory, absolute or cwd-relative. Defaults to cwd; `A2A_WORKSPACE` (absolute) is accepted, the flag wins.                                         |
 | `--port`, `A2A_PORT` | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port.                                                                         |
 | `--access`           | Startup-only [access level](#access-levels): `read` (default), `edit` or `danger-full-access`.                                                               |
 | `--pass-env NAME`    | Also pass a named, existing variable to OpenCode; repeat for more. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |

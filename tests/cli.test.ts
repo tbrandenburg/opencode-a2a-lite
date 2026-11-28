@@ -176,7 +176,9 @@ test("identity flags override only their corresponding environment values", () =
     A2A_TAGS: "one, two",
   };
   expect(parseOptions(["--name", " lead "], env)).toMatchObject({
-    server: { identity: { name: "lead", description: "original description", tags: ["one", "two"] } },
+    server: {
+      identity: { name: "lead", description: "original description", tags: ["one", "two"] },
+    },
   });
   expect(
     parseOptions(["--description", " reviewed "], { A2A_NAME: "expert", A2A_DESCRIPTION: "" }),

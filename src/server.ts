@@ -356,7 +356,10 @@ export async function launchGateway(options: ServerOptions) {
     if (runtime && executable) {
       status("starting", "gateway · waiting for private runtime launch lock (not ready)");
       release = await acquireLaunchLock({ signal: abort.signal });
-      status("preflight", "checking isolated OpenCode configuration, capability policy and native role");
+      status(
+        "preflight",
+        "checking isolated OpenCode configuration, capability policy and native role",
+      );
       preparation = verifyRuntime({
         executable,
         cwd: options.workspace,
@@ -391,7 +394,10 @@ export async function launchGateway(options: ServerOptions) {
           "persistent private state · approvals, accounts and automations cleared each launch · session history kept",
         );
     }
-    status("starting", "gateway · starting ACP and checking any requested native role before HTTP readiness");
+    status(
+      "starting",
+      "gateway · starting ACP and checking any requested native role before HTTP readiness",
+    );
     const ready = await gateway.start();
     release();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
