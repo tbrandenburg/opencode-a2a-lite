@@ -1,19 +1,27 @@
 # Advanced options: operator policy file, persistent state, identity (issues #89, #103)
 
-The main [README](../README.md) covers `--workspace`, `--port`, `--access`, `--pass-env` and
-`--enable`. Everything below is advanced and opt-in.
+The main [README](../README.md) covers everyday launch options, including identity and
+explicit operator policy files. This page documents their trust boundary and persistent state.
 
 ## Agent card identity
 
 `A2A_NAME` (128 characters), `A2A_DESCRIPTION` (1024) and `A2A_TAGS` (up to 16 comma-separated
 tags, 64 characters each, no escaping) set Agent Card metadata only; they are **not** access
 control. Values are trimmed, nonblank and control-free; tags deduplicate after trimming.
+The CLI flags `--name` and `--description` override the corresponding environment values
+independently, with exactly the same validation. Tags still come from `A2A_TAGS`.
+Defaults are "OpenCode A2A Lite" and a descriptive gateway description.
 `A2A_PORT` is the environment form of `--port`.
 
 Both file and state options are opt-in, CLI private-runtime only, read once at startup, and never change the
 launch policy from a prompt, A2A metadata or the workspace. Neither is an OS sandbox.
 
-## `--policy-file ABSOLUTE_PATH`
+## `--policy-file PATH`
+
+Explicit absolute or cwd-relative path (including `./`); never discovered in a workspace.
+The CLI resolves relative paths before the existing trusted-file checks, rejects `..` and
+noncanonical components, and never resolves symlinks on the operator's behalf.
+Library callers still supply absolute canonical paths. `--state-dir` remains absolute.
 
 ```json
 {
@@ -44,7 +52,7 @@ launch policy from a prompt, A2A metadata or the workspace. Neither is an OS san
   outside-workspace denial (reproduced in `make policy-smoke`). Built-in tools
   (`shell`, `edit`, `webfetch` ...) cannot be lifted, so **shell exceptions are rejected** for every
   base: use `--access danger-full-access` deliberately instead.
-- Trust checks (one file descriptor, `O_NOFOLLOW`, `fstat`): absolute canonical path equal to its
+- Trust checks (one file descriptor, `O_NOFOLLOW`, `fstat`): resolved absolute canonical path equal to its
   realpath (no symlink in any component), regular file with one link, owned by the invoking user,
   no group/world write, 64 KiB limit, every ancestor a real directory owned by root or you with no
   group/world write (sticky shared directories such as `/tmp` allowed), and outside the workspace. Bind mounts are not detectable by realpath; do not place the file or state

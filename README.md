@@ -54,7 +54,7 @@ HOME/configuration, but is not an OS sandbox.
 
 ## Quick start
 
-Three inputs, all optional: workspace, port and access level. Run it inside the
+Workspace, port and access level are optional. Run it inside the
 directory you trust, outside a checkout of this repository, with a provider key such as
 `OPENAI_API_KEY` exported (well-known provider keys are passed to OpenCode automatically):
 
@@ -65,8 +65,9 @@ npx --yes @tbrandenburg/opencode-a2a-lite@latest --port 0 --access read
 
 This starts a **gateway server** on `127.0.0.1` and launches `opencode` as a child
 process over ACP in that workspace. It does not run any task by itself: OpenCode only
-works when an A2A client sends a prompt. On startup, the CLI prints aligned lifecycle
-status to stderr and a machine-readable readiness record to stdout
+works when an A2A client sends a prompt. Startup and preflight status on stderr are not
+readiness. Only after successful preflight and ACP startup does the CLI print a ready status
+and a machine-readable readiness record to stdout
 (`{"ready":true,"url":"http://127.0.0.1:.../"}`). In a second terminal use the
 **actual** URL (default port 41241):
 
@@ -81,6 +82,49 @@ The server runs in the foreground. Press Ctrl-C to see shutdown progress; it rep
 SIGTERM and SIGHUP also initiate shutdown.
 Status lines use color only on interactive terminals, honor `NO_COLOR`, and remain
 plain when redirected. Startup JSON stays on stdout; human-readable status is on stderr.
+
+### Three independent read-only agents
+
+For a prepared discussion, see the [Agentiplex discussion example](https://github.com/tbrandenburg/agentiplex/tree/d65f9a4945ef27c9fb677c901ababbdbc7712462/examples/discussion-team)
+(pinned companion PR [#56](https://github.com/tbrandenburg/agentiplex/pull/56)).
+Copy its reviewed `workspace/opencode.json`, `roles/*.md` and two `policies/*.json` files
+into a new private directory outside any repository with ancestor OpenCode configuration.
+Use mode 0700, trusted non-symlinked ancestors and operator-owned policy files that are
+not group/world-writable. The example uses a free remote model: use only public or synthetic
+topics. Build the companion revision and this gateway revision; these flags are not available
+in gateway 0.9.2. The documented native runtime pair is Bun 1.4.4 and OpenCode 2.4.1.
+
+From that directory, start the separate Agentiplex daemon (`agentiplexd --mcp --storage data`)
+and wait for its ready log. In three other terminals, each in the same private directory:
+
+```sh
+opencode-a2a-lite --name lead --port 8001 --workspace workspace --system-prompt-file roles/lead.md --policy-file policies/coordinator.json --no-env
+opencode-a2a-lite --name expert --port 8002 --workspace workspace --system-prompt-file roles/expert.md --policy-file policies/reader.json --no-env
+opencode-a2a-lite --name critic --port 8003 --workspace workspace --system-prompt-file roles/critic.md --policy-file policies/reader.json --no-env
+```
+
+All three paths resolve against the invoking directory. The explicit policies stay outside the
+workspace and allow only the reviewed MCP server and its exact named tools: the lead can
+discover/ask/read deliveries and notes, workers can note/read notes. Shell and edit remain
+denied. `--no-env` suppresses automatic provider credentials (explicit `--pass-env` still works).
+The local ports are unauthenticated, and read access is not an OS sandbox.
+Wait for each **ready** URL, not merely a preflight status. An exited preflight is a failure;
+review the sanitized diagnostic and trusted config, and on an overloaded host start fewer
+gateways at once. Do not bypass checks.
+
+Register and send using the independent client only after all three are ready:
+
+```sh
+agentiplex register lead http://127.0.0.1:8001
+agentiplex register expert http://127.0.0.1:8002
+agentiplex register critic http://127.0.0.1:8003
+agentiplex send lead "Should we use event sourcing?" --idempotency-key discussion-1 --wait
+agentiplex notes list discussion
+```
+
+Review the returned verdict and actual notes; a card or completed delivery alone does not
+prove collaboration. This is a documented launch procedure, not a recorded successful live run.
+No middleware registration, scheduling or tool approval is performed by the gateway.
 
 ## Requirements
 
@@ -107,13 +151,14 @@ macOS demo results predate this change.
 opencode-a2a-lite [--workspace <path>] [--port <0..65535>] [--access <read|edit|danger-full-access>]
                   [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
                   [--prompt-timeout <duration|unlimited>]
+                  [--name NAME] [--description TEXT] [--policy-file PATH]
                   [--agent NAME | --system-prompt-file PATH]
 opencode-a2a-lite --help | --version
 ```
 
 | Option / variable    | Meaning                                                                                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--workspace`        | Trusted directory. Defaults to the current directory; `A2A_WORKSPACE` (absolute) is accepted, the flag wins.                                                 |
+| `--workspace`        | Trusted directory, absolute or cwd-relative. Defaults to cwd; `A2A_WORKSPACE` (absolute) is accepted, the flag wins.                                                 |
 | `--port`, `A2A_PORT` | Listen port (bound to `127.0.0.1`). Default 41241; `0` requests an OS-assigned port.                                                                         |
 | `--access`           | Startup-only [access level](#access-levels): `read` (default), `edit` or `danger-full-access`.                                                               |
 | `--pass-env NAME`    | Also pass a named, existing variable to OpenCode; repeat for more. Runtime, configuration, endpoint, host, proxy and injection-sensitive names are rejected. |
@@ -123,8 +168,14 @@ opencode-a2a-lite --help | --version
 | `--enable resume`    | Opt-in: let clients continue existing OpenCode sessions of this workspace. See [below](#continue-an-existing-session).                                       |
 | `--prompt-timeout`   | Whole prompt deadline, default 60m; see below.                                                                                                               |
 
-`--policy-file`, `--state-dir` and the `A2A_NAME`/`A2A_DESCRIPTION`/`A2A_TAGS` identity variables are
-described on the [advanced page](docs/operator-policy-state.md).
+- `--name NAME` and `--description TEXT` override `A2A_NAME` and `A2A_DESCRIPTION`
+  respectively; values use the same trimming, control-character rejection and length limits.
+  Without overrides the card uses "OpenCode A2A Lite" and a descriptive gateway description.
+- `--policy-file PATH` explicitly selects an operator-owned, canonical absolute or cwd-relative
+  JSON file outside the workspace; only exact reviewed exceptions, never an access upgrade.
+  Traversal and symlinks are rejected; there is no policy discovery or fallback.
+- `--state-dir`, `A2A_TAGS`, and the full identity and policy trust rules are documented on
+  the [advanced page](docs/operator-policy-state.md).
 
 The three `--enable` extras are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
@@ -132,15 +183,15 @@ do, so enable them only for trusted clients on loopback. Each may be given once.
 
 ### Native roles and system prompts
 
-Agent Card identity (`A2A_NAME`, `A2A_DESCRIPTION`, `A2A_TAGS`) is descriptive metadata,
+Agent Card identity (`--name`, `--description`, `A2A_NAME`, `A2A_DESCRIPTION`, `A2A_TAGS`) is descriptive metadata,
 **not model instructions**. Select a native role independently of identity and access:
 
 ```sh
 # Prepared native primary agent in the trusted workspace's OpenCode configuration
-A2A_NAME=architect opencode-a2a-lite --workspace "$WORKSPACE" --agent architect --access read --port 0
+opencode-a2a-lite --name architect --workspace "$WORKSPACE" --agent architect --access read --port 0
 
 # Standalone native primary agent; no repository agent definition needed
-A2A_NAME=architect opencode-a2a-lite --workspace "$WORKSPACE" --system-prompt-file /path/to/architect.md --access read --port 0
+opencode-a2a-lite --name architect --workspace "$WORKSPACE" --system-prompt-file /path/to/architect.md --access read --port 0
 ```
 
 These startup-only flags are mutually exclusive and cannot combine with `--enable resume`.

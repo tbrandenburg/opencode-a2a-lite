@@ -390,12 +390,24 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         if (privateHome) assert.equal(existsSync(privateHome), false);
         await assert.rejects(fetch(ready.url, { signal: AbortSignal.timeout(2_000) }));
         const status = child.output.stderr.replace(/(?:\r?\n)+$/, "").split("\n");
+        assert.equal(
+          status.shift(),
+          "  starting   gateway · waiting for private runtime launch lock (not ready)",
+        );
+        assert.equal(
+          status.shift(),
+          "  preflight  checking isolated OpenCode configuration, capability policy and native role",
+        );
         const summary = status.splice(0, 5);
         assert(summary.every((line) => line.startsWith("  policy ")));
         assert.match(summary.join("\n"), /read-only[\s\S]*shell: denied[\s\S]*OS isolation: none/);
         assert.match(
           status.shift() ?? "",
           /^ {2}env +(passing FAKE_API_KEY to OpenCode \(names only\)|no provider variables passed to OpenCode)$/,
+        );
+        assert.equal(
+          status.shift(),
+          "  starting   gateway · starting ACP and verifying native session before HTTP readiness",
         );
         assert.equal(status[0], `  ready      gateway · ${ready.url}`);
         assert.match(status[1]!, /^  workspace  \//);
