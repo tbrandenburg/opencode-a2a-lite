@@ -49,6 +49,8 @@ configure();
 type Owned = ReturnType<typeof Bun.spawn>;
 const children = new Map<Owned, ReturnType<typeof setTimeout>>();
 async function launch(flags: string[], reject = false, relativePaths = false) {
+  const launchEnv: NodeJS.ProcessEnv = { ...env };
+  if (relativePaths) delete launchEnv.A2A_DESCRIPTION;
   const child = Bun.spawn(
     [
       process.execPath,
@@ -61,9 +63,7 @@ async function launch(flags: string[], reject = false, relativePaths = false) {
       ...flags,
     ],
     {
-      env: relativePaths
-        ? Object.fromEntries(Object.entries(env).filter(([name]) => name !== "A2A_DESCRIPTION"))
-        : env,
+      env: launchEnv,
       cwd: relativePaths ? root : workspace,
       stdout: "pipe",
       stderr: "pipe",
@@ -183,13 +183,7 @@ function verifyReceipt(
   for (const call of taskCalls) {
     const messages = call.messages!;
     const systems = JSON.stringify(messages.filter((message) => message.role === "system"));
-    assert(
-      messages.some(
-        (message) =>
-          message.role === "system" && JSON.stringify(message.content).includes(expected),
-      ),
-      "native system prompt not observed",
-    );
+    assert(systems.includes(expected), "native system prompt not observed");
     const user = messages.filter((message) => message.role === "user").at(-1);
     assert(
       user?.content === text ||
@@ -255,21 +249,21 @@ async function discussion() {
       },
     });
     for (const role of roles) {
-      gateways.push(
-        (await launch(
-          [
-            "--name",
-            role.name,
-            ...(role.name === "lead" ? ["--description", "Discussion coordinator"] : []),
-            "--system-prompt-file",
-            "roles/" + role.name + ".md",
-            "--policy-file",
-            "policies/" + role.policy + ".json",
-          ],
-          false,
-          true,
-        ))!,
+      const gateway = await launch(
+        [
+          "--name",
+          role.name,
+          ...(role.name === "lead" ? ["--description", "Discussion coordinator"] : []),
+          "--system-prompt-file",
+          "roles/" + role.name + ".md",
+          "--policy-file",
+          "policies/" + role.policy + ".json",
+        ],
+        false,
+        true,
       );
+      assert(gateway, "expected ready gateway");
+      gateways.push(gateway);
     }
     assert.equal(new Set(gateways.map((gateway) => gateway.url)).size, 3);
     for (const [index, role] of roles.entries()) {
