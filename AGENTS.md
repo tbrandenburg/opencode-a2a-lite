@@ -117,6 +117,7 @@ chronological incident diary.
 
 ## Lessons Learned
 
+- 2026-11-28: Pitfall: Filtering captured requests by the expected role can hide fallback model calls. Prevention: Identify task requests independently, then assert their role, exact user content and request count.
 - 2026-11-22: Pitfall: A detached descendant can scrub its tag or become unreadable and reopen a runtime after `/proc` scans. Invariant: require process-group shutdown and scan for the launch tag and readable cwd/fd references; unexpected scan errors retain the runtime. Escaping or unreadable descendants remain an accepted trusted-worker limit, not proof of containment.
 - 2026-10-30: Pitfall: Updating negative fixtures can remove independent policy and precedence checks. Prevention: retain original adversarial cases and add overlapping-invalid-input tests; verify each policy mutation makes a targeted assertion fail.
 - 2026-10-30: Pitfall: Disposable OpenCode homes can collide on managed-service ports, and a scrubbed `PATH` can hide the pinned executable. Prevention: bind-check and set private service ports, retain pinned binary paths, and run effective-config probes from the disposable project cwd.

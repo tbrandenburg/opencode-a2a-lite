@@ -1,5 +1,6 @@
 import type { Exception } from "./policy-file.js";
 import { StartupError } from "./startup-error.js";
+import type { NativeRole } from "./native-role.js";
 
 export const POLICY_PROFILES = ["read-only", "edit", "supervised", "full-access"] as const;
 export type PolicyProfile = (typeof POLICY_PROFILES)[number];
@@ -75,14 +76,29 @@ export function exceptionStatements(exceptions: readonly Exception[]) {
   return { policies, permissions };
 }
 
-export function policyConfig(profile: PolicyProfile, exceptions: readonly Exception[] = []) {
+export function policyConfig(
+  profile: PolicyProfile,
+  exceptions: readonly Exception[] = [],
+  role?: NativeRole,
+) {
   const policy = definition(profile);
   const extra = exceptionStatements(exceptions);
   const permissions = [...policy.permissions, ...extra.permissions];
+  const agents: { build: { permissions: Statement[] } } & Record<
+    string,
+    { permissions: Statement[]; mode?: "primary"; hidden?: boolean; system?: string }
+  > = {
+    build: { permissions },
+    ...(role?.system === undefined
+      ? {}
+      : {
+          [role.id]: { mode: "primary" as const, hidden: false, system: role.system, permissions },
+        }),
+  };
   return {
     policies: [...policy.policies, ...extra.policies],
     permissions,
-    agents: { build: { permissions } },
+    agents,
   };
 }
 

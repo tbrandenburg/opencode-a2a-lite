@@ -107,6 +107,7 @@ macOS demo results predate this change.
 opencode-a2a-lite [--workspace <path>] [--port <0..65535>] [--access <read|edit|danger-full-access>]
                   [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
                   [--prompt-timeout <duration|unlimited>]
+                  [--agent NAME | --system-prompt-file PATH]
 opencode-a2a-lite --help | --version
 ```
 
@@ -128,6 +129,49 @@ described on the [advanced page](docs/operator-policy-state.md).
 The three `--enable` extras are independent, off by default, and each adds an Agent Card extension
 when enabled. They widen what any client that can reach the **unauthenticated** port can see or
 do, so enable them only for trusted clients on loopback. Each may be given once.
+
+### Native roles and system prompts
+
+Agent Card identity (`A2A_NAME`, `A2A_DESCRIPTION`, `A2A_TAGS`) is descriptive metadata,
+**not model instructions**. Select a native role independently of identity and access:
+
+```sh
+# Prepared native primary agent in the trusted workspace's OpenCode configuration
+A2A_NAME=architect opencode-a2a-lite --workspace "$WORKSPACE" --agent architect --access read --port 0
+
+# Standalone native primary agent; no repository agent definition needed
+A2A_NAME=architect opencode-a2a-lite --workspace "$WORKSPACE" --system-prompt-file /path/to/architect.md --access read --port 0
+```
+
+These startup-only flags are mutually exclusive and cannot combine with `--enable resume`.
+Without either flag, OpenCode's existing default-agent behavior is unchanged. Ordinary
+context follow-ups keep their native ACP session; each new context selects and verifies
+the role again. The incoming A2A text remains the user task, never the system prompt.
+With an explicit role, slash-prefixed tasks are rejected before ACP dispatch: native
+slash commands can replace task text or switch agents. Write `Read /path/to/file` rather
+than submitting a bare absolute path. Launches without a role retain native command behavior.
+
+`--agent` requires an available visible primary-capable agent (`primary` or `all`), not a
+hidden, disabled or subagent-only definition. The prompt file must be a readable regular
+file containing nonblank strict UTF-8 text, no NUL bytes, at most 65,536 bytes. Relative
+file paths resolve from the invoking directory. Its text is read once at startup into
+the existing private runtime config (mode `0600`), never put in argv, logs, cards or errors.
+The reserved standalone native ID `a2a-standalone` must not occur in workspace agent
+definitions, including Markdown. Overrides and effective prompt mismatches reject startup.
+
+Preflight verifies the effective native definition and the unchanged capability policy;
+the actual ACP process must successfully select and acknowledge the role before HTTP
+readiness and before each fresh session can receive a task. Selection errors never fall
+back to another role. Workspace instructions still augment the native prompt, and role
+selection does not grant additional access. Configuration is trusted and must remain
+stable during a gateway launch; native role checks are not a sandbox or live config monitor.
+Two gateways in one workspace have independent private runtime role selections.
+
+Provider-free verification: `make role-smoke` captures model request messages from a
+scripted loopback endpoint, checking native system text, unchanged user tasks, independent
+roles and session continuity without printing payloads. See [native role evidence](/docs/native-roles.md).
+The new options were verified on Linux with Bun 1.4.4 and OpenCode 2.4.1; earlier admitted
+OpenCode versions are not claimed as verified for native role selection.
 
 ### Provider credentials
 

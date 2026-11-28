@@ -10,6 +10,7 @@ import {
   type PolicyProfile,
 } from "./runtime-policy.js";
 import { StartupError } from "./startup-error.js";
+import type { NativeRole } from "./native-role.js";
 
 const record = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -68,6 +69,7 @@ export function validatePolicyDocument(
   root: string,
   profile: PolicyProfile,
   exceptions: readonly Exception[] = [],
+  role?: NativeRole,
 ) {
   const path = join(realpathSync(root), "home", ".config", "opencode", "opencode.json");
   const entry = parse(output).find((item) => record(item) && item.path === path);
@@ -78,7 +80,7 @@ export function validatePolicyDocument(
     permissions: actual.permissions,
     agents: actual.agents,
   };
-  const expected: unknown = JSON.parse(JSON.stringify(policyConfig(profile, exceptions)));
+  const expected: unknown = JSON.parse(JSON.stringify(policyConfig(profile, exceptions, role)));
   if (!isDeepStrictEqual(picked, expected)) throw new StartupError("policy");
 }
 

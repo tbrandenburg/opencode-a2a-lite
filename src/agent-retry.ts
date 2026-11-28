@@ -2,6 +2,7 @@ import { StartupError } from "./startup-error.js";
 import { validateAgentPermissions } from "./runtime-policy-check.js";
 import type { Exception } from "./policy-file.js";
 import type { PolicyProfile } from "./runtime-policy.js";
+import { validateNativeRole, type NativeRole } from "./native-role.js";
 
 const POLICY_MESSAGE = new StartupError("policy").message;
 
@@ -47,11 +48,14 @@ export async function verifyAgents(
   abort: AbortSignal,
   retry: AgentRetry,
   lastProbeMs: () => number = () => 0,
+  role?: NativeRole,
 ) {
   const started = performance.now();
   for (let attempt = 1; ; attempt += 1) {
     try {
-      validateAgentPermissions(await run(["--standalone", "debug", "agents"]), policy, exceptions);
+      const output = await run(["--standalone", "debug", "agents"]);
+      validateAgentPermissions(output, policy, exceptions);
+      if (role) validateNativeRole(output, role);
       if (attempt > 1)
         console.error(`Private runtime preflight: agent check passed on attempt ${attempt}`);
       return;

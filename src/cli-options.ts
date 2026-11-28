@@ -3,6 +3,7 @@ import type { ServerOptions } from "./server.js";
 import { StartupError } from "./startup-error.js";
 import { parseIdentity } from "./identity.js";
 import { validatePassEnv } from "./runtime-environment.js";
+import { validateRoleOptions } from "./native-role.js";
 
 type Options =
   | { action: "help" }
@@ -49,6 +50,9 @@ export function parseOptions(
   const identity = parseIdentity(env);
   const access = parseAccess(flags.get("--access")?.[0]);
   const extras = parseEnable(flags.get("--enable") ?? []);
+  const agent = flags.get("--agent")?.[0];
+  const promptFile = flags.get("--system-prompt-file")?.[0];
+  validateRoleOptions(agent, promptFile, extras.includes("resume"));
   if (access === "danger-full-access" && extras.includes("approve"))
     throw new StartupError("accessConflict");
   const names = credentialNames(flags, access, env);
@@ -61,6 +65,8 @@ export function parseOptions(
     action: "run",
     server: {
       workspace,
+      ...(agent === undefined ? {} : { agent }),
+      ...(promptFile === undefined ? {} : { systemPromptFile: resolve(cwd, promptFile) }),
       port: parsePort(flags.get("--port")?.[0] ?? env.A2A_PORT),
       ...(names.length ? { passEnv: names } : {}),
       ...promptOptions(flags),
@@ -148,6 +154,8 @@ function privateOptions(
 const VALUELESS = new Set(["--help", "--version", "--no-env"]);
 const REPEATABLE = new Set(["--pass-env", "--enable"]);
 const VALUED = new Set([
+  "--agent",
+  "--system-prompt-file",
   "--workspace",
   "--port",
   "--access",

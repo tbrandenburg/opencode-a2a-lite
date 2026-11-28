@@ -2,7 +2,7 @@
 // then a final text. Lets the real OpenCode executable run tools without a provider.
 export type Call = { name: string; args: Record<string, unknown> };
 
-export function scriptedModel(calls: readonly Call[]) {
+export function scriptedModel(calls: readonly Call[], observe?: (body: unknown) => void) {
   const encoder = new TextEncoder();
   const chunk = (delta: object, finish: string | null) =>
     encoder.encode(
@@ -15,6 +15,7 @@ export function scriptedModel(calls: readonly Call[]) {
       if (new URL(request.url).pathname.endsWith("/models"))
         return Response.json({ data: [{ id: "m", object: "model" }] });
       const body = (await request.json()) as { messages?: { role: string }[] };
+      observe?.(body);
       const done = (body.messages ?? []).filter((message) => message.role === "tool").length;
       const call = calls[done];
       const frames = call

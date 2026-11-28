@@ -8,6 +8,7 @@ async function main() {
   if (options.action === "help") {
     console.log(`Usage: opencode-a2a-lite [--workspace <path>] [--port <0..65535>]
                          [--access <read|edit|danger-full-access>]
+                         [--agent NAME | --system-prompt-file PATH]
                          [--pass-env NAME]... [--no-env] [--enable <activity|approve|resume>]...
 
 Start the foreground, unauthenticated A2A gateway.
@@ -16,6 +17,12 @@ The private CLI runtime currently fails closed on macOS.
 
   --workspace <path>  Trusted directory (default: the current directory; or A2A_WORKSPACE, absolute).
   --port <0..65535>   Port (default 41241; 0 selects a free port).
+  --agent NAME       Startup-only visible native primary agent from trusted workspace configuration.
+  --system-prompt-file PATH
+                      Standalone native primary agent with a nonempty UTF-8 system prompt (<=64KiB).
+                      Mutually exclusive with --agent; neither permits --enable resume.
+                      Card identity is metadata, not model instructions; task text stays unchanged.
+                      Slash-prefixed tasks are rejected with explicit roles (native commands can switch agents).
   --access <read|edit|danger-full-access>
                       Startup-only capability level, never request-scoped. read (default) reads and
                       searches; edit also edits project files; neither runs shell, web tools, MCP,

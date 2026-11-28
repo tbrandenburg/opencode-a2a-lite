@@ -9,8 +9,12 @@ import { askOperator, decide, type PermissionRequest } from "./permission.js";
 import { createReplayCollector, type Replay } from "./replay.js";
 import { supportedOpenCode } from "./opencode-version.js";
 import { StartupError } from "./startup-error.js";
+import { selectNativeRole, verifyMode } from "./acp-role.js";
+import { validateRoleOptions } from "./native-role.js";
 
 export interface AcpBridgeOptions {
+  /** Startup-only native primary agent; selected and verified for each fresh session. */
+  agent?: string;
   cwd: string;
   executable?: string;
   args?: readonly string[];
@@ -34,6 +38,8 @@ interface Hold {
 
 export function createAcpBridge(options: AcpBridgeOptions) {
   if (!isAbsolute(options.cwd)) throw new Error("ACP workspace must be absolute");
+  const agent = options.agent;
+  validateRoleOptions(agent);
   const cwd = options.cwd;
   const executable = options.executable ?? "opencode";
   const args = [...(options.args ?? ["acp"])];
@@ -216,6 +222,19 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         });
         client.onNotification(acp.methods.client.session.update, (notification) => {
           const update = notification.params.update;
+          if (
+            agent !== undefined &&
+            sessions.has(notification.params.sessionId) &&
+            update.sessionUpdate === "config_option_update" &&
+            notification.params._meta?.["opencode/child-session"] === undefined &&
+            update._meta?.["opencode/child-session"] === undefined
+          ) {
+            try {
+              verifyMode(update.configOptions, agent, true);
+            } catch {
+              fail(new StartupError("role"));
+            }
+          }
           if (replaying && notification.params.sessionId === replaying.sessionId) {
             replaying.collect(update);
             return;
@@ -267,6 +286,8 @@ export function createAcpBridge(options: AcpBridgeOptions) {
         });
         if (response.protocolVersion !== 1) throw new Error("Unsupported ACP version");
         ready = true;
+        // Prove the actual ACP process accepts the role before advertising HTTP readiness.
+        if (agent !== undefined) await newSession();
       },
       startup,
       "startup",
@@ -277,7 +298,13 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   async function newSession(): Promise<acp.NewSessionResponse> {
     const current = requireConnection();
     const response = await bounded(
-      () => current.agent.request(acp.methods.agent.session.new, { cwd, mcpServers: [] }),
+      async () => {
+        const created = await current.agent.request(acp.methods.agent.session.new, {
+          cwd,
+          mcpServers: [],
+        });
+        return agent === undefined ? created : selectNativeRole(current, created, agent);
+      },
       startup,
       "session creation",
     );
@@ -296,6 +323,7 @@ export function createAcpBridge(options: AcpBridgeOptions) {
   // An id OpenCode refuses (unknown or another workspace) rejects only this request; it must
   // not retire the shared bridge, so only that exact JSON-RPC error is converted.
   async function attach(method: "resume" | "load", sessionId: string): Promise<void> {
+    if (agent !== undefined) throw new StartupError("roleResume");
     const current = requireConnection();
     const accepted = await bounded(
       () =>
@@ -340,6 +368,11 @@ export function createAcpBridge(options: AcpBridgeOptions) {
     onPermission?: (request: PermissionRequest) => Promise<string | undefined>,
   ): Promise<acp.PromptResponse & { permissionDenied?: boolean }> {
     const current = requireConnection(sessionId);
+    // Native slash commands can rewrite task text and switch agents before the model call.
+    if (agent !== undefined && text.trimStart().startsWith("/"))
+      throw new BridgeError(
+        "Native slash commands are unavailable with an explicit startup role; send a plain-text task.",
+      );
     if (turn) throw new Error("ACP prompt in progress");
     const active = {
       sessionId,

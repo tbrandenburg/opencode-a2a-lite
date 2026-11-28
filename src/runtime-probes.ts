@@ -7,6 +7,7 @@ import { validatePolicyDocument } from "./runtime-policy-check.js";
 import { AGENT_RETRY, verifyAgents, type AgentRetry } from "./agent-retry.js";
 import type { Exception } from "./policy-file.js";
 import type { PolicyProfile } from "./runtime-policy.js";
+import { rejectRoleCollision, type NativeRole } from "./native-role.js";
 import {
   RuntimeSourceError,
   validateRuntimePaths,
@@ -149,6 +150,7 @@ export async function verifyRuntime(options: {
   signal: AbortSignal;
   onSpawn?: () => void;
   agentRetry?: AgentRetry;
+  role?: NativeRole;
 }) {
   if (process.platform !== "linux") throw new StartupError("runtimePlatform");
   rejectIfPresent("/etc/opencode", "managed", options.root);
@@ -176,8 +178,20 @@ export async function verifyRuntime(options: {
     validateRuntimePaths(await run(["debug", "paths"]), options.root, options.data);
     const sources = await run(["--standalone", "debug", "config"]);
     validateRuntimeSources(sources, options.root, options.cwd);
+    if (options.role)
+      rejectRoleCollision(
+        sources,
+        options.role,
+        join(realpathSync(options.root), "home", ".config", "opencode", "opencode.json"),
+      );
     if (options.policy) {
-      validatePolicyDocument(sources, options.root, options.policy, options.exceptions);
+      validatePolicyDocument(
+        sources,
+        options.root,
+        options.policy,
+        options.exceptions,
+        options.role,
+      );
       await verifyAgents(
         run,
         options.policy,
@@ -185,6 +199,7 @@ export async function verifyRuntime(options: {
         options.signal,
         options.agentRetry ?? AGENT_RETRY,
         () => probeMs,
+        options.role,
       );
     }
   } catch (error) {
