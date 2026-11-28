@@ -407,7 +407,7 @@ await import(${JSON.stringify(join(temp, "acp-peer.js"))});
         );
         assert.equal(
           status.shift(),
-          "  starting   gateway · starting ACP and verifying native session before HTTP readiness",
+          "  starting   gateway · starting ACP and checking any requested native role before HTTP readiness",
         );
         assert.equal(status[0], `  ready      gateway · ${ready.url}`);
         assert.match(status[1]!, /^  workspace  \//);

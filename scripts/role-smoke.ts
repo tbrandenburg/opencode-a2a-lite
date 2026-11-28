@@ -1,6 +1,6 @@
 // Real OpenCode + production CLI/A2A + a scripted local provider. No credentials or paid calls.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { scriptedModel } from "../tests/fixtures/scripted-model.js";
@@ -48,19 +48,26 @@ configure();
 
 type Owned = ReturnType<typeof Bun.spawn>;
 const children = new Map<Owned, ReturnType<typeof setTimeout>>();
-async function launch(flags: string[], reject = false) {
+async function launch(flags: string[], reject = false, relativePaths = false) {
   const child = Bun.spawn(
     [
       process.execPath,
       resolve("src/cli.ts"),
       "--workspace",
-      workspace,
+      relativePaths ? "workspace" : workspace,
       "--port",
       "0",
       "--no-env",
       ...flags,
     ],
-    { env, cwd: workspace, stdout: "pipe", stderr: "pipe" },
+    {
+      env: relativePaths
+        ? Object.fromEntries(Object.entries(env).filter(([name]) => name !== "A2A_DESCRIPTION"))
+        : env,
+      cwd: relativePaths ? root : workspace,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
   );
   const timer = setTimeout(() => child.kill("SIGTERM"), 300_000);
   children.set(child, timer);
@@ -87,6 +94,7 @@ async function launch(flags: string[], reject = false) {
       const line = output.split("\n").find((line) => line.startsWith('{"ready":true'));
       if (line) {
         assert(!reject, "invalid role reached readiness");
+        clearTimeout(timer);
         return { url: String(JSON.parse(line).url), stop };
       }
     }
@@ -150,8 +158,15 @@ async function send(
   };
 }
 
-function verifyReceipt(expected: string, text: string, start: number) {
-  const calls = receipts.slice(start) as { messages?: { role: string; content: unknown }[] }[];
+function verifyReceipt(
+  expected: string,
+  text: string,
+  start: number,
+  source = receipts,
+  count = 1,
+  otherRoles = [expected === prompt ? prepared : prompt],
+) {
+  const calls = source.slice(start) as { messages?: { role: string; content: unknown }[] }[];
   // Identify task requests independently of the expected role so a fallback cannot be filtered out.
   const taskCalls = calls.filter((body) => {
     const user = body.messages?.filter((message) => message.role === "user").at(-1);
@@ -162,28 +177,161 @@ function verifyReceipt(expected: string, text: string, start: number) {
   });
   assert.equal(
     taskCalls.length,
-    1,
-    `expected exactly one role task request; captured=${calls.length}, matching=${taskCalls.length}`,
+    count,
+    `unexpected role task request count; captured=${calls.length}, matching=${taskCalls.length}`,
   );
-  const messages = taskCalls[0]!.messages!;
-  assert(
-    messages.some(
-      (message) => message.role === "system" && JSON.stringify(message.content).includes(expected),
-    ),
-    "native system prompt not observed",
+  for (const call of taskCalls) {
+    const messages = call.messages!;
+    const systems = JSON.stringify(messages.filter((message) => message.role === "system"));
+    assert(
+      messages.some(
+        (message) => message.role === "system" && JSON.stringify(message.content).includes(expected),
+      ),
+      "native system prompt not observed",
+    );
+    const user = messages.filter((message) => message.role === "user").at(-1);
+    assert(
+      user?.content === text ||
+        JSON.stringify(user?.content) === JSON.stringify([{ type: "text", text }]),
+      "incoming user task changed",
+    );
+    assert(otherRoles.every((role) => !systems.includes(role)), "roles crossed runtime boundary");
+  }
+}
+
+async function discussion() {
+  const teamReceipts: unknown[] = [];
+  const teamModel = scriptedModel(
+    [
+      { name: "fx_ping", args: {} },
+      { name: "fx_other", args: {} },
+      { name: "shell", args: { command: "touch SHELL.txt" } },
+      { name: "edit", args: { path: "fix.txt", oldString: "fixture", newString: "changed" } },
+    ],
+    (body) => teamReceipts.push(body),
   );
-  const user = messages.filter((message) => message.role === "user").at(-1);
-  assert(
-    user?.content === text ||
-      JSON.stringify(user?.content) === JSON.stringify([{ type: "text", text }]),
-    "incoming user task changed",
-  );
-  assert(
-    !JSON.stringify(messages.filter((message) => message.role === "system")).includes(
-      expected === prompt ? prepared : prompt,
-    ),
-    "roles crossed runtime boundary",
-  );
+  const roles = [
+    { name: "lead", system: "Fixture discussion coordinator.", policy: "coordinator" },
+    { name: "expert", system: "Fixture discussion expert.", policy: "reader" },
+    { name: "critic", system: "Fixture discussion critic.", policy: "reader" },
+  ] as const;
+  const gateways: NonNullable<Awaited<ReturnType<typeof launch>>>[] = [];
+  const sentinel = join(workspace, "FX");
+  const fixture = join(workspace, "fix.txt");
+  try {
+    mkdirSync(join(root, "roles"), { mode: 0o700 });
+    mkdirSync(join(root, "policies"), { mode: 0o700 });
+    writeFileSync(fixture, "fixture\n");
+    for (const role of roles) writeFileSync(join(root, "roles", role.name + ".md"), role.system);
+    for (const policy of ["coordinator", "reader"]) {
+      const allow = (action: string, resource: string) => ({ action, resource, effect: "allow" });
+      writeFileSync(
+        join(root, "policies", policy + ".json"),
+        JSON.stringify({
+          version: 1,
+          base: "read-only",
+          policies: [
+            allow("mcp.use", "fx"),
+            allow("tool.use", "fx_ping:*"),
+            ...(policy === "coordinator" ? [allow("tool.use", "fx_other:*")] : []),
+          ],
+        }),
+        { mode: 0o600 },
+      );
+    }
+    configure({
+      providers: {
+        mock: {
+          ...base.providers.mock,
+          settings: { ...base.providers.mock.settings, baseURL: teamModel.url + "/v1" },
+        },
+      },
+      mcp: {
+        fx: {
+          type: "local",
+          command: [
+            process.execPath,
+            resolve("tests/fixtures/mcp-fixture.ts"),
+            sentinel,
+          ],
+        },
+      },
+    });
+    for (const role of roles) {
+      gateways.push(
+        (await launch(
+          [
+            "--name",
+            role.name,
+            ...(role.name === "lead" ? ["--description", "Discussion coordinator"] : []),
+            "--system-prompt-file",
+            "roles/" + role.name + ".md",
+            "--policy-file",
+            "policies/" + role.policy + ".json",
+          ],
+          false,
+          true,
+        ))!,
+      );
+    }
+    assert.equal(new Set(gateways.map((gateway) => gateway.url)).size, 3);
+    for (const [index, role] of roles.entries()) {
+      const card = await (
+        await fetch(new URL(".well-known/agent-card.json", gateways[index]!.url), {
+          signal: AbortSignal.timeout(5_000),
+        })
+      ).json();
+      assert.equal(card.name, role.name);
+      assert.equal(
+        card.description,
+        role.name === "lead"
+          ? "Discussion coordinator"
+          : "OpenCode ACP gateway for contextual plain text prompts and streamed responses.",
+      );
+      assert(!roles.some((item) => JSON.stringify(card).includes(item.system)));
+    }
+    assert.equal(teamReceipts.length, 0, "readiness made an inference request");
+    assert(!existsSync(sentinel + ".ping") && !existsSync(sentinel + ".other"));
+    for (const [index, role] of roles.entries()) {
+      const task = "Synthetic discussion task for " + role.name;
+      const start = teamReceipts.length;
+      await send(gateways[index]!.url, task);
+      verifyReceipt(
+        role.system,
+        task,
+        start,
+        teamReceipts,
+        5,
+        roles.filter((item) => item !== role).map((item) => item.system),
+      );
+      assert(existsSync(sentinel + ".ping"), "reviewed common MCP tool did not run");
+      assert.equal(existsSync(sentinel + ".other"), role.name === "lead", "MCP exception escaped");
+      assert(!existsSync(join(workspace, "SHELL.txt")), "read-only shell ran");
+      assert.equal(readFileSync(fixture, "utf8"), "fixture\n", "read-only edit ran");
+      rmSync(sentinel + ".ping");
+      rmSync(sentinel + ".other", { force: true });
+    }
+    console.log(
+      JSON.stringify({
+        discussionGateways: 3,
+        distinctCards: true,
+        sameWorkspace: true,
+        relativePolicyAndRoles: true,
+        readinessInferenceCalls: 0,
+        actualSystemVerified: true,
+        unchangedUser: true,
+        namedMcpExceptions: true,
+        shellAndEditDenied: true,
+      }),
+    );
+  } finally {
+    try {
+      for (const gateway of gateways.reverse()) await gateway.stop();
+    } finally {
+      teamModel.stop();
+      configure();
+    }
+  }
 }
 
 try {
@@ -250,6 +398,8 @@ try {
   } finally {
     await defaultGateway.stop();
   }
+  stage = "three standalone discussion gateways";
+  await discussion();
   const count = receipts.length;
   stage = "negative startup checks";
   for (const agents of [

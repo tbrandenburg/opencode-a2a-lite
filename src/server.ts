@@ -391,7 +391,7 @@ export async function launchGateway(options: ServerOptions) {
           "persistent private state · approvals, accounts and automations cleared each launch · session history kept",
         );
     }
-    status("starting", "gateway · starting ACP and verifying native session before HTTP readiness");
+    status("starting", "gateway · starting ACP and checking any requested native role before HTTP readiness");
     const ready = await gateway.start();
     release();
     console.log(JSON.stringify({ ready: true, url: ready.url }));
